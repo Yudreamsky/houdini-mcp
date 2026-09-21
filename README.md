@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.4.0**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.5.0 / 21 工具**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -25,6 +25,24 @@
 | `resume_render` | 创建子作业，复用哈希通过的帧，补渲缺失或损坏帧 |
 | `get_asset_schema` | 数字参数类型、维度、范围、默认值、条件与动画状态 |
 | `asset_preset` | 捕获、列举或应用数字参数预设，排除动画通道 |
+| `list_procedural_assets` | 查询已实现的程序化配方、单位和参数范围 |
+| `upsert_asset_instance` | 按稳定 ID 创建或更新管道连接/支吊架样段，参数不变时不重复创建 |
+| `inspect_asset_instance` | 回读样段实际几何，检查尺寸、孔拓扑、选定连接与支架覆盖 |
+| `preview_asset_views` | GUI 正/侧/顶/透视及零件类型隔离预览，返回原生 PNG |
+
+## 程序化资产与配套 Skill
+
+0.5 首个配方 `pipe_support_sample` 包含空心直管、带实际螺栓孔的法兰、垫片、螺栓/垫圈/螺母、穿孔槽钢横担、夹箍、吊杆和简化锚板。它是可调视觉样段，尺寸不是照片实测值或工程规格。
+
+先调用 `list_procedural_assets`，再调用 `upsert_asset_instance(instance_id="pipe-sample", parameters={"length":2.4,"diameter":0.32})`。返回实际 SOP 路径、HDA 库、参数、修改前值和几何检查结果；实例需另行保存。相同 ID 原地更新，参数相同不修改节点；动画通道、人工解锁的 HDA 内容和配方版本变化均拒绝静默覆盖。
+
+参数单位为米，包括长度、外径、壁厚、支架节距、吊杆高度，以及螺栓数量和圆周分段。组合约束在写入前校验。法兰、螺栓圈和横担随管径变化，支架随长度增减，存续零件保留稳定 `name` / `part_type`。当前直接生成分组多边形，尚无通用管线布置器、packed instancing 或标准件规格库。
+
+HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`，类型名含配方指纹；完整算法嵌入 HDA PythonModule，交付库不依赖仓库源码。保存 HIP 时显式携带对应 HDA；实例参数和 HDA 默认值须分别记录。源码仓库包含生成算法和测试，生成后的 HIP/HDA/图片保留本地。
+
+`inspect_asset_instance(path)` 核查实际局部几何与选定接口，不是通用碰撞或承载检查。`preview_asset_views(path, views=["front","right","top","perspective"])` 返回完整样段多视图；可按检查结果中的 `part_type` 过滤。预览恢复显示、选择、视角等现场设置，但临时显隐/过滤仍可能使 HIP 标为未保存；不能把该操作当作完全只读。视口图用于几何检查，实体材质已用 Mantra 实测；本样段尚不支持限定地图 XPU 适配器。
+
+配套 [houdini-asset-workflow Skill](skills/houdini-asset-workflow/SKILL.md) 与代码同仓库：入口按需读取样段方法、渲染经验和经验维护规则。MCP 提供操作，HDA/脚本实现参数关系，Skill 保存经过验证的使用方法与适用边界。为客户端安装时应链接或复制整个 Skill 文件夹；项目级 `.agents/skills` 可指向此源目录。安装路径存在与当前会话发现 Skill 是两项独立检查。
 
 ## 安装与启动
 
@@ -103,9 +121,13 @@ XPU 禁用 Embree CPU 设备；每帧必须在 husk 完成统计中找到 OptiX 
 python -m pip install -e ".[test]"
 python -m unittest discover -s tests -p "test_*.py" -v
 python tests/acceptance.py
+# 新进程执行程序化 HDA 验收，输出目录必须尚不存在：
+& 'C:/path/to/Houdini/bin/hython.exe' tests/procedural_acceptance.py evidence/procedural-check-01
 ```
 
-第一条运行传输、队列与任务状态单元测试，不需要 Houdini。第二条使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 验收见 `tests/gui_acceptance.py --help`，需要先启动专用 GUI 并加载 headless 验收工程。
+`unittest` 运行传输、队列、任务状态和纯几何单元测试，不需要 Houdini。`tests/acceptance.py` 使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 基础验收见 `tests/gui_acceptance.py --help`。`tests/procedural_acceptance.py` 通过真实 HOM 检查新样段的创建、更新、保护、打包和重开，独立于 MCP 传输/GUI 验收。
+
+0.5.0 通过 **34 项单元测试**、真实 GUI MCP 样段创建/幂等更新/尺寸联动/多视图/保存重开，以及无仓库源码路径的独立 HDA 加载。样段 Mantra 960×540 实际渲染通过。详见 [0.5 验证与限制](docs/V05-VALIDATION.md)。
 
 0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 

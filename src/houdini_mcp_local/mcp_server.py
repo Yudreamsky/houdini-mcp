@@ -193,6 +193,37 @@ def get_render_preview(job_id: str, frame: int | None = None) -> list[TextConten
             ImageContent(type='image', data=base64.b64encode(raw).decode('ascii'), mimeType='image/png')]
 
 
+@mcp.tool(annotations=READ)
+def list_procedural_assets() -> dict:
+    """List implemented procedural recipes, units, parameter bounds and scope. No scene changes."""
+    return _operation('procedural_assets', 'catalog')
+
+
+@mcp.tool(annotations=WRITE)
+def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str = 'pipe_support_sample') -> dict:
+    """Create/update one owned sample HDA instance by stable ID. Metre-based illustrative geometry, not engineering specifications. Validates combined parameters; refuses animation, unlocked contents, foreign objects or implicit recipe migration. Does not save."""
+    return _operation('procedural_assets', 'upsert', instance_id, parameters or {}, recipe)
+
+
+@mcp.tool(annotations=READ)
+def inspect_asset_instance(path: str) -> dict:
+    """Inspect actual sample geometry: per-part IDs, bounds, closed edges, selected dimensions and support interfaces. Local-space checks, not a general collision or structural certification tool."""
+    return _operation('sample_inspection', 'inspect', path)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False), structured_output=False)
+def preview_asset_views(path: str, views: list[str] | None = None, width: int = 960, height: int = 540, part_types: list[str] | None = None) -> list[TextContent | ImageContent]:
+    """Capture front/right/top/perspective views of an owned sample, returning native PNG images. Requires GUI. Temporarily changes viewport settings and restores them. This is geometry review, not material/render acceptance."""
+    import json
+    result = _operation('sample_views', 'capture', path, views or ['front','right','top','perspective'], width, height, part_types)
+    content = []
+    for item in result['views']:
+        data = item.pop('image_base64')
+        content.extend([TextContent(type='text', text=json.dumps(item)),ImageContent(type='image',data=data,mimeType='image/png')])
+    content.append(TextContent(type='text',text=json.dumps({k:v for k,v in result.items() if k!='views'})))
+    return content
+
+
 def main():
     mcp.run(transport="stdio")
 

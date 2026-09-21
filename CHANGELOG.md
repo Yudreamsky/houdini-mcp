@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- Added four tools (21 total): procedural recipe catalog, owned-instance upsert, cooked-geometry inspection and bounded multiview/part-type previews.
+- Added a parameterized straight-pipe joint/support sample: hollow pipes, perforated flanges and channels, bolts, washers, nuts, clamps and repeated hangers. Dimensions are illustrative; hidden fittings and threads are simplified. This is not a general pipe router or engineering component library.
+- Compile a content-addressed, self-contained HDA from the versioned recipe. Stable instance/part IDs, combined parameter validation, unchanged-input no-op and manual/animated-content protection make repeated use predictable.
+- Inspect actual mesh dimensions, closed edges, flange-hole topology, selected bolt clearances/contact and support coverage. Return object transforms separately; no claim of general collision checking or structural certification.
+- GUI previews return native PNGs and restore view/display state, including each requested view's camera. Aspect-aware orthographic framing and removal of unused isolation points fixed defects found during visual review. Temporary operations may still mark the scene dirty.
+- Added the same-repository `houdini-asset-workflow` Skill with focused modeling/rendering references and evidence-based experience maintenance.
+- Fixed render preflight treating generated built-in hlight shadow maps as missing inputs; missing existing/reused shadow maps are still rejected. Verified both modes in real HOM and rendered the sample through Mantra.
+- Passed 34 unit tests, real GUI MCP creation/update/multiview/reopen checks, standalone embedded HDA loading and reproducible headless HOM acceptance. Original map files were unchanged. See [validation](docs/V05-VALIDATION.md).
+- Physical-material XPU, arbitrary HDA management, full reference-photo reconstruction and native Codex MCP discovery remain outside verified scope.
+
 ## 0.4.0
 
 - Added explicit `mantra` / `karma_xpu` and `preview` / `final` options to preflight and rendering. Options participate in request fingerprints. New jobs default to preview (Mantra 2x2; XPU 16), final uses Mantra 4x4 / XPU 64; these are sampling presets, not quality-equivalence claims.

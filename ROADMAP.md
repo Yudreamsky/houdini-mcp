@@ -18,10 +18,23 @@ A copy of the map was converted to Solaris/USD and MaterialX, rendered with veri
 
 Explicit Mantra / Karma XPU selection and preview/final sampling feed the existing cancellation/resume lifecycle. The adapter only accepts the validated emissive-map asset; other objects and materials are not converted. Per-frame OptiX contribution, native verified PNG preview, black/uniform/transparent warnings and scoped timing make actual outcomes inspectable. See [0.4 validation and limits](docs/V04-VALIDATION.md).
 
+## Added in 0.5: one reusable modeled sample and companion Skill
+
+The pipe-joint/support recipe supplies a self-contained HDA, stable instance upsert, measured geometry checks and four-view/part-type previews. Save/reopen, standalone HDA loading and a Mantra image close the first modeling loop. A same-repository Skill stores tested workflows and pitfalls without duplicating geometry code. See [0.5 validation](docs/V05-VALIDATION.md).
+
+## Next, driven by feedback on this sample
+
+1. Adjust shape, component simplifications and parameter relationships using user feedback or actual dimensions before multiplying asset types.
+2. If repeated pipe assemblies are needed, add one routed-pipe case (bend or branch), explicit connectors and a measured clearance check. General routing is not delivered yet.
+3. If close-ups or large layouts require them, introduce detail levels and true packed instances, checking both visible result and resource use.
+4. Expand XPU to physical materials only with a controlled conversion/render comparison for this sample; current XPU remains map-only.
+
+Each accepted increment updates its relevant Skill reference with conditions, evidence and limits. Ideas remain proposals until implemented and tested.
+
 ## Later, when repeated work justifies it
 
 - Keyframes and saved-scene checkpoints beyond numeric presets.
-- Framing controls and richer visual acceptance beyond basic pixel statistics.
+- Broader camera controls and richer visual acceptance beyond the delivered sample views and basic pixel statistics.
 - Generalize the XPU adapter only when another real asset (for example the digital globe) supplies a concrete validation case.
 - Reusable delivery checks for HDA packaging, saved scenes and animation outputs.
 

@@ -88,6 +88,9 @@ def inspect_render(request):
             continue
         if parm.name() == 'rendergallerysource':
             continue  # Optional render gallery database, not a render input.
+        if (parm.name() == 'shadowmap_file' and parm.node().type().name().split('::')[0] == 'hlight'
+                and parm.node().parm('render_shadowmap') is not None and parm.node().evalParm('render_shadowmap') == 1):
+            continue  # Built-in light generates this shadow map; existing-map mode remains an input.
         if parm.path() == request['rop_path'] + '/soho_program' and reference == 'IFD.py':
             continue  # Houdini's built-in SOHO driver is found on its own script path.
         if reference.startswith(('op:', 'opdef:', 'oplib:', 'http:', 'https:')):
