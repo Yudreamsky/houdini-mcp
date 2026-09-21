@@ -9,6 +9,11 @@ INTEGER_PARAMETERS = {'segments', 'bolt_count', 'bend_segments'}
 
 
 def constraints(recipe):
+    if recipe=='pipe_rack_repeated':
+        return constraints('pipe_rack_coupled')+[
+            dict(id='second_joint_end',left='second_joint_offset_3',op='le',terms={'length':.5,'diameter_3':-.11},offset=-.149,message='Leave 80mm beyond conservative hardware envelope'),
+            dict(id='repeated_joint_separation',left='second_joint_offset_3',op='ge',terms={'joint_offset_3':1,'diameter_3':.22},offset=.218,message='Separate two hardware envelopes by 80mm')]
+
     if recipe=='pipe_rack_coupled':
         return constraints('pipe_rack_reference')+[
             dict(id='red_coupling_right_end',left='joint_offset_1',op='le',terms={'length':.5,'red_shell_width':-.5},offset=-.08,message='Leave 80mm pipe beyond right shell end'),

@@ -37,7 +37,11 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Added in 0.12: one local assembly replacement
 
-`pipe_rack_coupled` composes frozen rack and coupling generators. A saved-baseline comparison preserves 142 non-target parts, while native AABB lower bounds check neighboring supports. Full views, HIP reopen, standalone HDA and Mantra are verified. The next photo-driven modeling increment should address repeated joints along the black pipes; derive the needed list/spacing interface from that concrete case. Upper framing connections remain uncertain and should be studied before construction. See [0.12 validation](docs/V012-VALIDATION.md).
+`pipe_rack_coupled` composes frozen rack and coupling generators. A saved-baseline comparison preserves 142 non-target parts, while native AABB lower bounds check neighboring supports. Full views, HIP reopen, standalone HDA and Mantra are verified. 0.13 now provides a bounded two-joint chain on the foreground black pipe, with one second-position parameter. Arbitrary joint lists remain deferred until a variable-count case needs them. Upper framing connections remain uncertain and should be studied before construction. See [0.12 validation](docs/V012-VALIDATION.md).
+
+## Added in 0.13: repeated black-pipe connection chain
+
+The seventh recipe retains the coupled rack and adds a second blue joint on pipe 3, with three continuous hollow spans. Native inspection checks interfaces, each joint separately, and the actual axial pipe span beneath every support. A new position parameter is sufficient for this fixed case; no arbitrary list or general replacement API is claimed. Photo matching still needs blue-body lobes and upper-frame attachment interpretation. See [0.13 validation](docs/V013-VALIDATION.md).
 
 ## Later, when repeated work justifies it
 

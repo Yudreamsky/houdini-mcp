@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0
+
+- Added `pipe_rack_repeated`: two blue joints on foreground pipe 3, three hollow spans and one additional second-joint position parameter. Existing six generators remain unchanged; 22 tools serve seven recipes. Fixed two-joint case, not an arbitrary joint-list API.
+- Inspect actual axial span coverage, both pipe/body/flange interfaces, each joint's bolt/hole relationships and support-to-pipe interval membership. Moving the second joint preserves the first joint and support geometry.
+- 64 unit tests and saved-baseline native HOM checks pass; 160 original parts are unchanged, one original right span changes and 44 parts are added. Displaced/missing spans, displaced body/bolt and support-in-joint negatives are rejected. GUI SDK updates/reset, four-support growth, HIP reopen, standalone HDA and Mantra pass. See [validation](docs/V013-VALIDATION.md) for GUI/HDA/render evidence and limitations.
+
 ## 0.12.0
 
 - Added `pipe_rack_coupled`, a separate fixed assembly replacing one red-pipe joint with the verified external coupling. Two additional numeric parameters control shell width and clocking. Five existing geometry generators remain unchanged; the same 22 tools serve six recipes.

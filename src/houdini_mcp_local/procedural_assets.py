@@ -11,7 +11,7 @@ from . import recipe_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = 'pipe_support_sample'
-RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample', 'pipe_rack_reference', 'external_coupling_sample', 'pipe_rack_coupled')
+RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample', 'pipe_rack_reference', 'external_coupling_sample', 'pipe_rack_coupled', 'pipe_rack_repeated')
 
 
 def source(recipe):
@@ -24,15 +24,18 @@ def source(recipe):
     # Embed the unchanged straight algorithm in a separate namespace so its
     # parameters/build functions cannot be rebound by the routed recipe.
     prefix='import types\nbase=types.ModuleType("embedded_straight_recipe")\nexec('+repr(code)+',base.__dict__)\n'
-    if recipe in ('pipe_rack_reference','pipe_rack_coupled'):
+    if recipe in ('pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated'):
         rack_code=Path(module.__file__).read_text(encoding='utf-8')
         prefix+='rack=types.ModuleType("embedded_rack")\nrack.base=base\nexec('+repr(rack_code)+',rack.__dict__)\n'
         module=importlib.import_module('.reference_geometry',__package__);importlib.reload(module)
-        if recipe=='pipe_rack_coupled':
+        if recipe in ('pipe_rack_coupled','pipe_rack_repeated'):
             prefix+='reference=types.ModuleType("embedded_reference")\nreference.rack=rack\nexec('+repr(Path(module.__file__).read_text(encoding='utf-8'))+',reference.__dict__)\n'
             cm=importlib.import_module('.coupling_geometry',__package__);importlib.reload(cm)
             prefix+='coupling=types.ModuleType("embedded_coupling")\ncoupling.base=base\nexec('+repr(Path(cm.__file__).read_text(encoding='utf-8'))+',coupling.__dict__)\n'
             module=importlib.import_module('.coupled_rack_geometry',__package__);importlib.reload(module)
+            if recipe=='pipe_rack_repeated':
+                prefix+='coupled=types.ModuleType("embedded_coupled")\ncoupled.reference=reference\ncoupled.coupling=coupling\nexec('+repr(Path(module.__file__).read_text(encoding='utf-8'))+',coupled.__dict__)\n'
+                module=importlib.import_module('.repeated_rack_geometry',__package__);importlib.reload(module)
     return module,prefix+Path(module.__file__).read_text(encoding='utf-8')
 
 
@@ -42,11 +45,11 @@ def catalog():
     for recipe in RECIPES:
         module,_=source(recipe)
         recipes.append({'id':recipe,'version':'1.0','units':'metres',
-                        'scope':('Illustrative external split coupling and two short pipes' if recipe=='external_coupling_sample' else 'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers','pipe_rack_reference':' with photo-guided folded channels and blue joint bodies','pipe_rack_coupled':' with one red external coupling and two retained blue joints'}.get(recipe,'')))+'; not an engineering design',
+                        'scope':('Illustrative external split coupling and two short pipes' if recipe=='external_coupling_sample' else 'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers','pipe_rack_reference':' with photo-guided folded channels and blue joint bodies','pipe_rack_coupled':' with one red external coupling and two retained blue joints','pipe_rack_repeated':' with two blue joints on pipe 3 and three continuous hollow spans'}.get(recipe,'')))+'; not an engineering design',
                         'parameters':recipe_contract.parameter_schema(module.PARAMETERS),
                         'constraints':recipe_contract.constraints(recipe),
                         'structured_inputs':False,
-                        'validation_notes':(['Photo rack also rejects joints overlapping support stations; validated by preflight/upsert after the declarative constraints.'] if recipe in ('pipe_rack_reference','pipe_rack_coupled') else [])})
+                        'validation_notes':(['Photo rack also rejects joints overlapping support stations; validated by preflight/upsert after the declarative constraints.'] if recipe in ('pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated') else [])})
     return {'recipes':recipes,'library_mode':'Self-contained HDA compiled from versioned recipe source'}
 
 

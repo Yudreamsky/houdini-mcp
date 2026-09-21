@@ -19,7 +19,7 @@ def inspect(path):
         from . import elbow_inspection
         importlib.reload(elbow_inspection)
         return elbow_inspection.inspect(node)
-    if node.userData('workai_recipe')in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled'):
+    if node.userData('workai_recipe')in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated'):
         import importlib
         from . import rack_inspection
         importlib.reload(rack_inspection)
