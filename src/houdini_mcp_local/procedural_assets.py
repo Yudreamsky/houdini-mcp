@@ -11,20 +11,20 @@ from . import recipe_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = 'pipe_support_sample'
-RECIPES = (RECIPE, 'pipe_elbow_sample')
+RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample')
 
 
 def source(recipe):
     importlib.reload(sample_geometry)
     code=Path(sample_geometry.__file__).read_text(encoding='utf-8')
     if recipe==RECIPE: return sample_geometry,code
-    if recipe!='pipe_elbow_sample': raise ValueError('Unsupported recipe: '+recipe)
-    from . import elbow_geometry
-    importlib.reload(elbow_geometry)
+    if recipe not in RECIPES: raise ValueError('Unsupported recipe: '+str(recipe))
+    module=importlib.import_module('.elbow_geometry' if recipe=='pipe_elbow_sample' else '.rack_geometry',__package__)
+    importlib.reload(module)
     # Embed the unchanged straight algorithm in a separate namespace so its
     # parameters/build functions cannot be rebound by the routed recipe.
     prefix='import types\nbase=types.ModuleType("embedded_straight_recipe")\nexec('+repr(code)+',base.__dict__)\n'
-    return elbow_geometry,prefix+Path(elbow_geometry.__file__).read_text(encoding='utf-8')
+    return module,prefix+Path(module.__file__).read_text(encoding='utf-8')
 
 
 def catalog():
@@ -33,7 +33,7 @@ def catalog():
     for recipe in RECIPES:
         module,_=source(recipe)
         recipes.append({'id':recipe,'version':'1.0','units':'metres',
-                        'scope':'Illustrative pipe joint/support sample'+(' with one horizontal 90 degree elbow' if recipe!=RECIPE else '')+'; not an engineering design',
+                        'scope':'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers'}.get(recipe,''))+'; not an engineering design',
                         'parameters':recipe_contract.parameter_schema(module.PARAMETERS),
                         'constraints':recipe_contract.constraints(recipe),
                         'structured_inputs':False})

@@ -1,4 +1,4 @@
-"""Reusable real GUI MCP acceptance for the two managed procedural recipes.
+"""Reusable real GUI MCP acceptance for managed procedural recipes.
 
 Requires an explicitly selected saved, clean GUI scene. Builds in a separate
 scene/output directory, restores the source in finally, never overwrites output.
@@ -19,7 +19,8 @@ from mcp.client.stdio import stdio_client
 
 ROOT=Path(__file__).resolve().parents[1]
 UPDATES={'pipe_support_sample':{'length':3.6,'diameter':.5},
-         'pipe_elbow_sample':{'inlet_length':4.2,'outlet_length':3.6,'diameter':.5,'bend_radius':.9}}
+         'pipe_elbow_sample':{'inlet_length':4.2,'outlet_length':3.6,'diameter':.5,'bend_radius':.9},
+         'pipe_rack_sample':{'length':3.6,'diameter_1':.45,'diameter_2':.30,'spacing_12':.75,'spacing_23':.65,'rise_1':.06,'rise_2':0,'rise_3':.16}}
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def ensure(condition,message):
     if not condition:raise RuntimeError(message)
@@ -75,8 +76,10 @@ async def run(args):
                         ensure(duplicate['recipe']==args.recipe and not duplicate['changed'] and not duplicate['created'],'Inference/no-op failed')
                         ensure(not (await call('get_capabilities'))['unsaved_changes'],'No-op dirtied scene')
                         before=await code(snapshot)
-                        bad=await call('preflight_asset_instance',{'instance_id':instance_id,'parameters':{'diameter':.1,'wall':.03}})
-                        ensure(not bad['ready'] and any(e['code']=='wall_ratio' for e in bad['errors']),'Missing structured constraint rejection')
+                        bad_values={'diameter_1':.1,'wall_1':.03} if args.recipe=='pipe_rack_sample' else {'diameter':.1,'wall':.03}
+                        bad_code='wall_ratio_1' if args.recipe=='pipe_rack_sample' else 'wall_ratio'
+                        bad=await call('preflight_asset_instance',{'instance_id':instance_id,'parameters':bad_values})
+                        ensure(not bad['ready'] and any(e['code']==bad_code for e in bad['errors']),'Missing structured constraint rejection')
                         other='pipe_elbow_sample' if args.recipe=='pipe_support_sample' else 'pipe_support_sample'
                         conflict=await call('preflight_asset_instance',{'instance_id':instance_id,'recipe':other})
                         ensure(not conflict['ready'],'Recipe mismatch accepted by preflight')

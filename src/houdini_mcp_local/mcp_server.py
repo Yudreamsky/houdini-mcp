@@ -201,7 +201,7 @@ def list_procedural_assets() -> dict:
 
 @mcp.tool(annotations=WRITE)
 def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str | None = None) -> dict:
-    """Create/update an owned HDA instance. Omitted recipe infers an existing instance's recipe; a new instance defaults to pipe_support_sample. Select pipe_elbow_sample for a new elbow. Explicit recipe mismatch, animation, unlocked content and implicit version migration are rejected. Does not save."""
+    """Create/update an owned HDA instance. Omitted recipe infers an existing instance's recipe; a new instance defaults to pipe_support_sample. Select pipe_elbow_sample for a new elbow or pipe_rack_sample for three parallel pipes sharing hangers. Explicit recipe mismatch, animation, unlocked content and implicit version migration are rejected. Does not save."""
     return _operation('procedural_assets', 'upsert', instance_id, parameters or {}, recipe)
 
 

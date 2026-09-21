@@ -11,6 +11,7 @@ description: 用本仓库 Houdini MCP 制作、修改和核验可复用程序化
 
 - 制作或修改管道/法兰/支架样段：读 [样段方法](references/pipe-support.md)。当前 recipe 是完整小样段；不声称已有通用管线布置器或任意 HDA 管理器。
 - 制作带水平90°弯头的两段管道：再读 [弯头连接](references/elbow-route.md)，区分中心线半径、入口/出口长度、局部轴和连接检查。
+- 制作三根平行管道共用横担：读 [共用支架](references/shared-rack.md)，区分中心距、管底抬高、承托座和共用吊杆，避免三套独立支架重叠。
 - 修改参数前预检、验证MCP升级或打包样段：读 [预检与可复用验收](references/acceptance.md)，复用仓库脚本并单独看图。
 - 渲染、预览、取消/续渲：读 [渲染经验](references/rendering.md)。先区分 GUI 几何预览、Mantra 和限定地图 XPU。
 - 复用或补充经验：读 [经验记录规则](references/experience.md)。只记录本次明确范围内的经验，不写宿主全局记忆，不自动扩展其他项目规则。

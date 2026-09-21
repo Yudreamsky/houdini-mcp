@@ -12,7 +12,7 @@ if hou.isUIAvailable() or hou.node('/obj').children():raise RuntimeError('Use fr
 if out.exists():raise FileExistsError('Use new output directory')
 out.mkdir(parents=True)
 straight=upsert('straight-regression');assert straight['check']['passed'] and straight['check']['measurements']['support_style']=='u_bolt_v1'
-assert len(catalog()['recipes'])==2
+assert {'pipe_support_sample','pipe_elbow_sample'}<={r['id'] for r in catalog()['recipes']}
 first=upsert('elbow-test',recipe='pipe_elbow_sample');node=hou.node(first['path'])
 assert first['check']['passed'] and first['check']['measurements']['support_count']==4
 again=upsert('elbow-test',recipe='pipe_elbow_sample');assert not again['created'] and not again['changed']

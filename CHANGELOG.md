@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Added `pipe_rack_sample`: exactly three parallel pipes with independent diameters, walls, bottom rises and two horizontal center spacings. Every support station has one shared channel and two outer hangers; each pipe has a downward-open U-bolt. Nonzero rise creates a simplified bearing seat, with the U-bolt still reaching through the shared web.
+- Existing 22 workflow tools now serve three recipes. Added multi-field `terms` to structured constraint right-hand sides for hanger height and conservative flange clearance. Existing right/scale contracts and straight/elbow HDA identities remain unchanged.
+- Inspect actual pipe/flange envelopes, shared span/counts, bearing seats, U orientation, polygonal hole clearance and underside hardware. Missing-seat, moved-pipe and missed-hole negative cases fail in actual HOM. This is not general collision checking or engineering certification.
+- Extended the reusable GUI acceptance script and companion Skill. Passed 45 unit tests, real HOM assembly/negative checks, unchanged straight/elbow inspection and no-op updates, full GUI MCP create/update/views/package/reopen, standalone HDA and actual Mantra renders. See [validation](docs/V09-VALIDATION.md).
+
 ## 0.8.0
 
 - Corrected both pipe recipes from closed ring clamps to downward-open round U-bolts following the user's reference correction. The pipe bears on the channel; two legs pass through aligned slots with washers/nuts below. Default straight/elbow assemblies now contain 77/155 parts.
