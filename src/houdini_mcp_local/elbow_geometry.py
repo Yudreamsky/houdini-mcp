@@ -45,7 +45,7 @@ def place(point,p,side):
 def elbow(p):
     mesh=base.Mesh('elbow','elbow',(.45,.035,.025))
     n=int(p['segments']); steps=int(p['bend_segments']); radius=p['bend_radius']
-    outer=p['diameter']/2; inner=outer-p['wall']; height=outer+.052
+    outer=p['diameter']/2; inner=outer-p['wall']; height=outer+.044
     def pos(j,i,r):
         a=(math.pi/2)*j/steps; phi=2*math.pi*i/n
         return [radius*math.sin(a)-r*math.sin(phi)*math.sin(a),
@@ -72,8 +72,8 @@ def build(values):
             parts.append(part)
         supports[side]=leg['support_positions']
     parts.append(elbow(p))
-    r=p['bend_radius']; h=p['diameter']/2+.052
-    return dict(parameters=p,parts=parts,units='metres',recipe='pipe_elbow_sample',
+    r=p['bend_radius']; h=p['diameter']/2+.044
+    return dict(parameters=p,parts=parts,units='metres',recipe='pipe_elbow_sample',support_style='u_bolt_v1',
                 dimensions_source='illustrative adjustable values, not measured from photograph',
                 support_positions=supports,
                 ports=[dict(id='inlet',center=[-p['inlet_length'],h,0],outward=[-1,0,0]),

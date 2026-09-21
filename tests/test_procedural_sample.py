@@ -43,5 +43,26 @@ class SampleTests(unittest.TestCase):
         edges={tuple(sorted((a,b))) for f in flange['faces'] for a,b in zip(f,f[1:]+f[:1])}
         self.assertEqual(len(flange['points'])-len(edges)+len(flange['faces']),-16)
 
+    def test_u_bolts_open_down_and_pass_real_web_slots(self):
+        for diameter in (.1,.32,.6):
+            sample=build({'diameter':diameter});parts={p['name']:p for p in sample['parts']};r=diameter/2
+            for name,clamp in parts.items():
+                if clamp['kind']!='clamp':continue
+                q=clamp['points'];h=sample['pipe_center_y'];web=parts[name.removesuffix('_clamp')+'_web']
+                self.assertFalse(any(v[1]<h-1e-8 and abs(v[2])<r-1e-8 for v in q),'Bottom bridge must remain absent')
+                self.assertAlmostEqual(min(math.hypot(v[1]-h,v[2]) for v in q if v[1]>=h-1e-8),r)
+                self.assertAlmostEqual(h-r,max(v[1] for v in web['points']))
+                bottom=min(v[1] for v in q)
+                for side in (-1,1):
+                    ring=[v for v in q if abs(v[1]-bottom)<1e-8 and v[2]*side>0]
+                    self.assertEqual(len(ring),16)
+                    cx=sum(v[0] for v in ring)/len(ring);cz=sum(v[2] for v in ring)/len(ring)
+                    clearance=min(math.hypot(v[0]-cx,v[2]-cz) for v in web['points'])-.004
+                    self.assertGreater(clearance,.00049)
+                    washer=parts[name+f'_washer_{side}'];nut=parts[name+f'_nut_{side}']
+                    self.assertAlmostEqual(max(v[1] for v in washer['points']),min(v[1] for v in web['points']))
+                    self.assertAlmostEqual(max(v[1] for v in nut['points']),min(v[1] for v in washer['points']))
+                    self.assertLess(bottom,min(v[1] for v in nut['points']))
+
 
 if __name__=='__main__':unittest.main()

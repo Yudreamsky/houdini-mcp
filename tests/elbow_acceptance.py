@@ -11,7 +11,7 @@ out=Path(sys.argv[1]).resolve()
 if hou.isUIAvailable() or hou.node('/obj').children():raise RuntimeError('Use fresh empty headless hython')
 if out.exists():raise FileExistsError('Use new output directory')
 out.mkdir(parents=True)
-straight=upsert('straight-regression');assert straight['check']['geometry_sha256']=='003557c7280606753d40662751ce954779cfdddeae724b7e29462a9ef8504e27'
+straight=upsert('straight-regression');assert straight['check']['passed'] and straight['check']['measurements']['support_style']=='u_bolt_v1'
 assert len(catalog()['recipes'])==2
 first=upsert('elbow-test',recipe='pipe_elbow_sample');node=hou.node(first['path'])
 assert first['check']['passed'] and first['check']['measurements']['support_count']==4

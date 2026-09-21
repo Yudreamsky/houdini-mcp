@@ -11,7 +11,8 @@ def inspect(node, geometry=None):
     geo=geometry if geometry is not None else node.geometry()
     if geo is None or node.errors(): raise ValueError('Elbow sample failed to cook')
     keys=('diameter','wall','support_pitch','bolt_count','hanger_height','inlet_length','outlet_length','bend_radius')
-    p={k:node.evalParm(k) for k in keys}; r=p['bend_radius']; h=p['diameter']/2+.052
+    specification=json.loads(geo.attribValue('sample_spec'))
+    p={k:node.evalParm(k) for k in keys}; r=p['bend_radius']; h=p['diameter']/2+(.044 if specification.get('support_style')=='u_bolt_v1' else .052)
     issues=[]; legs={}; points={}; parts={}; digest=hashlib.sha256()
     for prim in geo.prims():
         name=prim.attribValue('name'); indices=[v.point().number() for v in prim.vertices()]

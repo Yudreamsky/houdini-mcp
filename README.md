@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.7.0 / 22 工具 / 2 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.8.0 / 22 工具 / 2 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -47,9 +47,9 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 ### 0.6：水平90°弯头样段
 
-使用 `upsert_asset_instance(instance_id="elbow-sample", recipe="pipe_elbow_sample", parameters={"inlet_length":2.4,"outlet_length":1.8,"bend_radius":0.6})`。0.7起，后续更新已有实例可省略recipe，自动读取其配方；新实例省略recipe仍默认直管。同ID显式选择不同配方会拒绝覆盖。两配方共用工具，旧几何算法及HDA类型指纹保持不变。
+使用 `upsert_asset_instance(instance_id="elbow-sample", recipe="pipe_elbow_sample", parameters={"inlet_length":2.4,"outlet_length":1.8,"bend_radius":0.6})`。0.7起，后续更新已有实例可省略recipe，自动读取其配方；新实例省略recipe仍默认直管。同ID显式选择不同配方会拒绝覆盖。两配方共用工具；0.6/0.7保留旧直管算法，0.8按用户反馈修正两配方的固定件并生成新HDA类型。
 
-新配方包含两段带法兰/支架的直管和一只空心弯头，默认139个构件。入口沿+X，出口沿+Z，Y向上；inlet/outlet_length只计直段，bend_radius是中心线半径，另有bend_segments控制弯曲细分。直管的管径、壁厚、螺栓数量和支架参数继续有效。本样例要求中心线半径至少为外径1.5倍，属于配方约束，不表示管件标准。
+新配方包含两段带法兰/支架的直管和一只空心弯头，0.8默认155个构件（0.6/0.7为139）。入口沿+X，出口沿+Z，Y向上；inlet/outlet_length只计直段，bend_radius是中心线半径，另有bend_segments控制弯曲细分。直管的管径、壁厚、螺栓数量和支架参数继续有效。本样例要求中心线半径至少为外径1.5倍，属于配方约束，不表示管件标准。
 
 检查器测量两接口的内外环匹配误差、端口中心、弯头外径/壁厚，并在各自局部坐标内复用两条直段的检查。1厘米弯头错位的负例可被识别。完整顶视、侧视、透视和独立HDA验证见 [0.6 验证](docs/V06-VALIDATION.md)；该配方仍是固定水平90°，没有任意多点路由、三通、通用碰撞或流体网格。
 
@@ -60,6 +60,12 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 先调用 `preflight_asset_instance(instance_id="elbow-sample", parameters={"diameter":0.5,"bend_radius":0.9})`。已有实例按当前值合并，新实例按默认值合并；ready=true 返回解析后的recipe、before、拟用parameters、是否新建/改变。ready=false 返回结构化errors；组合错误包含code、fields、actual和limit，实例/通道保护包含code和message。必须检查ready，不能只看MCP调用是否成功。
 
 预检不安装/编译HDA、不新建节点、不写参数、不主动cook。与upsert共用实例解析和校验路径；upsert仍重新校验并生成/检查几何。预检不是状态锁或几何验收，期间场景变化会影响写入结果。动画/锁定/禁用通道、人工解锁HDA内容、外来对象和配方版本变化继续受保护。
+
+### 0.8：开口向下的U形管卡
+
+根据用户对参考照片的纠正，两配方将闭合圆箍改为开口朝下的圆杆U形件：上部弧段扣住管子，两条直腿穿过横担孔位，垫圈和螺母在横担下方；管底落在横担顶面。默认直管77构件、弯头155构件。圆杆直径8mm、局部孔位排列和未建螺纹均为视觉样例，不是照片量测或产品标准。
+
+检查器读取实际几何，核管底接触、U形开口、冠部接触、两腿孔隙及垫圈/螺母位置；倒置U形的负例会失败。新样段measurement包含 `support_style="u_bolt_v1"`、`pipe_web_contact_gaps` 和 `u_bolts`。保留旧HDA的只读检查，旧圆箍返回 `legacy_closed_ring` 与旧接触字段；旧版检查通过不表示符合本次照片纠正。版本保护拒绝直接更新旧实例，应创建新ID对照、另存。详见 [0.8验证](docs/V08-VALIDATION.md)。
 
 ### 可复用GUI验收脚本
 
@@ -156,6 +162,7 @@ python tests/acceptance.py
 & 'C:/path/to/Houdini/bin/hython.exe' tests/procedural_acceptance.py evidence/procedural-check-01
 & 'C:/path/to/Houdini/bin/hython.exe' tests/elbow_acceptance.py evidence/elbow-check-01
 & 'C:/path/to/Houdini/bin/hython.exe' tests/preflight_acceptance.py evidence/preflight-check-01
+& 'C:/path/to/Houdini/bin/hython.exe' tests/u_bolt_acceptance.py evidence/u-bolt-check-01
 ```
 
 `unittest` 运行传输、队列、任务状态和纯几何单元测试，不需要 Houdini。`tests/acceptance.py` 使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 基础验收见 `tests/gui_acceptance.py --help`。`tests/procedural_acceptance.py` 通过真实 HOM 检查新样段的创建、更新、保护、打包和重开，独立于 MCP 传输/GUI 验收。
@@ -165,6 +172,8 @@ python tests/acceptance.py
 0.6.0 通过 **37项单元测试**，真实GUI MCP弯头样段完整调用、尺寸联动、参数/配方保护、保存重开，独立HDA加载及1280×720 Mantra渲染。新增headless HOM检查故意平移弯头的负例；既有直管在新工具下幂等更新且几何指纹不变。项目Skill本轮已进入Codex可用列表并实际读取；原生Houdini MCP工具发现仍是独立待验项。
 
 0.7.0通过 **40项单元测试**、真实HOM只读/保护检查，以及同一份可复用GUI MCP脚本对两配方的完整执行（均含独立HDA和960×540 Mantra）。无效更新的预期失败路径也验证了原场景恢复和文件不变。详见 [0.7验证](docs/V07-VALIDATION.md)。
+
+0.8.0通过 **41项单元测试**、真实HOM倒置U形负例及旧HDA检查/版本保护；两配方再次通过同一GUI MCP验收脚本、保存重开、独立HDA和Mantra。另渲染局部近景并实际看图，旧资产文件指纹不变。详见 [0.8验证](docs/V08-VALIDATION.md)。
 
 0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 

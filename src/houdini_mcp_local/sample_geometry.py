@@ -122,32 +122,60 @@ def flange(name, lo, hi, diameter, count, height, segments):
     return mesh.data()
 
 
-def slotted_web(name, x, span):
+def slotted_web(name, x, span, clamp_z):
     """Welded web with true elliptical long holes; visual approximation of punched slots."""
     mesh = Mesh(name, 'channel_web', (.52,.56,.60))
-    count = max(2, int(span/.060)); cell = span/count; half = cell/2; width = .0205
-    # Add exact rectangle corners so the outer ring does not chamfer the web.
-    angles = sorted(set([i*math.pi/12 for i in range(24)] + [math.atan2(v,u) % (2*math.pi) for u in (-half,half) for v in (-width,width)]))
-    for k in range(count):
-        z = -span/2 + (k+.5)*cell
+    count = max(2, int(span/.060)); cell = span/count; width = .0205
+    regular=[-span/2+(k+.5)*cell for k in range(count)]
+    # Place actual slots under both U-bolt legs; remove nearby regular slots
+    # rather than overlapping holes or moving the clamp away from the pipe.
+    centers=sorted([z for z in regular if min(abs(z-clamp_z),abs(z+clamp_z))>=.04]+[-clamp_z,clamp_z])
+    count=len(centers)
+    for k,z in enumerate(centers):
+        left=(-span/2 if k==0 else (centers[k-1]+z)/2)-z
+        right=(span/2 if k==count-1 else (z+centers[k+1])/2)-z
+        angles=sorted(set([i*math.pi/12 for i in range(24)]+[math.atan2(v,u)%(2*math.pi) for u in (left,right) for v in (-width,width)]))
         outside, inside = [], []
         for a in angles:
             u,v = math.cos(a), math.sin(a)
-            scale = min(half/max(abs(u),1e-15), width/max(abs(v),1e-15))
+            scale = min((right if u>=0 else -left)/max(abs(u),1e-15), width/max(abs(v),1e-15))
             outside.append((u*scale,v*scale)); inside.append((.012*u,.0045*v))
         omit = []
         for i,(u,v) in enumerate(outside):
             next_u = outside[(i+1)%len(outside)][0]
-            if (k > 0 and abs(u+half)<1e-9 and abs(next_u+half)<1e-9) or (k<count-1 and abs(u-half)<1e-9 and abs(next_u-half)<1e-9):
+            if (k > 0 and abs(u-left)<1e-9 and abs(next_u-left)<1e-9) or (k<count-1 and abs(u-right)<1e-9 and abs(next_u-right)<1e-9):
                 omit.append(i)
         # x/y/z permutation has positive determinant: extrusion Y, loop (Z,X).
         plate_with_hole(mesh,outside,inside,.040,.044,lambda y,u,v:(x+v,y,z+u),omit)
-    return mesh.data(), count, span/2-cell/2
+    return mesh.data(), count, centers[-1]
+
+
+def u_bolt(name, x, pipe_radius, height, segments):
+    """Round U-bolt over the pipe, two legs down through the channel; no bottom bar."""
+    mesh=Mesh(name,'clamp',(.48,.52,.57)); rod=.004; radius=pipe_radius+rod
+    stations=[((x,.012,-radius),(0,1,0))]
+    steps=max(12,segments//2)
+    for j in range(steps+1):
+        a=-math.pi/2+math.pi*j/steps
+        stations.append(((x,height+radius*math.cos(a),radius*math.sin(a)),(0,-math.sin(a),math.cos(a))))
+    stations.append(((x,.012,radius),(0,-1,0)))
+    rings=[];sides=16
+    for center,tangent in stations:
+        _,ty,tz=tangent
+        rings.append([(center[0]+rod*math.cos(2*math.pi*i/sides),
+                       center[1]+rod*math.sin(2*math.pi*i/sides)*tz,
+                       center[2]-rod*math.sin(2*math.pi*i/sides)*ty) for i in range(sides)])
+    mesh.face(list(reversed(rings[0])));mesh.face(rings[-1])
+    for j in range(len(rings)-1):
+        for i in range(sides):
+            k=(i+1)%sides
+            mesh.face([rings[j][i],rings[j][k],rings[j+1][k],rings[j+1][i]])
+    return mesh.data()
 
 
 def build(values):
     p = validate(values); d=p['diameter']; length=p['length']; r=d/2
-    height=r+.052; gap=.008; thick=d*.11; n=int(p['segments']); bolts=int(p['bolt_count'])
+    height=r+.044; gap=.008; thick=d*.11; n=int(p['segments']); bolts=int(p['bolt_count'])
     metal=(.48,.52,.57); pipe=(.45,.035,.025); parts=[]
     parts += [tube('pipe_left','pipe',-length/2,-gap/2,r,r-p['wall'],(height,0),pipe,n),
               tube('pipe_right','pipe',gap/2,length/2,r,r-p['wall'],(height,0),pipe,n)]
@@ -168,7 +196,7 @@ def build(values):
     for x in sorted(positions):
         # Name derives from side and repeat index, not unstable sorted enumeration.
         slot=int(round(abs(x)/p['support_pitch']-.5)); prefix=('support_neg_' if x<0 else 'support_pos_')+str(slot)
-        web, holes, rod_z=slotted_web(prefix+'_web',x,span); parts.append(web)
+        web, holes, rod_z=slotted_web(prefix+'_web',x,span,r+.004); parts.append(web)
         for side in (-1,1):
             xc=x+side*.0225
             parts.append(box(prefix+f'_lip_{side}','channel_lip',(xc-.002,0,-span/2),(xc+.002,.040,span/2),metal))
@@ -177,11 +205,17 @@ def build(values):
             parts.append(box(prefix+f'_anchor_{side}','anchor',(x-.045,p['hanger_height'],z-.04),(x+.045,p['hanger_height']+.008,z+.04),metal))
             for y in (.031,.044):
                 parts.append(tube(prefix+f'_nut_{side}_{y}','hanger_nut',y,y+.009,.010,.0042,(z,x),metal,6,axis=1))
-        parts.append(tube(prefix+'_clamp','clamp',x-.014,x+.014,r+.008,r,(height,0),metal,n))
+        parts.append(u_bolt(prefix+'_clamp',x,r,height,n))
+        for side in (-1,1):
+            z=side*(r+.004)
+            parts.append(tube(prefix+f'_clamp_washer_{side}','clamp_washer',.034,.040,.011,.0044,(z,x),metal,24,axis=1))
+            parts.append(tube(prefix+f'_clamp_nut_{side}','clamp_nut',.022,.034,.010,.0044,(z,x),metal,6,axis=1))
     return {'parameters':p,'parts':parts,'dimensions_source':'illustrative adjustable values, not measured from photograph',
             'support_positions':sorted(positions),'pipe_center_y':height,'flange_outer_diameter':d*1.55,
             'bolt_circle_diameter':d*1.27,'channel_span':span,'units':'metres',
-            'simplifications':['ellipse slots approximate punched slots','unthreaded rods and bolts','simplified clamp and anchors','no inferred ceiling or hidden connections']}
+            'support_style':'u_bolt_v1',
+            'clamp_style':'downward-open U-bolt with two legs through aligned web slots; washers/nuts below web',
+            'simplifications':['ellipse slots and local U-bolt holes are a visual layout, not a channel product specification','unthreaded rods and bolts','simplified anchors','no inferred ceiling or hidden connections']}
 
 
 def cook(node):

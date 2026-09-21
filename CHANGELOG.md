@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- Corrected both pipe recipes from closed ring clamps to downward-open round U-bolts following the user's reference correction. The pipe bears on the channel; two legs pass through aligned slots with washers/nuts below. Default straight/elbow assemblies now contain 77/155 parts.
+- Added actual U opening, crown/pipe bearing, leg-hole clearance and underside hardware checks. A flipped U-bolt negative fails despite retaining a closed solid mesh. Preserved read-only inspection of legacy HDA geometry; version guards reject implicit migration.
+- Both geometry identities change intentionally; existing HIP/HDA files remain unchanged. New visual parameters, including 8mm rods and local slot layout, are illustrative rather than measured product specifications.
+- Passed 41 unit tests, fresh HOM negative/legacy acceptance, and both recipes through the reusable real GUI MCP, save/reopen, standalone HDA and Mantra workflow. Added local detail renders and companion Skill lessons about reference shape versus mesh health. See [validation](docs/V08-VALIDATION.md).
+
 ## 0.7.0
 
 - Added `preflight_asset_instance` (22 tools total): read-only merged parameter validation and instance/channel guards, with ready, planned values and structured violations. No HDA compilation/installation, parameter writes or explicit geometry cook.

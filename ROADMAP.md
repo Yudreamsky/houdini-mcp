@@ -37,6 +37,8 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Later, when repeated work justifies it
 
+0.8 applies the first specific visual correction: downward-open U-bolts, pipe bearing and underside hardware in both recipes, with an inverted-clamp negative and local detail views. Old definitions remain inspectable and protected from implicit migration. This improves the existing sample; it does not add a third recipe or engineering component standard.
+
 0.7 improves repeated use before adding components: structured parameter contracts, read-only instance preflight, automatic existing-recipe inference and one reusable acceptance script for both recipes. Future recipes should reuse this lifecycle and add concrete geometry/interface checks, not duplicate machine-specific acceptance scripts.
 
 - Keyframes and saved-scene checkpoints beyond numeric presets.
