@@ -14,7 +14,7 @@ def inspect(path):
         from . import elbow_inspection
         importlib.reload(elbow_inspection)
         return elbow_inspection.inspect(node)
-    if node.userData('workai_recipe')=='pipe_rack_sample':
+    if node.userData('workai_recipe')in ('pipe_rack_sample','pipe_rack_reference'):
         import importlib
         from . import rack_inspection
         importlib.reload(rack_inspection)

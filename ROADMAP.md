@@ -37,6 +37,8 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Later, when repeated work justifies it
 
+0.10 uses the original photo to refine a separate rack variant and adds exact-part focus. Observed gaps remain: multiple heterogeneous joints per pipe (especially the red pipe's orange external fitting), vertical slotted frames/connection brackets, and photographic camera/material matching. Implement these through specific reference-backed components before assembly animation; do not treat the present flange template as a full photo reconstruction.
+
 0.9 adds the user-approved shared-hanger assembly: three parallel pipes with independent diameters and bottom rises, linked seats/U-bolts and a common channel at each support station. Actual polygon-hole, bearing and neighboring-envelope checks reuse the existing workflow. Arbitrary pipe counts, multiple tiers and engineering component standards remain outside scope. See [0.9 validation](docs/V09-VALIDATION.md).
 
 0.8 applies the first specific visual correction: downward-open U-bolts, pipe bearing and underside hardware in both recipes, with an inverted-clamp negative and local detail views. Old definitions remain inspectable and protected from implicit migration. This improves the existing sample; it does not add a third recipe or engineering component standard.

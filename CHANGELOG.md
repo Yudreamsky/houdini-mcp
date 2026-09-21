@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.0
+
+- Added `pipe_rack_reference`, a separate photo-guided variant preserving the three existing recipe identities: coplanar default pipe bottoms, equal black-pipe diameters, folded channel return lips, steel flanges around a thicker blue visual body, and independent joint X offsets. Inferred dimensions and unreconstructed features remain explicit.
+- Added exact `part_names` isolation/focus to `preview_asset_views`, intersected with optional type filters. Unknown/empty selections fail, and returned metadata identifies selected names and local bounds. Restored selection after viewer context changes and padded perspective framing after actual GUI tests exposed implicit selection and diagonal-part cropping.
+- Joint station conflicts are rejected by recipe validation; actual body/flange/pipe interfaces are measured. The blue body remains a visual fitting envelope, not a manufacturer-identified part.
+- Passed 48 unit tests, fresh HOM joint-displacement negative and old-rack regression, full GUI SDK/HIP reopen/standalone HDA/Mantra, and exact-part focus/rejection/restoration checks. Failed development runs are retained separately. See [validation](docs/V010-VALIDATION.md).
+
 ## 0.9.0
 
 - Added `pipe_rack_sample`: exactly three parallel pipes with independent diameters, walls, bottom rises and two horizontal center spacings. Every support station has one shared channel and two outer hangers; each pipe has a downward-open U-bolt. Nonzero rise creates a simplified bearing seat, with the U-bolt still reaching through the shared web.

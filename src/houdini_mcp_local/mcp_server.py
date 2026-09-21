@@ -201,7 +201,7 @@ def list_procedural_assets() -> dict:
 
 @mcp.tool(annotations=WRITE)
 def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str | None = None) -> dict:
-    """Create/update an owned HDA instance. Omitted recipe infers an existing instance's recipe; a new instance defaults to pipe_support_sample. Select pipe_elbow_sample for a new elbow or pipe_rack_sample for three parallel pipes sharing hangers. Explicit recipe mismatch, animation, unlocked content and implicit version migration are rejected. Does not save."""
+    """Create/update an owned HDA instance. Omitted recipe infers an existing instance's recipe; a new instance defaults to pipe_support_sample. Select pipe_elbow_sample, pipe_rack_sample, or pipe_rack_reference for a photo-guided rack variant. Explicit recipe mismatch, animation, unlocked content and implicit version migration are rejected. Does not save."""
     return _operation('procedural_assets', 'upsert', instance_id, parameters or {}, recipe)
 
 
@@ -218,10 +218,10 @@ def inspect_asset_instance(path: str) -> dict:
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False), structured_output=False)
-def preview_asset_views(path: str, views: list[str] | None = None, width: int = 960, height: int = 540, part_types: list[str] | None = None) -> list[TextContent | ImageContent]:
-    """Capture front/right/top/perspective views of an owned sample, returning native PNG images. Requires GUI. Temporarily changes viewport settings and restores them. This is geometry review, not material/render acceptance."""
+def preview_asset_views(path: str, views: list[str] | None = None, width: int = 960, height: int = 540, part_types: list[str] | None = None, part_names: list[str] | None = None) -> list[TextContent | ImageContent]:
+    """Capture front/right/top/perspective views of an owned sample, returning native PNG images. Exact part_names optionally isolate and frame 1-128 components; combined filters intersect and empty selections fail. Requires GUI. Temporarily changes viewport settings and restores them. This is geometry review, not material/render acceptance."""
     import json
-    result = _operation('sample_views', 'capture', path, views or ['front','right','top','perspective'], width, height, part_types)
+    result = _operation('sample_views', 'capture', path, views or ['front','right','top','perspective'], width, height, part_types, part_names)
     content = []
     for item in result['views']:
         data = item.pop('image_base64')

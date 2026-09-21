@@ -9,7 +9,7 @@ INTEGER_PARAMETERS = {'segments', 'bolt_count', 'bend_segments'}
 
 
 def constraints(recipe):
-    if recipe=='pipe_rack_sample':
+    if recipe in ('pipe_rack_sample','pipe_rack_reference'):
         rules=[dict(id='cross_section_multiple',left='segments',op='multiple_of',divisor=4,message='Cross-section segments must be a multiple of four'),
                dict(id='support_coverage_length',left='support_pitch',op='le',right='length',scale=1,offset=-.24,message='Support pitch must be <= length - 0.24 m')]
         for i in (1,2,3):

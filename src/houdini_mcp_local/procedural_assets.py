@@ -11,7 +11,7 @@ from . import recipe_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = 'pipe_support_sample'
-RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample')
+RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample', 'pipe_rack_reference')
 
 
 def source(recipe):
@@ -24,6 +24,10 @@ def source(recipe):
     # Embed the unchanged straight algorithm in a separate namespace so its
     # parameters/build functions cannot be rebound by the routed recipe.
     prefix='import types\nbase=types.ModuleType("embedded_straight_recipe")\nexec('+repr(code)+',base.__dict__)\n'
+    if recipe=='pipe_rack_reference':
+        rack_code=Path(module.__file__).read_text(encoding='utf-8')
+        prefix+='rack=types.ModuleType("embedded_rack")\nrack.base=base\nexec('+repr(rack_code)+',rack.__dict__)\n'
+        module=importlib.import_module('.reference_geometry',__package__);importlib.reload(module)
     return module,prefix+Path(module.__file__).read_text(encoding='utf-8')
 
 
@@ -33,10 +37,11 @@ def catalog():
     for recipe in RECIPES:
         module,_=source(recipe)
         recipes.append({'id':recipe,'version':'1.0','units':'metres',
-                        'scope':'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers'}.get(recipe,''))+'; not an engineering design',
+                        'scope':'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers','pipe_rack_reference':' with photo-guided folded channels and blue joint bodies'}.get(recipe,''))+'; not an engineering design',
                         'parameters':recipe_contract.parameter_schema(module.PARAMETERS),
                         'constraints':recipe_contract.constraints(recipe),
-                        'structured_inputs':False})
+                        'structured_inputs':False,
+                        'validation_notes':(['Photo rack also rejects joints overlapping support stations; validated by preflight/upsert after the declarative constraints.'] if recipe=='pipe_rack_reference' else [])})
     return {'recipes':recipes,'library_mode':'Self-contained HDA compiled from versioned recipe source'}
 
 

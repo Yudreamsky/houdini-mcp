@@ -44,7 +44,7 @@ def hole_clearance(web,cx,cz,radius):
     return minimum-radius if found else -1
 
 
-def measure(parts,p):
+def measure(parts,p,folded=False):
     by={part['name']:part for part in parts};issues=[];pipes=[];supports=[]
     zs=[-p['spacing_12'],0,p['spacing_23']]
     def need(name):
@@ -82,7 +82,7 @@ def measure(parts,p):
             lip=need(name+f'_lip_{side}');rod=need(name+f'_rod_{side}');anchor=need(name+f'_anchor_{side}')
             if lip:
                 l,h=bounds(lip)
-                for a,b in [(l[1],0),(h[1],lo[1]),(l[2],lo[2]),(h[2],hi[2]),(center(lip)[0],x+side*.0225)]:contact(a,b,'Channel lip mismatch: '+name)
+                for a,b in [(l[1],0),(h[1],lo[1]),(l[2],lo[2]),(h[2],hi[2]),(center(lip)[0],x+side*(.0185 if folded else .0225))]:contact(a,b,'Channel lip mismatch: '+name)
             if rod:
                 c=center(rod);rlo,rhi=bounds(rod);z=low+.045 if side<0 else high-.045
                 for a,b in [(c[0],x),(c[2],z),(rhi[1],p['hanger_height'])]:contact(a,b,'Hanger position mismatch: '+name)

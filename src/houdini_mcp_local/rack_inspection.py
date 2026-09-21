@@ -10,7 +10,10 @@ from .sample_inspection import inspect_geometry
 
 
 def inspect(node,geometry=None):
-    from .rack_geometry import PARAMETERS
+    if node.userData('workai_recipe')=='pipe_rack_reference':
+        from .reference_geometry import PARAMETERS
+    else:
+        from .rack_geometry import PARAMETERS
     importlib.reload(rack_checks)
     geo=geometry if geometry is not None else node.geometry()
     if geo is None or node.errors():raise ValueError('Rack sample failed to cook')
@@ -33,7 +36,7 @@ def inspect(node,geometry=None):
         closed=all(v==2 for v in edges.values());lo,hi=rack_checks.bounds(part)
         if not closed or part['zero'] or any(not math.isfinite(v) for q in part['points'] for v in q):issues.append('Invalid mesh: '+part['name'])
         summaries.append(dict(name=part['name'],kind=part['kind'],points=len(part['points']),faces=len(part['faces']),bbox_min=lo,bbox_max=hi,closed_edges=closed))
-    result=rack_checks.measure(list(parts.values()),p);issues.extend(result['issues']);joints={}
+    result=rack_checks.measure(list(parts.values()),p,folded=json.loads(geo.attribValue('sample_spec')).get('channel_profile')=='folded_return_v1');issues.extend(result['issues']);joints={}
     for i,z in enumerate((-p['spacing_12'],0,p['spacing_23']),1):
         leg=hou.Geometry();leg.merge(geo);prefix=f'pipe{i}_'
         leg.deletePrims([v for v in leg.prims() if not v.attribValue('name').startswith(prefix)],False)
@@ -45,6 +48,16 @@ def inspect(node,geometry=None):
         params.update(diameter=p[f'diameter_{i}'],wall=p[f'wall_{i}'])
         checked=inspect_geometry(node,leg,params,check_supports=False);joints[str(i)]=checked['measurements']
         issues.extend(dict(pipe=i,issue=e) for e in checked['issues'])
+    if node.userData('workai_recipe')=='pipe_rack_reference':
+        for i in (1,2,3):
+            names=[f'pipe{i}_'+v for v in ('gasket','flange_left','flange_right','pipe_left','pipe_right')]
+            if any(v not in parts for v in names):continue
+            body,left,right,pl,pr=[rack_checks.bounds(parts[v]) for v in names]
+            values=[body[0][0]-(p[f'joint_offset_{i}']-.044),body[1][0]-(p[f'joint_offset_{i}']+.044),
+                    left[1][0]-body[0][0],right[0][0]-body[1][0],pl[1][0]-body[0][0],pr[0][0]-body[1][0]]
+            joints[str(i)]['body_axial_length']=body[1][0]-body[0][0]
+            joints[str(i)]['joint_contact_errors']=values
+            if any(abs(v)>3e-6 for v in values):issues.append(f'Photo joint {i} offset/body/pipe interfaces mismatch')
     return dict(path=node.path(),passed=not issues,issues=issues,measurements=dict(result['measurements'],joints=joints),parts=summaries,
                 part_count=len(summaries),geometry_sha256=digest.hexdigest(),world_transform=list(node.parent().worldTransform().asTuple()),
                 specification=json.loads(geo.attribValue('sample_spec')),
