@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.0
+
+- Added `pipe_rack_coupled`, a separate fixed assembly replacing one red-pipe joint with the verified external coupling. Two additional numeric parameters control shell width and clocking. Five existing geometry generators remain unchanged; the same 22 tools serve six recipes.
+- Added conservative native-part AABB separation checks against U-bolts, channels and other neighbors, plus per-part face/type/Cd fingerprints for bounded replacement review. These are not general collision or engineering clearance checks.
+- Passed 58 unit tests, actual saved-baseline comparison (142 unchanged parts), moved-neighbor and changed-color negatives, GUI SDK updates/reset, HIP reopen, standalone HDA and Mantra. Companion Skill records inheritance scope and clearance limitations. See [validation](docs/V012-VALIDATION.md).
+
 ## 0.11.0
 
 - Added the independent `external_coupling_sample`: two hollow pipe stubs, split orange housings, actual lug holes, paired fasteners and an explicitly inferred seal envelope. Seven numeric parameters include axial position and clocking; existing four recipe algorithms remain unchanged.

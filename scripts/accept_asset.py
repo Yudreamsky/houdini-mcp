@@ -24,6 +24,8 @@ UPDATES={'pipe_support_sample':{'length':3.6,'diameter':.5},
 UPDATES['pipe_rack_reference']={'length':4.0,'support_pitch':1.2,'diameter_2':.30,'spacing_12':.60,'spacing_23':.58,'joint_offset_2':0}
 UPDATES['external_coupling_sample']={'length':1.0,'diameter':.40,'shell_width':.12,'joint_offset':.12,'clocking':-35}
 
+UPDATES['pipe_rack_coupled']={'length':3.6,'diameter_1':.4,'spacing_12':.65,'spacing_23':.60,'red_shell_width':.12,'red_clocking':-35,'joint_offset_1':.15}
+
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def ensure(condition,message):
     if not condition:raise RuntimeError(message)
@@ -79,8 +81,8 @@ async def run(args):
                         ensure(duplicate['recipe']==args.recipe and not duplicate['changed'] and not duplicate['created'],'Inference/no-op failed')
                         ensure(not (await call('get_capabilities'))['unsaved_changes'],'No-op dirtied scene')
                         before=await code(snapshot)
-                        bad_values={'diameter_1':.1,'wall_1':.03} if args.recipe in ('pipe_rack_sample','pipe_rack_reference') else {'diameter':.1,'wall':.03}
-                        bad_code='wall_ratio_1' if args.recipe in ('pipe_rack_sample','pipe_rack_reference') else 'wall_ratio'
+                        bad_values={'diameter_1':.1,'wall_1':.03} if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled') else {'diameter':.1,'wall':.03}
+                        bad_code='wall_ratio_1' if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled') else 'wall_ratio'
                         bad=await call('preflight_asset_instance',{'instance_id':instance_id,'parameters':bad_values})
                         ensure(not bad['ready'] and any(e['code']==bad_code for e in bad['errors']),'Missing structured constraint rejection')
                         other='pipe_elbow_sample' if args.recipe=='pipe_support_sample' else 'pipe_support_sample'

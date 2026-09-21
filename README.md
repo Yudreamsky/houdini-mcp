@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.11.0 / 22 工具 / 5 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.12.0 / 22 工具 / 6 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -77,6 +77,14 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 检查实际管/法兰包络净距、各管承托、共用横担覆盖、吊杆/管卡穿孔及下方紧固件。穿孔检查读取实际顶面多边形，要求杆中心位于孔内且杆半径小于到孔边的距离。通用碰撞、承载与厂家节点细节仍不在范围内。详见 [0.9验证](docs/V09-VALIDATION.md)。
 
+### 0.12：一个红管外抱接头接入三管
+
+使用新ID创建 `recipe="pipe_rack_coupled"`，在独立三管候选中以外抱接头替换红管的蓝体/双法兰模板，保留两根黑管及共用支架。原19个参数之外新增red_shell_width与red_clocking；joint_offset_1仍控制红管接头位置。固定单接头配方，不是任意局部替换API或接头列表。
+
+默认161构件；对保存的0.10总装逐件核验，142个非目标零件的面坐标、类型和Cd一致且对象世界变换相同；改动两段红管内端、移除43个旧接头零件、加入17个外抱接头零件。现有inspect增加接头相对U形件、横担和其他邻件的AABB间距下界，包围盒重叠只表示无法证明净空。10mm检查余量和80mm管端余量均为视觉配方约束，不是工程标准。预检仍保留原保守法兰包络限制。
+
+58项单测、真实HOM邻件移位反例/颜色指纹反例、GUI SDK联动/复位、多视图、保存重开、独立HDA和Mantra通过。五个旧生成器源码及60个旧HIP/HDA字节保持不变。见[0.12验证](docs/V012-VALIDATION.md)及[局部装配Skill](skills/houdini-asset-workflow/references/coupled-rack.md)。
+
 ### 0.11：独立外抱接头样件
 
 `recipe="external_coupling_sample"` 创建两段空心短管、两半橙色壳体、四个带真实孔的凸耳、两组螺栓/垫圈/螺母和推定的密封外包络，共19个零件。它是独立视觉样件，尚未替换原三管配方。壳体和凸耳用独立相交网格近似，未合成铸件实体；未做厂家管端沟槽、啮合键、密封截面或螺纹，不是标准产品或施工节点。
@@ -99,7 +107,7 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 python scripts/accept_asset.py --recipe pipe_elbow_sample --expected-hip 'C:/project/current-saved.hip' --output 'C:/project/new-acceptance-01' --hython 'C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe' --render
 ```
 
-将路径替换为现场值。脚本核对当前GUI正是expected-hip且无未保存修改，临时切换场景创建独立样段；运行期间不要同时编辑该Houdini会话。输出目录必须不存在，不覆盖旧结果。`--recipe`支持五个已实现配方；可用 `--parameters` 和 `--update` 指定JSON参数文件，否则采用默认值和已验联动样例。
+将路径替换为现场值。脚本核对当前GUI正是expected-hip且无未保存修改，临时切换场景创建独立样段；运行期间不要同时编辑该Houdini会话。输出目录必须不存在，不覆盖旧结果。`--recipe`支持六个已实现配方；可用 `--parameters` 和 `--update` 指定JSON参数文件，否则采用默认值和已验联动样例。
 
 流程覆盖约束查询、只读预检、创建、自动识别/幂等、无效参数/配方拒绝、尺寸修改、多视图、复位、HIP/HDA打包、重开、独立hython重建。`--render`额外配置通用相机/灯光并渲染一帧Mantra；不指定时不运行渲染。最后恢复原HIP和帧，核保存状态与源HIP文件指纹。不会保证恢复所有面板布局。
 

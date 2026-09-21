@@ -35,9 +35,13 @@ Each accepted increment updates its relevant Skill reference with conditions, ev
 
 Two independently sized straight legs connect through a hollow 90-degree elbow. The existing tools select a second recipe without changing old straight asset identity. Matching inner/outer end rings, a shifted-elbow negative case, full/isolated views, save/reopen, standalone HDA and Mantra image validate this bounded route. See [0.6 validation](docs/V06-VALIDATION.md).
 
+## Added in 0.12: one local assembly replacement
+
+`pipe_rack_coupled` composes frozen rack and coupling generators. A saved-baseline comparison preserves 142 non-target parts, while native AABB lower bounds check neighboring supports. Full views, HIP reopen, standalone HDA and Mantra are verified. The next photo-driven modeling increment should address repeated joints along the black pipes; derive the needed list/spacing interface from that concrete case. Upper framing connections remain uncertain and should be studied before construction. See [0.12 validation](docs/V012-VALIDATION.md).
+
 ## Later, when repeated work justifies it
 
-0.11 completes the first photo-study component: an independent orange external split coupling with two pipe stubs, actual lug holes and measured interfaces. It uses the existing 22 tools, with save/reopen and standalone-HDA verification. Next integrate one instance into a separate rack candidate and verify neighboring supports and unchanged-part fingerprints; multiple typed joints and uncertain upper framing remain future work. See [0.11 validation](docs/V011-VALIDATION.md).
+0.11 completes the first photo-study component: an independent orange external split coupling with two pipe stubs, actual lug holes and measured interfaces. It uses the existing 22 tools, with save/reopen and standalone-HDA verification. 0.12 has integrated one instance into a separate rack candidate and verified neighboring supports and unchanged-part fingerprints; multiple typed joints and uncertain upper framing remain future work. See [0.11 validation](docs/V011-VALIDATION.md).
 
 2026-09-21 photo-understanding follow-up (documentation only): first prototype one orange external coupling and two short pipes, then validate its interfaces before supporting multiple typed joints. Identify slotted framing by member continuity and attachments, not screen direction; occluded intersections remain uncertain. See [case and implementation boundary](docs/PHOTO-READING-CASE.md). Runtime remains 0.10; no new tool is claimed for this review.
 

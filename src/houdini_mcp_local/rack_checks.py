@@ -44,7 +44,7 @@ def hole_clearance(web,cx,cz,radius):
     return minimum-radius if found else -1
 
 
-def measure(parts,p,folded=False):
+def measure(parts,p,folded=False,joint_parts=None):
     by={part['name']:part for part in parts};issues=[];pipes=[];supports=[]
     zs=[-p['spacing_12'],0,p['spacing_23']]
     def need(name):
@@ -53,12 +53,13 @@ def measure(parts,p,folded=False):
     def contact(actual,expected,message):
         if abs(actual-expected)>TOL:issues.append(message)
     for i,z in enumerate(zs,1):
-        pipe=need(f'pipe{i}_pipe_left');flange=need(f'pipe{i}_flange_left')
-        if pipe is None or flange is None:continue
+        pipe=need(f'pipe{i}_pipe_left')
+        joint=[need(n) for n in joint_parts[i]] if joint_parts and i in joint_parts else [need(f'pipe{i}_flange_left')]
+        if pipe is None or not joint or any(v is None for v in joint):continue
         c=center(pipe);r=p[f'diameter_{i}']/2;h=r+.044+p[f'rise_{i}']
         contact(c[1],h,f'Pipe {i} height mismatch');contact(c[2],z,f'Pipe {i} lateral position mismatch')
         actual_r=max(math.hypot(q[1]-c[1],q[2]-c[2]) for q in pipe['points'])
-        flange_r=max(math.hypot(q[1]-c[1],q[2]-c[2]) for q in flange['points'])
+        flange_r=max(math.hypot(q[1]-c[1],q[2]-c[2]) for part in joint for q in part['points'])
         pipes.append(dict(id=i,center_yz=c[1:],outer_radius=actual_r,flange_radius=flange_r,bottom=bounds(pipe)[0][1]))
     gaps=[]
     for a in range(len(pipes)):
