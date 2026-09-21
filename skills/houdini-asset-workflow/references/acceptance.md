@@ -1,6 +1,6 @@
 # 参数预检与可复用验收
 
-适用MCP0.7起的配方验收；0.9新增pipe_rack_sample，0.10新增pipe_rack_reference，当前四个配方。运行版本以ping为准，工具调用成功与ready/验收通过分别判断。
+适用MCP0.7起的配方验收；0.9新增pipe_rack_sample，0.10新增pipe_rack_reference，0.11新增external_coupling_sample，当前五个配方。运行版本以ping为准，工具调用成功与ready/验收通过分别判断。
 
 ## 参数调整
 

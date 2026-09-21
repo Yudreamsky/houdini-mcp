@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.10.0 / 22 工具 / 4 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.11.0 / 22 工具 / 5 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -27,7 +27,7 @@
 | `asset_preset` | 捕获、列举或应用数字参数预设，排除动画通道 |
 | `list_procedural_assets` | 查询配方、单位、数字类型/范围及结构化跨参数约束 |
 | `preflight_asset_instance` | 只读检查组合参数和实例/通道保护，返回拟用值及具体错误，不生成几何 |
-| `upsert_asset_instance` | 按稳定 ID 创建或更新直管、90°弯头或三管共用支吊架样段，参数不变时不重复创建 |
+| `upsert_asset_instance` | 按稳定 ID 创建或更新直管、弯头、三管或独立外抱接头样段，参数不变时不重复创建 |
 | `inspect_asset_instance` | 回读样段实际几何，检查尺寸、孔拓扑、选定连接与支架覆盖 |
 | `preview_asset_views` | GUI 正/侧/顶/透视，按类型或精确构件名隔离聚焦，返回原生 PNG |
 
@@ -77,6 +77,12 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 检查实际管/法兰包络净距、各管承托、共用横担覆盖、吊杆/管卡穿孔及下方紧固件。穿孔检查读取实际顶面多边形，要求杆中心位于孔内且杆半径小于到孔边的距离。通用碰撞、承载与厂家节点细节仍不在范围内。详见 [0.9验证](docs/V09-VALIDATION.md)。
 
+### 0.11：独立外抱接头样件
+
+`recipe="external_coupling_sample"` 创建两段空心短管、两半橙色壳体、四个带真实孔的凸耳、两组螺栓/垫圈/螺母和推定的密封外包络，共19个零件。它是独立视觉样件，尚未替换原三管配方。壳体和凸耳用独立相交网格近似，未合成铸件实体；未做厂家管端沟槽、啮合键、密封截面或螺纹，不是标准产品或施工节点。
+
+参数：length、diameter、wall、shell_width、joint_offset、clocking（绕X轴角度）、segments。旋转接头不旋转两管网格；移动接头保持管外端。参数预检保证壳体两端各留80mm短管，此为配方约束。实际检查核管轴、半壳对齐/拼缝、紧固件座面、真实凸耳孔隙和轴向贯通空间。支持现有保存重开、独立HDA、part_names隔离与Mantra流程。参见[验证与限制](docs/V011-VALIDATION.md)。
+
 ### 0.10：照片参考变体与构件聚焦
 
 新配方 `pipe_rack_reference` 保留原三管配方，另建照片导向的局部样段：默认三管底部共面，黑管同径，槽钢增加回折边及小切角；银色法兰之间改为较厚蓝色连接本体。joint_offset_1/2/3分别移动各管接头，管段外端不动；接头压到支撑站会被预检拒绝。这个非线性站位检查由配方校验器执行，catalog.validation_notes明确说明，未冒充已声明为线性constraints。
@@ -93,7 +99,7 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 python scripts/accept_asset.py --recipe pipe_elbow_sample --expected-hip 'C:/project/current-saved.hip' --output 'C:/project/new-acceptance-01' --hython 'C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe' --render
 ```
 
-将路径替换为现场值。脚本核对当前GUI正是expected-hip且无未保存修改，临时切换场景创建独立样段；运行期间不要同时编辑该Houdini会话。输出目录必须不存在，不覆盖旧结果。`--recipe`支持四个已实现配方；可用 `--parameters` 和 `--update` 指定JSON参数文件，否则采用默认值和已验加长/加粗样例。
+将路径替换为现场值。脚本核对当前GUI正是expected-hip且无未保存修改，临时切换场景创建独立样段；运行期间不要同时编辑该Houdini会话。输出目录必须不存在，不覆盖旧结果。`--recipe`支持五个已实现配方；可用 `--parameters` 和 `--update` 指定JSON参数文件，否则采用默认值和已验联动样例。
 
 流程覆盖约束查询、只读预检、创建、自动识别/幂等、无效参数/配方拒绝、尺寸修改、多视图、复位、HIP/HDA打包、重开、独立hython重建。`--render`额外配置通用相机/灯光并渲染一帧Mantra；不指定时不运行渲染。最后恢复原HIP和帧，核保存状态与源HIP文件指纹。不会保证恢复所有面板布局。
 
@@ -198,6 +204,8 @@ python tests/acceptance.py
 0.9.0通过 **45项单元测试**、真实HOM三管承托/偏移/错孔负例、旧直管与弯头检查及幂等更新；新三管配方完成真实GUI MCP尺寸联动、多视图、保存重开、独立HDA和Mantra，完整与局部图片实际看图。详见 [0.9验证](docs/V09-VALIDATION.md)。
 
 0.10.0通过 **48项单元测试**、实际连接本体错位负例及旧三管指纹回归；照片变体通过GUI SDK、重开、独立HDA、Mantra。按名称聚焦的非法筛选拒绝、显示/选择恢复及几何不变通过，细长构件透视取景已实际看图。详见 [0.10验证](docs/V010-VALIDATION.md)。
+
+0.11.0通过 **54项单元测试**；外抱接头三个实际HOM错位反例、原照片三管几何指纹回归，以及完整GUI SDK参数联动/复位、保存重开、独立HDA、Mantra均通过。旧四配方生成源码保持不变。详见[0.11验证](docs/V011-VALIDATION.md)。
 
 0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 

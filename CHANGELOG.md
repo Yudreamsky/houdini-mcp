@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0
+
+- Added the independent `external_coupling_sample`: two hollow pipe stubs, split orange housings, actual lug holes, paired fasteners and an explicitly inferred seal envelope. Seven numeric parameters include axial position and clocking; existing four recipe algorithms remain unchanged.
+- Reused the 22-tool workflow with actual local-frame housing/pipe/hardware measurements, polygon-hole clearance and projected-face axial bore checks. This is a visual sample, not a standard fitting; housing keys, pipe grooves and threads are omitted, and lug meshes overlap housing meshes.
+- Passed 54 unit tests, three real HOM displaced-part negatives and old photo-rack fingerprint regression, GUI SDK parameter updates/reset, HIP reopen, standalone HDA and Mantra. Updated the companion Skill with measured behavior and limitations. See [validation](docs/V011-VALIDATION.md).
+
 ## 0.10.0
 
 - Added `pipe_rack_reference`, a separate photo-guided variant preserving the three existing recipe identities: coplanar default pipe bottoms, equal black-pipe diameters, folded channel return lips, steel flanges around a thicker blue visual body, and independent joint X offsets. Inferred dimensions and unreconstructed features remain explicit.

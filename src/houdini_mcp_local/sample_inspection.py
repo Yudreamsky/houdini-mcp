@@ -9,6 +9,11 @@ import hou
 def inspect(path):
     from .procedural_assets import managed
     node=managed(path)
+    if node.userData('workai_recipe')=='external_coupling_sample':
+        import importlib
+        from . import coupling_inspection
+        importlib.reload(coupling_inspection)
+        return coupling_inspection.inspect(node)
     if node.userData('workai_recipe')=='pipe_elbow_sample':
         import importlib
         from . import elbow_inspection

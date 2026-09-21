@@ -12,4 +12,4 @@
 
 > 条件与版本 → 现象 → 原因/仍未知部分 → 已验证处理 → 样例与证据 → 适用边界。
 
-已有主题由SKILL.md路由至pipe-support.md、elbow-route.md、shared-rack.md、photo-reference.md、acceptance.md和rendering.md。新增主题确有实际内容再建reference，不预建空分类。
+已有主题由SKILL.md路由至pipe-support.md、elbow-route.md、shared-rack.md、photo-reference.md、external-coupling.md、acceptance.md和rendering.md。新增主题确有实际内容再建reference，不预建空分类。

@@ -11,7 +11,7 @@ from . import recipe_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = 'pipe_support_sample'
-RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample', 'pipe_rack_reference')
+RECIPES = (RECIPE, 'pipe_elbow_sample', 'pipe_rack_sample', 'pipe_rack_reference', 'external_coupling_sample')
 
 
 def source(recipe):
@@ -19,7 +19,7 @@ def source(recipe):
     code=Path(sample_geometry.__file__).read_text(encoding='utf-8')
     if recipe==RECIPE: return sample_geometry,code
     if recipe not in RECIPES: raise ValueError('Unsupported recipe: '+str(recipe))
-    module=importlib.import_module('.elbow_geometry' if recipe=='pipe_elbow_sample' else '.rack_geometry',__package__)
+    module=importlib.import_module('.coupling_geometry' if recipe=='external_coupling_sample' else '.elbow_geometry' if recipe=='pipe_elbow_sample' else '.rack_geometry',__package__)
     importlib.reload(module)
     # Embed the unchanged straight algorithm in a separate namespace so its
     # parameters/build functions cannot be rebound by the routed recipe.
@@ -37,7 +37,7 @@ def catalog():
     for recipe in RECIPES:
         module,_=source(recipe)
         recipes.append({'id':recipe,'version':'1.0','units':'metres',
-                        'scope':'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers','pipe_rack_reference':' with photo-guided folded channels and blue joint bodies'}.get(recipe,''))+'; not an engineering design',
+                        'scope':('Illustrative external split coupling and two short pipes' if recipe=='external_coupling_sample' else 'Illustrative pipe joint/support sample'+({'pipe_elbow_sample':' with one horizontal 90 degree elbow','pipe_rack_sample':' with three parallel pipes and shared hangers','pipe_rack_reference':' with photo-guided folded channels and blue joint bodies'}.get(recipe,'')))+'; not an engineering design',
                         'parameters':recipe_contract.parameter_schema(module.PARAMETERS),
                         'constraints':recipe_contract.constraints(recipe),
                         'structured_inputs':False,

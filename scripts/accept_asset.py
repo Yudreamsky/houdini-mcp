@@ -22,6 +22,7 @@ UPDATES={'pipe_support_sample':{'length':3.6,'diameter':.5},
          'pipe_elbow_sample':{'inlet_length':4.2,'outlet_length':3.6,'diameter':.5,'bend_radius':.9},
          'pipe_rack_sample':{'length':3.6,'diameter_1':.45,'diameter_2':.30,'spacing_12':.75,'spacing_23':.65,'rise_1':.06,'rise_2':0,'rise_3':.16}}
 UPDATES['pipe_rack_reference']={'length':4.0,'support_pitch':1.2,'diameter_2':.30,'spacing_12':.60,'spacing_23':.58,'joint_offset_2':0}
+UPDATES['external_coupling_sample']={'length':1.0,'diameter':.40,'shell_width':.12,'joint_offset':.12,'clocking':-35}
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def ensure(condition,message):

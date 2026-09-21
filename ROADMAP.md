@@ -37,6 +37,8 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Later, when repeated work justifies it
 
+0.11 completes the first photo-study component: an independent orange external split coupling with two pipe stubs, actual lug holes and measured interfaces. It uses the existing 22 tools, with save/reopen and standalone-HDA verification. Next integrate one instance into a separate rack candidate and verify neighboring supports and unchanged-part fingerprints; multiple typed joints and uncertain upper framing remain future work. See [0.11 validation](docs/V011-VALIDATION.md).
+
 2026-09-21 photo-understanding follow-up (documentation only): first prototype one orange external coupling and two short pipes, then validate its interfaces before supporting multiple typed joints. Identify slotted framing by member continuity and attachments, not screen direction; occluded intersections remain uncertain. See [case and implementation boundary](docs/PHOTO-READING-CASE.md). Runtime remains 0.10; no new tool is claimed for this review.
 
 0.10 uses the original photo to refine a separate rack variant and adds exact-part focus. Observed gaps remain: multiple heterogeneous joints per pipe (especially the red pipe's orange external fitting), vertical slotted frames/connection brackets, and photographic camera/material matching. Implement these through specific reference-backed components before assembly animation; do not treat the present flange template as a full photo reconstruction.

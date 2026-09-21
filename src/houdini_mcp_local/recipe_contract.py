@@ -9,6 +9,11 @@ INTEGER_PARAMETERS = {'segments', 'bolt_count', 'bend_segments'}
 
 
 def constraints(recipe):
+    if recipe=='external_coupling_sample':
+        return [dict(id='wall_ratio',left='wall',op='lt',right='diameter',scale=.2,offset=0,message='Wall must be less than 20 percent of diameter'),
+                dict(id='cross_section_multiple',left='segments',op='multiple_of',divisor=4,message='Circular segments must be a multiple of four'),
+                dict(id='coupling_right_end',left='joint_offset',op='le',terms={'length':.5,'shell_width':-.5},offset=-.08,message='Leave 80mm pipe beyond the right shell end'),
+                dict(id='coupling_left_end',left='joint_offset',op='ge',terms={'length':-.5,'shell_width':.5},offset=.08,message='Leave 80mm pipe beyond the left shell end')]
     if recipe in ('pipe_rack_sample','pipe_rack_reference'):
         rules=[dict(id='cross_section_multiple',left='segments',op='multiple_of',divisor=4,message='Cross-section segments must be a multiple of four'),
                dict(id='support_coverage_length',left='support_pitch',op='le',right='length',scale=1,offset=-.24,message='Support pitch must be <= length - 0.24 m')]
