@@ -6,9 +6,13 @@ import hou
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from houdini_mcp_local.asset_ops import set_parameters
 from houdini_mcp_local.io_utils import atomic_json
+from houdini_mcp_local.render_jobs import verify_inputs, verified_outputs
 
 folder=Path(sys.argv[1]);request=json.loads((folder/'request.json').read_text(encoding='utf-8'))
-state={'state':'running','completed_frames':0,'total_frames':request['end_frame']-request['start_frame']+1,'outputs':[],'started_at':time.time()}
+state={'state':'running','completed_frames':0,'total_frames':request['end_frame']-request['start_frame']+1,'outputs':[],'started_at':time.time(),'parent_job_id':request.get('parent_job_id'),'reused_frames':[]}
+class Cancelled(Exception):pass
+def cancellation_point():
+    if (folder/'cancel.json').exists():raise Cancelled()
 def status():
     state['updated_at']=time.time()
     atomic_json(folder/'status.json',state)
@@ -18,21 +22,24 @@ def info(path):
     return {'path':str(path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
 try:
     status()
-    for library in request.get('libraries',[]):hou.hda.installFile(library['snapshot'])
+    verify_inputs(folder,request)
+    cancellation_point()
+    state['outputs']=verified_outputs(folder,request,request.get('reused_outputs',[]))
+    state['completed_frames']=len(state['outputs'])
+    state['reused_frames']=[v['frame'] for v in state['outputs']]
+    for library in request.get('libraries',[]):
+        hou.hda.installFile(library['snapshot'])
+        for definition in hou.hda.definitionsInFile(library['snapshot']):definition.setIsPreferred(True)
     try:
         hou.hipFile.load((folder/'scene.hip').as_posix(),suppress_save_prompt=True)
     except hou.LoadWarning as warning:
         state['load_warning']=str(warning)
         if 'incomplete asset' in str(warning).lower() or 'full definition not found' in str(warning).lower():raise
     hou.putenv('HIP',str(Path(request['hip_path']).parent).replace('\\','/'))
-    # Freeze the definitions used by this loaded scene before rendering.
-    defs={}
-    for node in hou.node('/obj').allSubChildren():
-        d=node.type().definition()
-        if d and d.nodeTypeName().startswith('workai::') and d.nodeTypeName() not in defs:
-            dest=folder/('asset-'+str(len(defs))+'.hda');d.copyToHDAFile(dest.as_posix());hou.hda.installFile(dest.as_posix())
-            hou.hda.definitionsInFile(dest.as_posix())[0].setIsPreferred(True);defs[d.nodeTypeName()]=info(dest)
-    state['definitions']=defs
+    # Reassert frozen definitions after loading the HIP's library table.
+    for library in request.get('libraries',[]):
+        hou.hda.installFile(library['snapshot'])
+        for definition in hou.hda.definitionsInFile(library['snapshot']):definition.setIsPreferred(True)
     if request['parameters']:state['applied']=set_parameters(request['asset_path'],request['parameters'])
     if request['asset_path']:
         asset=hou.node(request['asset_path'])
@@ -48,6 +55,8 @@ try:
     r.parm('soho_pipecmd').set('mantra -j 8')
     state['fps']=hou.fps();status()
     for frame in range(request['start_frame'],request['end_frame']+1):
+        cancellation_point()
+        if frame in state['reused_frames']:continue
         state['current_frame']=frame;status();hou.setFrame(frame)
         exr=folder/f'raw_{frame:04}.exr';png=folder/f'frame_{frame:04}.png'
         r.parm('vm_picture').set(exr.as_posix());r.render(frame_range=(frame,frame))
@@ -58,6 +67,11 @@ try:
         if not png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):raise RuntimeError('Invalid PNG signature')
         state['outputs'].append({'frame':frame,'png':image_info,'exr':raw_info})
         state['completed_frames']+=1;status()
+    cancellation_point()
+    state['outputs']=verified_outputs(folder,request,state['outputs'])
+    if len(state['outputs'])!=state['total_frames']:raise RuntimeError('Final output verification failed')
     state['state']='completed';state['finished_at']=time.time();status()
+except Cancelled:
+    state['state']='cancelled';state['finished_at']=time.time();status()
 except BaseException:
     state['state']='failed';state['error']=traceback.format_exc();state['finished_at']=time.time();status();raise

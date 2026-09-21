@@ -76,21 +76,93 @@ def get_viewport_screenshot(width: int = 960, height: int = 540) -> list[TextCon
 @mcp.tool(annotations=WRITE)
 def set_asset_parameters(path: str, parameters: dict) -> dict:
     """Set numeric asset parameters after validating the entire request. Refuses animated channels. Does not save."""
-    import json
-    code = "from houdini_mcp_local.asset_ops import set_parameters\nresult = set_parameters(" + repr(path) + ", " + repr(parameters) + ")"
-    return client.call("execute_code", {"code": code})
+    return _operation('asset_ops', 'set_parameters', path, parameters)
+
+
+def _operation(module, function, *args):
+    code = 'import importlib\nfrom houdini_mcp_local import ' + module + '\nimportlib.reload(' + module + ')\nresult=' + module + '.' + function + '(' + ','.join(repr(a) for a in args) + ')'
+    return client.call('execute_code', {'code': code})['result']
+
+
+@mcp.tool(annotations=READ)
+def get_capabilities() -> dict:
+    """Read exact live session, supported pipelines and installed renderer nodes; availability is not a GPU render benchmark."""
+    import csv, json, shutil, subprocess
+    result = _operation('session_ops', 'capabilities')
+    result['session_id'] = json.loads(client.session_file.read_text(encoding='utf-8'))['session_id']
+    result.update(ping())
+    result['gpu_probe'] = {'available': False, 'devices': [], 'xpu_render_verified': False}
+    executable = shutil.which('nvidia-smi')
+    if executable:
+        try:
+            probe = subprocess.run([executable, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=5, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+            result['gpu_probe'] = {'available': True, 'devices': [dict(name=row[0].strip(), driver=row[1].strip(), memory_mib=int(row[2].strip())) for row in csv.reader(probe.stdout.splitlines())], 'xpu_render_verified': False}
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError) as exc:
+            result['gpu_probe']['error'] = str(exc)
+    return result
+
+
+@mcp.tool(annotations=READ)
+def get_asset_schema(path: str) -> dict:
+    """Inspect numeric parameter types, ranges, defaults, conditions and animation locks."""
+    return _operation('asset_ops', 'get_schema', path)
+
+
+@mcp.tool(annotations=WRITE)
+def asset_preset(action: str, name: str = '', path: str = '', overwrite: bool = False) -> dict:
+    """List, capture or apply a named numeric preset. Animated/locked/disabled channels are excluded. Exact asset type/schema required; application returns prior values and does not save the HIP."""
+    return _operation('asset_ops', 'preset', action, name, path, overwrite)
+
+
+def _preflight(request):
+    import shutil
+    from .render_jobs import validate_request, JOBS
+    validate_request(request['hip_path'], request['start_frame'], request['end_frame'], request['width'], request['height'], request.get('asset_libraries'))
+    result = _operation('session_ops', 'inspect_render', request)
+    free = shutil.disk_usage(JOBS if JOBS.exists() else ROOT).free
+    estimate = request['width'] * request['height'] * (request['end_frame'] - request['start_frame'] + 1) * 32 + 256 * 1024 * 1024
+    result.update(disk_free_bytes=free, estimated_required_bytes=estimate)
+    if free < estimate:
+        result['errors'].append('Insufficient estimated disk space for preview outputs')
+        result['ready'] = False
+    return result
+
+
+@mcp.tool(annotations=READ)
+def preflight_render(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
+                     start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
+                     asset_path: str = '', parameters: dict | None = None, asset_libraries: list[str] | None = None) -> dict:
+    """Check saved live scene, camera, Mantra/COP2 nodes, HDA/file dependencies and disk capacity without submitting a render."""
+    return _preflight(dict(hip_path=hip_path, rop_path=rop_path, composite_node=composite_node, source_cop_node=source_cop_node, start_frame=start_frame, end_frame=end_frame, width=width, height=height, asset_path=asset_path, parameters=parameters or {}, asset_libraries=asset_libraries or []))
+
+
+def _launch(identifier):
+    from .render_jobs import HYTHON
+    return _operation('render_jobs', 'launch_worker', identifier, str(HYTHON))
 
 
 @mcp.tool(annotations=WRITE)
 def render_frames(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
                   start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
-                  asset_path: str = "", parameters: dict | None = None, asset_libraries: list[str] | None = None) -> dict:
-    """Start a durable background Mantra+COP2 preview job from a saved HIP snapshot. Returns job id, not completion. Use get_render_status. GUI edits not saved to HIP are excluded. Outputs go to a unique job folder."""
-    from .render_jobs import start_job, HYTHON
-    def launch(identifier):
-        code = "import importlib\nimport houdini_mcp_local.render_jobs as jobs\nimportlib.reload(jobs)\nresult=jobs.launch_worker(" + repr(identifier) + ", " + repr(str(HYTHON)) + ")"
-        return client.call('execute_code', {'code': code})
-    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, launch, asset_libraries)
+                  asset_path: str = "", parameters: dict | None = None, asset_libraries: list[str] | None = None,
+                  request_id: str | None = None) -> dict:
+    """Preflight and snapshot the saved live HIP/HDA, then launch a durable Mantra+COP2 preview. Repeated input/request IDs return the same job; use a new ID for intentional rerenders. Maximum two active jobs. Poll status for completion."""
+    from .render_jobs import start_job
+    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, _launch, asset_libraries, request_id, _preflight)
+
+
+@mcp.tool(annotations=WRITE)
+def cancel_render(job_id: str) -> dict:
+    """Request cancellation after the current frame. Does not kill Houdini or guarantee immediate stop; poll for cancelled."""
+    from .render_jobs import cancel_job
+    return cancel_job(job_id)
+
+
+@mcp.tool(annotations=WRITE)
+def resume_render(job_id: str, request_id: str | None = None) -> dict:
+    """Create a child job from frozen inputs of a terminal job, reuse verified frames and rerender missing/corrupt frames. Original records are preserved. Changed dependencies reject resume."""
+    from .render_jobs import resume_job
+    return resume_job(job_id, _launch, request_id)
 
 
 @mcp.tool(annotations=READ)

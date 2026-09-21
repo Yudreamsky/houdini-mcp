@@ -1,0 +1,104 @@
+"""Read-only Houdini session and loaded-scene render inspection."""
+import hashlib
+import os
+from pathlib import Path
+import hou
+
+
+def capabilities():
+    return {
+        'houdini_version': hou.applicationVersionString(),
+        'pid': os.getpid(), 'ui_available': hou.isUIAvailable(),
+        'hip_path': hou.hipFile.path(),
+        'unsaved_changes': hou.hipFile.hasUnsavedChanges(),
+        'fps': hou.fps(), 'frame': hou.frame(),
+        'available_rop_types': [name for name in ('ifd', 'usdrender', 'opengl')
+                                if name in hou.ropNodeTypeCategory().nodeTypes()],
+        'supported_preview_pipeline': 'Mantra ifd + COP2',
+    }
+
+
+def inspect_render(request):
+    errors, warnings = [], []
+    hip = Path(request['hip_path']).resolve()
+    if Path(hou.hipFile.path()).resolve() != hip:
+        errors.append('Requested HIP is not the currently loaded scene; open it before preflight')
+    if hou.hipFile.hasUnsavedChanges():
+        errors.append('Current scene has unsaved changes; save a separate version before rendering')
+    rop = hou.node(request['rop_path'])
+    camera = None
+    if rop is None or rop.type().name() != 'ifd':
+        errors.append('Expected a Mantra ifd ROP: ' + request['rop_path'])
+    else:
+        camera = hou.node(rop.evalParm('camera'))
+        if camera is None or camera.type().name() != 'cam':
+            errors.append('ROP camera does not resolve to a camera object')
+    for key in ('source_cop_node', 'composite_node'):
+        node = hou.node(request[key])
+        if not isinstance(node, hou.Cop2Node):
+            errors.append('Expected a COP2 node: ' + request[key])
+    source = hou.node(request['source_cop_node'])
+    if source is not None and source.parm('filename1') is None:
+        errors.append('Source COP must expose filename1')
+    libraries = {str(Path(p).resolve()).lower() for p in request.get('asset_libraries', [])}
+    hfs = str(Path(hou.expandString('$HFS')).resolve()).lower() + os.sep
+    required = set()
+    for node in hou.node('/').allSubChildren():
+        definition = node.type().definition()
+        if not definition:
+            continue
+        library = definition.libraryFilePath()
+        if library == 'Embedded':
+            continue
+        resolved = str(Path(library).resolve())
+        if resolved.lower().startswith(hfs):
+            continue
+        required.add(resolved)
+    for path in sorted(required):
+        if path.lower() not in libraries:
+            errors.append('Explicit HDA dependency missing from asset_libraries: ' + path)
+    if request.get('asset_path'):
+        from houdini_mcp_local.asset_ops import validate_parameters
+        try:
+            validate_parameters(request['asset_path'], request.get('parameters', {}))
+        except Exception as exc:
+            errors.append(str(exc))
+    dependencies = {}
+    # Mantra destinations and the COP source are replaced by the worker.
+    ignored = {request['rop_path'] + '/' + p for p in ('vm_picture', 'soho_diskfile')}
+    ignored.add(request['source_cop_node'] + '/filename1')
+    for parm, reference in hou.fileReferences():
+        if parm is None or parm.path() in ignored or parm.isDisabled() or not reference:
+            continue
+        if parm.name() == 'rendergallerysource':
+            continue  # Optional render gallery database, not a render input.
+        if parm.path() == request['rop_path'] + '/soho_program' and reference == 'IFD.py':
+            continue  # Houdini's built-in SOHO driver is found on its own script path.
+        if reference.startswith(('op:', 'opdef:', 'oplib:', 'http:', 'https:')):
+            if reference.startswith(('http:', 'https:')):
+                errors.append('Remote input cannot be fingerprinted: ' + parm.path())
+            continue
+        frames = range(request['start_frame'], request['end_frame'] + 1) if '$F' in reference or '`' in reference else [request['start_frame']]
+        for frame in frames:
+            value = parm.evalAsStringAtFrame(frame)
+            if not value or value.startswith(('op:', 'opdef:', 'oplib:')):
+                continue
+            path = Path(value)
+            if not path.is_absolute():
+                path = hip.parent / path
+            if not path.is_file():
+                errors.append('Missing referenced file: ' + parm.path() + ' -> ' + str(path))
+                break
+            path = path.resolve()
+            if str(path).lower().startswith(hfs):
+                continue
+            if str(path) not in dependencies:
+                raw = path.read_bytes()
+                dependencies[str(path)] = {'path': str(path), 'bytes': len(raw),
+                                            'sha256': hashlib.sha256(raw).hexdigest()}
+    warnings.append('Dependency inspection covers Houdini file parameters; paths opened by custom Python/VEX are not discoverable')
+    return {'ready': not errors, 'errors': errors, 'warnings': warnings,
+            'required_hda_libraries': sorted(required),
+            'external_dependencies': list(dependencies.values()),
+            'camera': camera.path() if camera else None,
+            'scene': capabilities()}
