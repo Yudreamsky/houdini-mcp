@@ -10,9 +10,11 @@ Improve the MCP through actual asset work. Each increment needs a reproducible s
 4. `cancel_render`, request idempotency and concurrency limits, backed by process identity rather than PID alone.
 5. Numeric parameter schemas and presets with animated-channel protection.
 
-## Proposed next: a measured Karma XPU preview
+## Measured: a standalone Karma XPU preview
 
-Convert a copy of the accepted map to Solaris/USD and MaterialX. Render the same camera/frame/resolution with Mantra and Karma XPU, verify that the GPU actually participates, compare visible emission/bloom/color and wall-clock time, then add a renderer selection to the MCP if the result is useful. No performance claim or automatic production-scene conversion before this comparison.
+A copy of the map was converted to Solaris/USD and MaterialX, rendered with verified OptiX GPU participation and compared at identical camera/frames/resolution. See [results and limits](docs/KARMA-XPU-COMPARISON.md). Low sampling was faster but noisier; higher sampling had similar three-frame total time to Mantra. The original assets remained unchanged.
+
+Proposed next: add explicit renderer selection, Solaris/MaterialX preflight and device evidence to the existing MCP job lifecycle. This adapter is not implemented yet. Keep Mantra available and measure more complex assets separately.
 
 ## Later, when repeated work justifies it
 

@@ -79,7 +79,7 @@ GUI 启动器与客户端的 `HOUDINI_HYTHON` 应指向同一安装版本。启�
 
 调用 `cancel_render(job_id)` 后继续查询状态。它在帧边界协作停止，不强杀当前 Mantra；当前帧卡住时不能保证立即取消。对 `cancelled`、`failed` 或确认进程已退出的 `interrupted` 作业调用 `resume_render`，会保留原记录并创建新任务，校验 HIP/HDA/外部依赖及逐帧 PNG/EXR 哈希，只复用完整帧。对已有 `completed` 作业也可检查并补渲损坏帧。输入指纹改变会拒绝续渲，`launch_unknown` 不会盲目重试；需要先确认实际 worker 状态。
 
-这些工具目前仍使用 **Mantra + COP2**。显卡探测成功不代表 Karma XPU 已完成兼容或性能验证；XPU/Solaris/MaterialX 支持是后续增量。
+这些工具目前仍使用 **Mantra + COP2**。独立地图样片已完成 [Karma XPU 对照测试](docs/KARMA-XPU-COMPARISON.md)，证实4090实际参与；低采样更快但细线较粗糙，高采样三帧总耗时与Mantra接近。XPU/Solaris/MaterialX 尚未接入通用渲染工具，显卡探测字段也不代表此工具链已支持XPU。
 
 ## 资产参数预设
 
@@ -98,7 +98,7 @@ python tests/acceptance.py
 
 0.3.0 开发验证通过 21 项单元检查，并经真实 MCP stdio 调用完成：地图副本的 schema/预设恢复、表达式保留、预检拒绝、重复提交、五帧渲染在两帧后取消、续渲复用两帧并补齐三帧，再故意损坏一帧并仅补渲该帧。原 HIP/HDA 指纹保持不变。0.2.0 地图资产、独立 HDA 加载、点阵地理检查与视频输出结果继续保留。
 
-机器专属配置、场景、凭据和大体积渲染证据不提交此仓库。其他 Houdini 版本、操作系统与渲染器未验证；Codex 当前对话的原生 MCP 工具加载仍是独立待验项，不能用外部 SDK 成功替代。
+机器专属配置、场景、凭据和大体积渲染证据不提交此仓库。其他 Houdini 版本、操作系统未验证；渲染器验证范围限上文Mantra与独立XPU地图样片。Codex 当前对话的原生 MCP 工具加载仍是独立待验项，不能用外部 SDK 成功替代。
 
 ## 边界与迭代
 
