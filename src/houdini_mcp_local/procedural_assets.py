@@ -7,6 +7,7 @@ from pathlib import Path
 import hou
 from . import sample_geometry
 from .asset_ops import validate_parameters
+from . import recipe_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 RECIPE = 'pipe_support_sample'
@@ -27,12 +28,14 @@ def source(recipe):
 
 
 def catalog():
+    importlib.reload(recipe_contract)
     recipes=[]
     for recipe in RECIPES:
         module,_=source(recipe)
         recipes.append({'id':recipe,'version':'1.0','units':'metres',
                         'scope':'Illustrative pipe joint/support sample'+(' with one horizontal 90 degree elbow' if recipe!=RECIPE else '')+'; not an engineering design',
-                        'parameters':{k:dict(default=v[0],min=v[1],max=v[2],label=v[3]) for k,v in module.PARAMETERS.items()},
+                        'parameters':recipe_contract.parameter_schema(module.PARAMETERS),
+                        'constraints':recipe_contract.constraints(recipe),
                         'structured_inputs':False})
     return {'recipes':recipes,'library_mode':'Self-contained HDA compiled from versioned recipe source'}
 
@@ -84,26 +87,62 @@ def managed(path):
     return node
 
 
-def upsert(instance_id, parameters=None, recipe=RECIPE):
-    module,code=source(recipe)
-    if not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}',instance_id):
+class InvalidParameters(ValueError):
+    def __init__(self, errors):
+        self.errors=errors
+        super().__init__(json.dumps(errors))
+
+
+def prepare(instance_id, parameters=None, recipe=None):
+    """Shared read-only resolution/validation. Never builds, installs or cooks an HDA."""
+    if not isinstance(instance_id,str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,63}',instance_id):
         raise ValueError('instance_id must start with a letter and use at most 64 letters/digits/_/-')
+    if parameters is not None and not isinstance(parameters,dict):raise ValueError('parameters must be an object')
     name='workai_'+hashlib.sha256(instance_id.encode()).hexdigest()[:16]
-    parent=hou.node('/obj/'+name); existing=parent is not None
+    parent=hou.node('/obj/'+name); existing=parent is not None;node=None
     if existing:
         if parent.userData('workai_instance_id')!=instance_id: raise ValueError('Target object is not owned by this instance')
         node=managed(parent.path()+'/asset')
-        if node.userData('workai_recipe')!=recipe: raise ValueError('Instance recipe differs; use a new ID rather than replacing its recipe')
+        stored_recipe=node.userData('workai_recipe')
+        if recipe is not None and stored_recipe!=recipe: raise ValueError('Instance recipe differs; use a new ID rather than replacing its recipe')
+        recipe=stored_recipe
+    elif recipe is None:recipe=RECIPE
+    module,code=source(recipe)
+    if existing:
         before={k:node.evalParm(k) for k in module.PARAMETERS}
     else:
         before={}
-    values=module.validate(dict(before,**(parameters or {})))
+    values={k:v[0] for k,v in module.PARAMETERS.items()};values.update(before);values.update(parameters or {})
+    importlib.reload(recipe_contract)
+    errors=recipe_contract.violations(recipe,module.PARAMETERS,values)
+    if errors:raise InvalidParameters(errors)
+    values=module.validate(values)
+    digest=hashlib.sha256(code.encode()).hexdigest()
     if existing:
         validate_parameters(node.path(),values)
         # Never silently migrate an instance to a changed recipe implementation.
-        digest=hashlib.sha256(code.encode()).hexdigest()
         if node.userData('workai_recipe_sha256')!=digest: raise ValueError('Recipe version changed; create a new instance for explicit migration')
-        library=Path(node.type().definition().libraryFilePath())
+    return dict(name=name,parent=parent,node=node,existing=existing,recipe=recipe,before=before,values=values,digest=digest)
+
+
+def preflight(instance_id, parameters=None, recipe=None):
+    try:
+        plan=prepare(instance_id,parameters,recipe)
+    except InvalidParameters as exc:
+        return dict(ready=False,instance_id=instance_id,errors=exc.errors,scene_modified=False)
+    except ValueError as exc:
+        return dict(ready=False,instance_id=instance_id,errors=[dict(code='instance_or_channel_guard',message=str(exc))],scene_modified=False)
+    return dict(ready=True,instance_id=instance_id,recipe=plan['recipe'],path='/obj/'+plan['name']+'/asset',
+                will_create=not plan['existing'],would_change=plan['before']!=plan['values'],
+                before=plan['before'],parameters=plan['values'],recipe_sha256=plan['digest'],
+                constraints=recipe_contract.constraints(plan['recipe']),errors=[],scene_modified=False,
+                scope='Input/instance/channel validation only; geometry cook and inspection occur on upsert. Revalidated at write time.')
+
+
+def upsert(instance_id, parameters=None, recipe=None):
+    plan=prepare(instance_id,parameters,recipe)
+    name,parent,node,existing,recipe,before,values,digest=(plan[k] for k in ('name','parent','node','existing','recipe','before','values','digest'))
+    if existing:library=Path(node.type().definition().libraryFilePath())
     else:
         typename,library,digest=definition(recipe)
         parent=hou.node('/obj').createNode('geo',node_name=name,run_init_scripts=False)
@@ -131,6 +170,6 @@ def upsert(instance_id, parameters=None, recipe=RECIPE):
             node.cook(force=True)
         else: parent.destroy()
         raise
-    return dict(instance_id=instance_id,path=node.path(),object_path=parent.path(),created=not existing,
+    return dict(instance_id=instance_id,recipe=recipe,path=node.path(),object_path=parent.path(),created=not existing,
                 changed=before!=values,parameters=values,before=before,library=str(library),
                 recipe_sha256=digest,check=check,saved=False)

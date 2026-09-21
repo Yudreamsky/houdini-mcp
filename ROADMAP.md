@@ -37,6 +37,8 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Later, when repeated work justifies it
 
+0.7 improves repeated use before adding components: structured parameter contracts, read-only instance preflight, automatic existing-recipe inference and one reusable acceptance script for both recipes. Future recipes should reuse this lifecycle and add concrete geometry/interface checks, not duplicate machine-specific acceptance scripts.
+
 - Keyframes and saved-scene checkpoints beyond numeric presets.
 - Broader camera controls and richer visual acceptance beyond the delivered sample views and basic pixel statistics.
 - Generalize the XPU adapter only when another real asset (for example the digital globe) supplies a concrete validation case.

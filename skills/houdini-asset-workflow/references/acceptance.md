@@ -1,0 +1,27 @@
+# 参数预检与可复用验收
+
+适用MCP0.7起的两个已实现配方。运行版本以ping为准，工具调用成功与ready/验收通过分别判断。
+
+## 参数调整
+
+`list_procedural_assets`给出数值类型、单参数边界及constraints。每条组合约束有id、相关字段和比较方式，调用者无需从报错猜规则。约束是配方可用范围，不是工程规范。
+
+`preflight_asset_instance(instance_id=..., parameters={...})`对已有实例合并当前参数，并自动识别recipe；新实例默认直管，新弯头须指定recipe。ready=false时先读errors中的code、fields、actual、limit，修正整组输入。人工编辑、动画/锁定通道、归属或配方版本问题不可通过删表达式、解锁或覆盖元数据来绕过。
+
+预检不创建节点、不安装/编译HDA、不设置参数或主动cook；不因此承诺几何、碰撞或渲染成功。ready=true返回的是当前状态下的计划，未锁定场景。upsert会重新读取并校验，期间有人改动场景时以新结果为准。
+
+元数据校验与写入共用prepare；嵌入几何的原validate仍再次校验。本轮合约声明放在独立模块，避免只改说明就改变既有HDA指纹。添加约束时同步测试声明与实际几何校验器的一致性。
+
+## 可复用脚本
+
+从仓库根目录运行 `scripts/accept_asset.py --help`。外部Python需安装本仓库MCP依赖，`--hython`指向对应Houdini版本。完整命令示例见仓库README；脚本路径相对仓库根目录。
+
+必填：`--recipe`、`--expected-hip`（GUI当前已保存、无未保存修改的文件）、`--output`（尚不存在的新目录）、`--hython`。可选 `--parameters` / `--update` 是JSON文件；未指定update时使用该配方已验的加长/加粗样例。加 `--render` 才执行一帧Mantra渲染。
+
+脚本会临时切换当前GUI场景，适用于用户已批准的验收工作，运行期间不要同时编辑该Houdini会话。它核对expected-hip与保存状态，独立建样段、只读预检、创建、自动识别更新、反例拒绝、多视图、复位、打包HDA/HIP、重开，再调用 `scripts/verify_hda.py` 在独立hython中重建。finally恢复原HIP/帧并核干净状态与原文件指纹。它不保证恢复所有UI面板布局。
+
+脚本退出后读report.json，检查passed、source_unchanged、restored_session；请求了渲染时再检查job_id、render_warnings和实际PNG。`visual_review`故意保留pending，技术脚本不能自己宣布美术合格。由实际看图的操作者另存review记录，不把全黑告警的宽容策略当作视觉通过。
+
+输出目录已存在时拒绝覆盖。失败保留报告和日志，不在原目录反复重试；先查error和当前GUI状态。渲染超时只请求取消，不声明已停止，先用get_render_status确认终态/进程状态，再决定重跑。脚本不会自行发布GitHub、安装Skill或修改客户端配置。
+
+每次普通小改不必重跑两配方全流程；根据受影响逻辑选择一条样例和必要保护测试。本轮两配方都运行，是因为共享实例解析、预检和交付脚本同时改变。

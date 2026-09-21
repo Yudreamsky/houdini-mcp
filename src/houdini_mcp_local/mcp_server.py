@@ -195,14 +195,20 @@ def get_render_preview(job_id: str, frame: int | None = None) -> list[TextConten
 
 @mcp.tool(annotations=READ)
 def list_procedural_assets() -> dict:
-    """List implemented procedural recipes, units, parameter bounds and scope. No scene changes."""
+    """List implemented recipes, units, numeric types/bounds and structured cross-parameter constraints. No scene changes."""
     return _operation('procedural_assets', 'catalog')
 
 
 @mcp.tool(annotations=WRITE)
-def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str = 'pipe_support_sample') -> dict:
-    """Create/update one owned HDA instance by stable ID. Recipes: pipe_support_sample (straight, default), pipe_elbow_sample (horizontal 90-degree route). Always specify recipe for elbow updates. Metre-based illustrative geometry; refuses animation, unlocked contents, foreign objects and implicit recipe changes. Does not save."""
+def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str | None = None) -> dict:
+    """Create/update an owned HDA instance. Omitted recipe infers an existing instance's recipe; a new instance defaults to pipe_support_sample. Select pipe_elbow_sample for a new elbow. Explicit recipe mismatch, animation, unlocked content and implicit version migration are rejected. Does not save."""
     return _operation('procedural_assets', 'upsert', instance_id, parameters or {}, recipe)
+
+
+@mcp.tool(annotations=READ)
+def preflight_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str | None = None) -> dict:
+    """Read-only combined-parameter and instance/channel validation. Returns ready, structured violations, merged proposed values and inferred recipe. No HDA compilation, installation, node creation, parameter writes or cook. Geometry is checked by upsert; preflight is not a reservation."""
+    return _operation('procedural_assets', 'preflight', instance_id, parameters or {}, recipe)
 
 
 @mcp.tool(annotations=READ)

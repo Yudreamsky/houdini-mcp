@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.6.0 / 21 工具 / 2 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.7.0 / 22 工具 / 2 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -25,7 +25,8 @@
 | `resume_render` | 创建子作业，复用哈希通过的帧，补渲缺失或损坏帧 |
 | `get_asset_schema` | 数字参数类型、维度、范围、默认值、条件与动画状态 |
 | `asset_preset` | 捕获、列举或应用数字参数预设，排除动画通道 |
-| `list_procedural_assets` | 查询已实现的程序化配方、单位和参数范围 |
+| `list_procedural_assets` | 查询配方、单位、数字类型/范围及结构化跨参数约束 |
+| `preflight_asset_instance` | 只读检查组合参数和实例/通道保护，返回拟用值及具体错误，不生成几何 |
 | `upsert_asset_instance` | 按稳定 ID 创建或更新直管/90°弯头支吊架样段，参数不变时不重复创建 |
 | `inspect_asset_instance` | 回读样段实际几何，检查尺寸、孔拓扑、选定连接与支架覆盖 |
 | `preview_asset_views` | GUI 正/侧/顶/透视及零件类型隔离预览，返回原生 PNG |
@@ -46,11 +47,33 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 ### 0.6：水平90°弯头样段
 
-使用 `upsert_asset_instance(instance_id="elbow-sample", recipe="pipe_elbow_sample", parameters={"inlet_length":2.4,"outlet_length":1.8,"bend_radius":0.6})`。后续更新仍需显式指定recipe；省略时保持原来的直管默认值，同ID改配方会拒绝覆盖。两配方共用原有工具，旧直管算法及HDA类型指纹保持不变。
+使用 `upsert_asset_instance(instance_id="elbow-sample", recipe="pipe_elbow_sample", parameters={"inlet_length":2.4,"outlet_length":1.8,"bend_radius":0.6})`。0.7起，后续更新已有实例可省略recipe，自动读取其配方；新实例省略recipe仍默认直管。同ID显式选择不同配方会拒绝覆盖。两配方共用工具，旧几何算法及HDA类型指纹保持不变。
 
 新配方包含两段带法兰/支架的直管和一只空心弯头，默认139个构件。入口沿+X，出口沿+Z，Y向上；inlet/outlet_length只计直段，bend_radius是中心线半径，另有bend_segments控制弯曲细分。直管的管径、壁厚、螺栓数量和支架参数继续有效。本样例要求中心线半径至少为外径1.5倍，属于配方约束，不表示管件标准。
 
 检查器测量两接口的内外环匹配误差、端口中心、弯头外径/壁厚，并在各自局部坐标内复用两条直段的检查。1厘米弯头错位的负例可被识别。完整顶视、侧视、透视和独立HDA验证见 [0.6 验证](docs/V06-VALIDATION.md)；该配方仍是固定水平90°，没有任意多点路由、三通、通用碰撞或流体网格。
+
+### 0.7：只读预检与配方识别
+
+`list_procedural_assets` 在单参数范围之外返回 `constraints`：壁厚比例、吊杆高度、支架覆盖、截面分段倍数、弯曲半径比例，均带规则ID、相关参数、比较操作和系数。数值参数带 `integer` / `number` 类型。这些属于视觉配方约束，不是工程标准。
+
+先调用 `preflight_asset_instance(instance_id="elbow-sample", parameters={"diameter":0.5,"bend_radius":0.9})`。已有实例按当前值合并，新实例按默认值合并；ready=true 返回解析后的recipe、before、拟用parameters、是否新建/改变。ready=false 返回结构化errors；组合错误包含code、fields、actual和limit，实例/通道保护包含code和message。必须检查ready，不能只看MCP调用是否成功。
+
+预检不安装/编译HDA、不新建节点、不写参数、不主动cook。与upsert共用实例解析和校验路径；upsert仍重新校验并生成/检查几何。预检不是状态锁或几何验收，期间场景变化会影响写入结果。动画/锁定/禁用通道、人工解锁HDA内容、外来对象和配方版本变化继续受保护。
+
+### 可复用GUI验收脚本
+
+在本仓库根目录，以安装了MCP依赖的外部Python运行：
+
+```powershell
+python scripts/accept_asset.py --recipe pipe_elbow_sample --expected-hip 'C:/project/current-saved.hip' --output 'C:/project/new-acceptance-01' --hython 'C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe' --render
+```
+
+将路径替换为现场值。脚本核对当前GUI正是expected-hip且无未保存修改，临时切换场景创建独立样段；运行期间不要同时编辑该Houdini会话。输出目录必须不存在，不覆盖旧结果。`--recipe`支持两个已实现配方；可用 `--parameters` 和 `--update` 指定JSON参数文件，否则采用默认值和已验加长/加粗样例。
+
+流程覆盖约束查询、只读预检、创建、自动识别/幂等、无效参数/配方拒绝、尺寸修改、多视图、复位、HIP/HDA打包、重开、独立hython重建。`--render`额外配置通用相机/灯光并渲染一帧Mantra；不指定时不运行渲染。最后恢复原HIP和帧，核保存状态与源HIP文件指纹。不会保证恢复所有面板布局。
+
+交付 `report.json`、`instance.json`、`sample.hip`、HDA、多视图、`standalone.json`；请求渲染时另有render-demo.hip和原生PNG。技术通过与实际看图分开，`visual_review`保留pending，操作者另记视觉结论。失败日志保留；默认渲染超时300秒时只请求取消，不声称已停止，应查询job_id确认后再重跑。没有自动发布或配置修改。
 
 ## 安装与启动
 
@@ -132,6 +155,7 @@ python tests/acceptance.py
 # 新进程执行程序化 HDA 验收，输出目录必须尚不存在：
 & 'C:/path/to/Houdini/bin/hython.exe' tests/procedural_acceptance.py evidence/procedural-check-01
 & 'C:/path/to/Houdini/bin/hython.exe' tests/elbow_acceptance.py evidence/elbow-check-01
+& 'C:/path/to/Houdini/bin/hython.exe' tests/preflight_acceptance.py evidence/preflight-check-01
 ```
 
 `unittest` 运行传输、队列、任务状态和纯几何单元测试，不需要 Houdini。`tests/acceptance.py` 使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 基础验收见 `tests/gui_acceptance.py --help`。`tests/procedural_acceptance.py` 通过真实 HOM 检查新样段的创建、更新、保护、打包和重开，独立于 MCP 传输/GUI 验收。
@@ -139,6 +163,8 @@ python tests/acceptance.py
 0.5.0 通过 **34 项单元测试**、真实 GUI MCP 样段创建/幂等更新/尺寸联动/多视图/保存重开，以及无仓库源码路径的独立 HDA 加载。样段 Mantra 960×540 实际渲染通过。详见 [0.5 验证与限制](docs/V05-VALIDATION.md)。
 
 0.6.0 通过 **37项单元测试**，真实GUI MCP弯头样段完整调用、尺寸联动、参数/配方保护、保存重开，独立HDA加载及1280×720 Mantra渲染。新增headless HOM检查故意平移弯头的负例；既有直管在新工具下幂等更新且几何指纹不变。项目Skill本轮已进入Codex可用列表并实际读取；原生Houdini MCP工具发现仍是独立待验项。
+
+0.7.0通过 **40项单元测试**、真实HOM只读/保护检查，以及同一份可复用GUI MCP脚本对两配方的完整执行（均含独立HDA和960×540 Mantra）。无效更新的预期失败路径也验证了原场景恢复和文件不变。详见 [0.7验证](docs/V07-VALIDATION.md)。
 
 0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Added `preflight_asset_instance` (22 tools total): read-only merged parameter validation and instance/channel guards, with ready, planned values and structured violations. No HDA compilation/installation, parameter writes or explicit geometry cook.
+- Catalog now exposes integer/number types and structured cross-parameter rules. Preflight/upsert share preparation; embedded geometry validators remain authoritative. Metadata is outside geometry source so both delivered HDA identities remain unchanged.
+- Omitted recipe now infers an existing owned instance's recipe; new instances still default to straight. Explicit recipe mismatch remains rejected; ownership, animated/locked channels, unlocked content and recipe-version guards are preserved.
+- Added portable `scripts/accept_asset.py` for the two recipes: real GUI MCP create/update/inspect/views/package/reopen, standalone verification with `scripts/verify_hda.py`, optional Mantra render and source-scene restoration. New output directory and explicit expected clean HIP required; visual review remains separate.
+- Added parameter-contract consistency tests and real HOM guard/readonly acceptance. Companion Skill now routes to reusable preflight/acceptance instructions, including failure handling and recipe-inference version differences.
+- Passed 40 unit tests, real HOM no-mutation/guard checks, both recipes through the same GUI SDK script with standalone HDA and Mantra, and an expected invalid-update failure with clean source restoration. See [validation](docs/V07-VALIDATION.md).
+
 ## 0.6.0
 
 - Added `pipe_elbow_sample`, a fixed horizontal 90-degree route with independently sized inlet/outlet legs, a hollow elbow, two flange joints and repeated supports. The existing 21 tools now serve two recipes; no new single-operation wrappers.

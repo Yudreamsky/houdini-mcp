@@ -2,7 +2,7 @@
 
 适用MCP 0.6、Houdini20.5.487的 `pipe_elbow_sample`；发布证据见仓库docs/V06-VALIDATION.md。本例是两段直管、一只弯头及各自法兰和支架，未支持任意角度、多点路由或三通。
 
-创建和后续更新都显式传 `recipe="pipe_elbow_sample"`。`upsert_asset_instance`省略recipe仍按原直管处理；同ID不同recipe会拒绝替换。用新ID保留旧实例对照。
+MCP0.7起，创建新弯头显式传 `recipe="pipe_elbow_sample"`；后续更新已有实例可省略recipe，工具会读取该实例的配方。同ID明确指定不同recipe仍拒绝替换；新ID未指定recipe仍默认直管。0.6客户端尚需每次显式传recipe，恢复工作先查实际版本。
 
 单位为米，Y向上。入口沿+X从 `(-inlet_length, D/2+0.052, 0)` 到弯头起点；弯头中心线半径为bend_radius，出口沿+Z。出口端中心为 `(R, D/2+0.052, R+outlet_length)`。两个length只计直段，整条中心线长度还需加 `πR/2`；不要把R当内弯半径或外包尺寸。
 

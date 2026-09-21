@@ -4,7 +4,7 @@
 
 ## 输入和操作
 
-1. `list_procedural_assets` 读取当前 recipe、单位和参数。单位为米，默认值是可调视觉样例，不是照片实测尺寸。
+1. `list_procedural_assets` 读取当前 recipe、单位和参数；0.7起同时返回数字类型及结构化组合约束。单位为米，默认值是可调视觉样例，不是照片实测尺寸。用 `preflight_asset_instance` 先合并拟改值与当前参数并检查ready；它不生成几何。
 2. `upsert_asset_instance(instance_id="pipe-sample", parameters={...})` 创建/更新一个稳定实例。相同 ID 和参数不应产生第二套模型。更新前先保存工作版本。
 3. 数字参数包括 length、diameter、wall、support_pitch、hanger_height、bolt_count、segments。先用 catalog/schema 查边界；组合约束由 recipe 校验。壁厚须小于管径20%，圆周segments须为4的倍数，吊杆高度和支架节距须容得下样段。
 4. 改管径时检查实际管壁、法兰外径、螺栓圈、横担宽度和夹箍接触；改长度时检查支架数量、节距及两端覆盖。用 `inspect_asset_instance(path)` 回读实际几何，再看图。
