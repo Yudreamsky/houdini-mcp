@@ -91,12 +91,12 @@ def get_capabilities() -> dict:
     result = _operation('session_ops', 'capabilities')
     result['session_id'] = json.loads(client.session_file.read_text(encoding='utf-8'))['session_id']
     result.update(ping())
-    result['gpu_probe'] = {'available': False, 'devices': [], 'xpu_render_verified': False}
+    result['gpu_probe'] = {'available': False, 'devices': [], 'verification_scope': 'device availability only; actual contribution is recorded per rendered frame'}
     executable = shutil.which('nvidia-smi')
     if executable:
         try:
             probe = subprocess.run([executable, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=5, check=True, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-            result['gpu_probe'] = {'available': True, 'devices': [dict(name=row[0].strip(), driver=row[1].strip(), memory_mib=int(row[2].strip())) for row in csv.reader(probe.stdout.splitlines())], 'xpu_render_verified': False}
+            result['gpu_probe'].update(available=True, devices=[dict(name=row[0].strip(), driver=row[1].strip(), memory_mib=int(row[2].strip())) for row in csv.reader(probe.stdout.splitlines())])
         except (OSError, subprocess.SubprocessError, ValueError, IndexError) as exc:
             result['gpu_probe']['error'] = str(exc)
     return result
@@ -116,12 +116,18 @@ def asset_preset(action: str, name: str = '', path: str = '', overwrite: bool = 
 
 def _preflight(request):
     import shutil
-    from .render_jobs import validate_request, JOBS
+    from .render_jobs import validate_request, JOBS, HYTHON
+    from .render_options import options
+    request = dict(request, **options(request.get('renderer', 'mantra'), request.get('quality', 'preview')))
     validate_request(request['hip_path'], request['start_frame'], request['end_frame'], request['width'], request['height'], request.get('asset_libraries'))
     result = _operation('session_ops', 'inspect_render', request)
     free = shutil.disk_usage(JOBS if JOBS.exists() else ROOT).free
     estimate = request['width'] * request['height'] * (request['end_frame'] - request['start_frame'] + 1) * 32 + 256 * 1024 * 1024
     result.update(disk_free_bytes=free, estimated_required_bytes=estimate)
+    result['render_options'] = options(request['renderer'], request['quality'])
+    if request['renderer'] == 'karma_xpu' and not HYTHON.with_name('husk.exe' if os.name == 'nt' else 'husk').is_file():
+        result['errors'].append('Karma husk executable is missing beside the configured hython')
+        result['ready'] = False
     if free < estimate:
         result['errors'].append('Insufficient estimated disk space for preview outputs')
         result['ready'] = False
@@ -131,9 +137,10 @@ def _preflight(request):
 @mcp.tool(annotations=READ)
 def preflight_render(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
                      start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
-                     asset_path: str = '', parameters: dict | None = None, asset_libraries: list[str] | None = None) -> dict:
-    """Check saved live scene, camera, Mantra/COP2 nodes, HDA/file dependencies and disk capacity without submitting a render."""
-    return _preflight(dict(hip_path=hip_path, rop_path=rop_path, composite_node=composite_node, source_cop_node=source_cop_node, start_frame=start_frame, end_frame=end_frame, width=width, height=height, asset_path=asset_path, parameters=parameters or {}, asset_libraries=asset_libraries or []))
+                     asset_path: str = '', parameters: dict | None = None, asset_libraries: list[str] | None = None,
+                     renderer: str = 'mantra', quality: str = 'preview') -> dict:
+    """Check saved scene and dependencies. renderer: mantra or karma_xpu; quality: preview or final. XPU supports only the validated emissive-map asset. GPU availability is not completed-frame evidence."""
+    return _preflight(dict(hip_path=hip_path, rop_path=rop_path, composite_node=composite_node, source_cop_node=source_cop_node, start_frame=start_frame, end_frame=end_frame, width=width, height=height, asset_path=asset_path, parameters=parameters or {}, asset_libraries=asset_libraries or [], renderer=renderer, quality=quality))
 
 
 def _launch(identifier):
@@ -145,10 +152,10 @@ def _launch(identifier):
 def render_frames(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
                   start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
                   asset_path: str = "", parameters: dict | None = None, asset_libraries: list[str] | None = None,
-                  request_id: str | None = None) -> dict:
-    """Preflight and snapshot the saved live HIP/HDA, then launch a durable Mantra+COP2 preview. Repeated input/request IDs return the same job; use a new ID for intentional rerenders. Maximum two active jobs. Poll status for completion."""
+                  request_id: str | None = None, renderer: str = 'mantra', quality: str = 'preview') -> dict:
+    """Snapshot saved HIP/HDA and launch Mantra or map-only Karma XPU plus COP2. preview/final samples: Mantra 2x2/4x4, XPU 16/64. Repeated inputs return the same job; new IDs intentionally rerender. Maximum two active jobs. Inspect status and native preview."""
     from .render_jobs import start_job
-    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, _launch, asset_libraries, request_id, _preflight)
+    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, _launch, asset_libraries, request_id, _preflight, renderer, quality)
 
 
 @mcp.tool(annotations=WRITE)
@@ -174,6 +181,16 @@ def get_render_status(job_id: str) -> dict:
     result['latest_output'] = outputs[-1] if outputs else None
     result['manifest_path'] = str(__import__('pathlib').Path(result['directory']) / 'status.json')
     return result
+
+
+@mcp.tool(annotations=READ, structured_output=False)
+def get_render_preview(job_id: str, frame: int | None = None) -> list[TextContent | ImageContent]:
+    """Return a verified recorded PNG as native image content, with warnings, timings and GPU evidence. Defaults to the latest completed frame. Rejects missing/corrupt output; warnings are not artistic acceptance."""
+    import json
+    from .render_preview import read_preview
+    metadata, raw = read_preview(job_id, frame)
+    return [TextContent(type='text', text=json.dumps(metadata)),
+            ImageContent(type='image', data=base64.b64encode(raw).decode('ascii'), mimeType='image/png')]
 
 
 def main():

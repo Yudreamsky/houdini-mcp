@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- Added explicit `mantra` / `karma_xpu` and `preview` / `final` options to preflight and rendering. Options participate in request fingerprints. New jobs default to preview (Mantra 2x2; XPU 16), final uses Mantra 4x4 / XPU 64; these are sampling presets, not quality-equivalence claims.
+- Added a deliberately narrow USD/MaterialX Unlit adapter for `workai::indonesia_glow_map::2.0`, with emissive material, primitive Cd and orthographic-camera checks. Other assets/materials are rejected; other scene objects/lights are excluded.
+- XPU uses one GPU-only husk process per pending frame list, with per-frame OptiX contribution evidence. Frame-boundary cancellation, frozen-input continuation, corrupt-frame repair and original-record retention work on the shared job system.
+- Added `get_render_preview` (17 tools total): bounded, hash-verified native PNG ImageContent with raw/composited black, uniform and transparent warnings. Intentional black frames complete with warnings; nonfinite pixels fail.
+- Recorded load, USD export, renderer startup/frame/process, composite/inspection and worker wall timings with their measurement boundaries. Reused output evidence retains its source job.
+- Added owned renderer process tracking to prevent continuation while an exited worker's renderer is still active. Houdini 20.5's frame-hook exit code 1 is accepted as cancellation only with an explicit stop receipt and all started frames completed.
+- Replaced ambiguous `gpu_probe.xpu_render_verified` with inventory `verification_scope`; actual GPU evidence belongs to rendered frames.
+- Passed 30 unit tests and real MCP stdio validation: XPU cancel at 2/5, continue to 5/5, repair one corrupt frame, native preview, intentional black warning, Mantra regression and both XPU sampling presets. Source HIP/HDA stayed unchanged. Details: [validation](docs/V04-VALIDATION.md).
+- Native Codex tool discovery remains independently unverified; other Houdini versions, general shader conversion and other asset types are not claimed.
+
 ## 0.3.0
 
 - Added live session/renderer/GPU inventory and mandatory render preflight for newly submitted jobs. GPU inventory does not claim Karma XPU support or measured speed.

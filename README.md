@@ -1,8 +1,8 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.3.0**，已在 **Windows / Houdini 20.5.487 / Python 3.11** 验证。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.4.0**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
-外部 Python 提供 MCP stdio 服务；Houdini 内部只运行标准库与 `hou`。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
+外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
 ## 工具
 
@@ -16,8 +16,9 @@
 | `save_scene` | 绝对路径另存，返回实际文件大小和 SHA256 |
 | `open_scene` | 打开工程；默认拒绝丢弃未保存修改 |
 | `set_asset_parameters` | 预验证后批量设置数字参数，拒绝动画通道 |
-| `render_frames` | 从保存的 HIP / HDA 快照提交后台 Mantra + COP2 任务 |
+| `render_frames` | 从 HIP / HDA 快照提交 Mantra 或限定地图 Karma XPU + COP2 任务 |
 | `get_render_status` | 查询进度、最近输出、完成或具体失败原因 |
+| `get_render_preview` | 返回哈希验证后的原生 PNG 图片、画面告警、计时与 GPU 证据 |
 | `get_capabilities` | 精确会话、保存状态、渲染节点与可选 NVIDIA 显卡/驱动探测 |
 | `preflight_render` | 检查当前已保存工程、相机、依赖、节点和磁盘空间 |
 | `cancel_render` | 请求完成当前帧后停止，须查询到 cancelled 才算停止 |
@@ -65,11 +66,12 @@ GUI 启动器与客户端的 `HOUDINI_HYTHON` 应指向同一安装版本。启�
 
 ## 后台渲染
 
-当前限定为 Mantra `ifd` ROP + COP2 文件源和输出节点。向 `render_frames` 提供：
+支持 Mantra，以及指定自发光地图的 Karma XPU 适配器。二者都使用已有 `ifd` ROP 作为相机入口及 COP2 文件源/输出节点。向 `render_frames` 提供：
 
 - 当前 GUI 已加载且已保存的 HIP 绝对路径、显式 `asset_libraries` HDA 路径。
 - `rop_path`、`source_cop_node`、`composite_node`。
 - 起止帧和分辨率；可选 `asset_path` 与数字 `parameters` 覆盖。
+- `renderer="mantra"`（默认）或 `"karma_xpu"`，`quality="preview"`（默认）或 `"final"`。Mantra 对应 2×2 / 4×4，XPU 对应 16 / 64 采样；档位名称不保证同画质，也不等于美术验收。
 
 每个任务复制 HIP 和给定 HDA，输出写入独立 `evidence/render-jobs/<job_id>`。预检拒绝未保存场景、缺失 HDA、错误 ROP/相机/COP 和已识别的缺失文件。其他纹理/缓存只记录指纹，尚不自动打包，渲染期间不要修改它们。Python/VEX 动态打开的路径无法自动发现。后台 worker 由长期运行的 Houdini 会话启动，不依赖短命 MCP 客户端。
 
@@ -77,9 +79,17 @@ GUI 启动器与客户端的 `HOUDINI_HYTHON` 应指向同一安装版本。启�
 
 单任务限制 1–300 帧，预览最大 1920×1080，同时最多两个活跃任务。可提供 `request_id`：同一 ID、同一输入返回原任务；同一 ID 改变参数会报错。省略 ID 时按 HIP/HDA/参数指纹去重。要有意重新渲染，请使用新 ID；若外部依赖已改变，旧请求会拒绝复用，须新 ID 重新预检。
 
-调用 `cancel_render(job_id)` 后继续查询状态。它在帧边界协作停止，不强杀当前 Mantra；当前帧卡住时不能保证立即取消。对 `cancelled`、`failed` 或确认进程已退出的 `interrupted` 作业调用 `resume_render`，会保留原记录并创建新任务，校验 HIP/HDA/外部依赖及逐帧 PNG/EXR 哈希，只复用完整帧。对已有 `completed` 作业也可检查并补渲损坏帧。输入指纹改变会拒绝续渲，`launch_unknown` 不会盲目重试；需要先确认实际 worker 状态。
+调用 `cancel_render(job_id)` 后继续查询状态。两种渲染器均在帧边界协作停止，不强杀当前帧；卡住时不能保证立即取消。对 `cancelled`、`failed` 或确认进程已退出的 `interrupted` 作业调用 `resume_render`，会保留原记录并创建新任务，校验 HIP/HDA/外部依赖及逐帧 PNG/EXR 哈希，只复用完整帧。对已有 `completed` 作业也可检查并补渲损坏帧。输入指纹改变会拒绝续渲，`launch_unknown` 或 worker 已退出但渲染子进程仍在运行的 `renderer_stopping` 不允许续渲，须先确认实际进程状态。
 
-这些工具目前仍使用 **Mantra + COP2**。独立地图样片已完成 [Karma XPU 对照测试](docs/KARMA-XPU-COMPARISON.md)，证实4090实际参与；低采样更快但细线较粗糙，高采样三帧总耗时与Mantra接近。XPU/Solaris/MaterialX 尚未接入通用渲染工具，显卡探测字段也不代表此工具链已支持XPU。
+**XPU 适配范围严格限定为 `workai::indonesia_glow_map::2.0`**：正交相机、方形像素、指定自发光材质、带 primitive Cd 的多边形。其他场景对象和灯光不导出；不支持通用 Principled 转 MaterialX、体积或任意资产。该本地资产未包含在源码仓库中。适配器生成独立 USD 与 MaterialX Unlit，并复用 COP2 光晕。整个待渲帧列表共用一个 husk 进程；取消或 worker 退出后，帧钩子跳过剩余帧。
+
+XPU 禁用 Embree CPU 设备；每帧必须在 husk 完成统计中找到 OptiX 实际贡献才计为完成。`get_capabilities.gpu_probe` 仅为硬件枚举，`gpu_evidence` 是逐帧执行证据。独立 [XPU 对照测试](docs/KARMA-XPU-COMPARISON.md) 的速度结论仍仅适用于该样片。
+
+用 `get_render_preview(job_id, frame=97)` 获取已完成帧，省略 frame 取最新帧。图片以原生 MCP ImageContent 返回，限制为作业内记录、哈希正确、尺寸合规的 PNG；损坏帧拒绝返回，可通过续渲修复。画面检查分别统计线性 EXR 与光晕合成结果，全黑、纯色、全透明返回告警，**有意的黑帧可正常完成**；非有限像素视为失败。没有告警也不代表画面符合创作目标。
+
+计时分别记录场景加载、USD 导出、husk 启动到首帧前钩子、逐帧钩子间耗时、合成、检查及 worker 总耗时。逐帧含场景更新/编译，不是纯 GPU 内核耗时。合成可以与下一帧渲染重叠，不能直接相加。Mantra 的 `render_call_seconds` 包含 IFD 导出、子进程启动及渲染，未冒充为可分离的纯渲染时间。
+
+0.4 的 renderer/quality 参与请求指纹。同一个 request_id 改渲染器或质量会拒绝。0.3 原有作业按冻结参数续渲；0.4 新作业默认使用 preview 档位，可能与旧工程 ROP 自设采样不同。`gpu_probe.xpu_render_verified` 已移除，改用明确的 `verification_scope` 和逐帧证据。
 
 ## 资产参数预设
 
@@ -90,15 +100,16 @@ GUI 启动器与客户端的 `HOUDINI_HYTHON` 应指向同一安装版本。启�
 ## 验证
 
 ```powershell
+python -m pip install -e ".[test]"
 python -m unittest discover -s tests -p "test_*.py" -v
 python tests/acceptance.py
 ```
 
 第一条运行传输、队列与任务状态单元测试，不需要 Houdini。第二条使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 验收见 `tests/gui_acceptance.py --help`，需要先启动专用 GUI 并加载 headless 验收工程。
 
-0.3.0 开发验证通过 21 项单元检查，并经真实 MCP stdio 调用完成：地图副本的 schema/预设恢复、表达式保留、预检拒绝、重复提交、五帧渲染在两帧后取消、续渲复用两帧并补齐三帧，再故意损坏一帧并仅补渲该帧。原 HIP/HDA 指纹保持不变。0.2.0 地图资产、独立 HDA 加载、点阵地理检查与视频输出结果继续保留。
+0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 
-机器专属配置、场景、凭据和大体积渲染证据不提交此仓库。其他 Houdini 版本、操作系统未验证；渲染器验证范围限上文Mantra与独立XPU地图样片。Codex 当前对话的原生 MCP 工具加载仍是独立待验项，不能用外部 SDK 成功替代。
+机器专属配置、场景、凭据和大体积渲染证据不提交此仓库。其他 Houdini 版本、操作系统未验证；渲染器范围限上文 Mantra 与限定地图 XPU。Codex 当前对话的原生 MCP 工具加载仍是独立待验项，不能用外部 SDK 成功替代。
 
 ## 边界与迭代
 

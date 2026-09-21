@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workai-houdini-mcp"
-version = "0.3.0"
+version = "0.4.0"
 description = "Small local Houdini MCP bridge for iterative asset creation"
 requires-python = ">=3.11"
 dependencies = ["mcp>=1.26,<2"]
+
+[project.optional-dependencies]
+test = ["numpy>=1.24"]
 
 [project.scripts]
 workai-houdini-mcp = "houdini_mcp_local.mcp_server:main"

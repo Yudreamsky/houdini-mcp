@@ -3,10 +3,12 @@ import ctypes,hashlib,json,os,shutil,subprocess,sys,time,uuid
 from pathlib import Path
 from .io_utils import atomic_json
 from .locking import file_lock
+from .render_options import options
 
 ROOT=Path(__file__).resolve().parents[2]
 JOBS=ROOT/'evidence'/'render-jobs'
 HYTHON=Path(os.environ.get('HOUDINI_HYTHON','C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe'))
+ACTIVE=('queued','running','cancel_requested','launch_unknown','renderer_stopping')
 
 def process_created(pid):
     if os.name!='nt':return None
@@ -49,7 +51,12 @@ def get_status(job_id):
         if status['process_alive'] is False:
             status=json.loads((folder/'status.json').read_text(encoding='utf-8'))
             if status['state'] in ('queued','running','cancel_requested'):
-                status.update(state='interrupted',error='Worker exited without a terminal record; partial files are not completion.')
+                renderer_record=folder/'renderer-process.json'
+                renderer=json.loads(renderer_record.read_text()) if renderer_record.exists() else None
+                if renderer and alive(renderer['pid'],renderer.get('created')) is not False:
+                    status.update(state='renderer_stopping',error='Worker exited; owned renderer is still active/unknown. Wait for its frame-boundary exit before resuming.')
+                else:
+                    status.update(state='interrupted',error='Worker exited without a terminal record; partial files are not completion.')
     if status['state'] in ('queued','running') and (folder/'cancel.json').exists():status['state']='cancel_requested'
     status['job_id']=job_id;status['directory']=str(folder)
     if status['state'] in ('queued','cancel_requested') and (folder/'launch-error.json').exists() and not (folder/'process.json').exists():
@@ -118,11 +125,11 @@ def _existing(key,fingerprint):
 
 
 def _create(request,hip,libraries,key,fingerprint,reuse=None,parent=None):
-    active=[p.name for p in JOBS.iterdir() if p.is_dir() and (p/'status.json').exists() and get_status(p.name)['state'] in ('queued','running','cancel_requested','launch_unknown')]
+    active=[p.name for p in JOBS.iterdir() if p.is_dir() and (p/'status.json').exists() and get_status(p.name)['state'] in ACTIVE]
     if len(active)>=2:raise RuntimeError('Two render jobs are already active; inspect or cancel before submitting another')
     identifier=uuid.uuid4().hex;folder=JOBS/identifier;folder.mkdir()
     shutil.copy2(hip,folder/'scene.hip')
-    request=dict(request,libraries=[],fingerprint=fingerprint,request_version=3)
+    request=dict(request,libraries=[],fingerprint=fingerprint,request_version=4)
     for path,original in libraries:
         dest=folder/path.name;shutil.copy2(path,dest)
         request['libraries'].append(dict(snapshot=str(dest),source=original['source'],sha256=original['sha256']))
@@ -132,11 +139,14 @@ def _create(request,hip,libraries,key,fingerprint,reuse=None,parent=None):
         for kind in ('png','exr'):
             source=Path(item[kind]['path']);dest=folder/source.name;shutil.copy2(source,dest)
             copied[kind]=dict(item[kind],path=str(dest))
+        for field in ('visual_check','gpu_evidence','timings'):
+            if field in item:copied[field]=item[field]
+        copied['reused_from_job']=parent
         outputs.append(copied)
     request.update(reused_outputs=outputs,parent_job_id=parent)
     verify_inputs(folder,request)
     atomic_json(folder/'request.json',request)
-    atomic_json(folder/'status.json',dict(state='queued',completed_frames=len(outputs),total_frames=request['end_frame']-request['start_frame']+1,outputs=outputs,reused_frames=[v['frame'] for v in outputs],parent_job_id=parent,updated_at=time.time()))
+    atomic_json(folder/'status.json',dict(state='queued',renderer=request.get('renderer','mantra'),quality=request.get('quality','scene'),completed_frames=len(outputs),total_frames=request['end_frame']-request['start_frame']+1,outputs=outputs,reused_frames=[v['frame'] for v in outputs],parent_job_id=parent,updated_at=time.time()))
     index=_index();index[key]=dict(job_id=identifier,fingerprint=fingerprint);atomic_json(JOBS/'requests.json',index)
     return identifier
 
@@ -156,9 +166,10 @@ def _launch(identifier,launcher):
     return get_status(identifier)
 
 
-def start_job(hip_path,rop_path,start_frame,end_frame,width,height,composite_node,source_cop_node,asset_path,parameters,launcher,asset_libraries=None,request_id=None,preflight=None):
+def start_job(hip_path,rop_path,start_frame,end_frame,width,height,composite_node,source_cop_node,asset_path,parameters,launcher,asset_libraries=None,request_id=None,preflight=None,renderer='mantra',quality='preview'):
     hip,libraries=validate_request(hip_path,start_frame,end_frame,width,height,asset_libraries)
     request=dict(hip_path=str(hip),scene_sha256=digest(hip),rop_path=rop_path,start_frame=start_frame,end_frame=end_frame,width=width,height=height,composite_node=composite_node,source_cop_node=source_cop_node,asset_path=asset_path,parameters=parameters)
+    request.update(options(renderer,quality),adapter_version=1)
     library_info=[(p,dict(source=str(p),sha256=digest(p))) for p in libraries]
     fingerprint=hashlib.sha256(json.dumps([request,[v for _,v in library_info]],sort_keys=True,allow_nan=False).encode()).hexdigest()
     key=_key(request_id,fingerprint);JOBS.mkdir(parents=True,exist_ok=True)
@@ -178,14 +189,14 @@ def start_job(hip_path,rop_path,start_frame,end_frame,width,height,composite_nod
 
 def cancel_job(job_id):
     state=get_status(job_id)
-    if state['state'] not in ('queued','running','cancel_requested','launch_unknown'):return dict(state,cancel_accepted=False)
+    if state['state'] not in ACTIVE:return dict(state,cancel_accepted=False)
     atomic_json(job_dir(job_id)/'cancel.json',dict(requested_at=time.time()))
     return dict(get_status(job_id),cancel_accepted=True,cancellation_mode='after_current_frame')
 
 
 def resume_job(job_id,launcher,request_id=None):
     folder=job_dir(job_id);state=get_status(job_id)
-    if state['state'] in ('queued','running','cancel_requested','launch_unknown'):raise ValueError('Cannot resume an active or uncertain job')
+    if state['state'] in ACTIVE:raise ValueError('Cannot resume an active or uncertain job')
     request=json.loads((folder/'request.json').read_text(encoding='utf-8'));verify_inputs(folder,request)
     outputs=verified_outputs(folder,request,state.get('outputs',[]))
     if len(outputs)==request['end_frame']-request['start_frame']+1:return dict(state,all_outputs_verified=True,resume_required=False)
