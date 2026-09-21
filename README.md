@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.5.0 / 21 工具**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.6.0 / 21 工具 / 2 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -26,7 +26,7 @@
 | `get_asset_schema` | 数字参数类型、维度、范围、默认值、条件与动画状态 |
 | `asset_preset` | 捕获、列举或应用数字参数预设，排除动画通道 |
 | `list_procedural_assets` | 查询已实现的程序化配方、单位和参数范围 |
-| `upsert_asset_instance` | 按稳定 ID 创建或更新管道连接/支吊架样段，参数不变时不重复创建 |
+| `upsert_asset_instance` | 按稳定 ID 创建或更新直管/90°弯头支吊架样段，参数不变时不重复创建 |
 | `inspect_asset_instance` | 回读样段实际几何，检查尺寸、孔拓扑、选定连接与支架覆盖 |
 | `preview_asset_views` | GUI 正/侧/顶/透视及零件类型隔离预览，返回原生 PNG |
 
@@ -43,6 +43,14 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 `inspect_asset_instance(path)` 核查实际局部几何与选定接口，不是通用碰撞或承载检查。`preview_asset_views(path, views=["front","right","top","perspective"])` 返回完整样段多视图；可按检查结果中的 `part_type` 过滤。预览恢复显示、选择、视角等现场设置，但临时显隐/过滤仍可能使 HIP 标为未保存；不能把该操作当作完全只读。视口图用于几何检查，实体材质已用 Mantra 实测；本样段尚不支持限定地图 XPU 适配器。
 
 配套 [houdini-asset-workflow Skill](skills/houdini-asset-workflow/SKILL.md) 与代码同仓库：入口按需读取样段方法、渲染经验和经验维护规则。MCP 提供操作，HDA/脚本实现参数关系，Skill 保存经过验证的使用方法与适用边界。为客户端安装时应链接或复制整个 Skill 文件夹；项目级 `.agents/skills` 可指向此源目录。安装路径存在与当前会话发现 Skill 是两项独立检查。
+
+### 0.6：水平90°弯头样段
+
+使用 `upsert_asset_instance(instance_id="elbow-sample", recipe="pipe_elbow_sample", parameters={"inlet_length":2.4,"outlet_length":1.8,"bend_radius":0.6})`。后续更新仍需显式指定recipe；省略时保持原来的直管默认值，同ID改配方会拒绝覆盖。两配方共用原有工具，旧直管算法及HDA类型指纹保持不变。
+
+新配方包含两段带法兰/支架的直管和一只空心弯头，默认139个构件。入口沿+X，出口沿+Z，Y向上；inlet/outlet_length只计直段，bend_radius是中心线半径，另有bend_segments控制弯曲细分。直管的管径、壁厚、螺栓数量和支架参数继续有效。本样例要求中心线半径至少为外径1.5倍，属于配方约束，不表示管件标准。
+
+检查器测量两接口的内外环匹配误差、端口中心、弯头外径/壁厚，并在各自局部坐标内复用两条直段的检查。1厘米弯头错位的负例可被识别。完整顶视、侧视、透视和独立HDA验证见 [0.6 验证](docs/V06-VALIDATION.md)；该配方仍是固定水平90°，没有任意多点路由、三通、通用碰撞或流体网格。
 
 ## 安装与启动
 
@@ -123,11 +131,14 @@ python -m unittest discover -s tests -p "test_*.py" -v
 python tests/acceptance.py
 # 新进程执行程序化 HDA 验收，输出目录必须尚不存在：
 & 'C:/path/to/Houdini/bin/hython.exe' tests/procedural_acceptance.py evidence/procedural-check-01
+& 'C:/path/to/Houdini/bin/hython.exe' tests/elbow_acceptance.py evidence/elbow-check-01
 ```
 
 `unittest` 运行传输、队列、任务状态和纯几何单元测试，不需要 Houdini。`tests/acceptance.py` 使用 `HOUDINI_HYTHON`（或默认安装位置）执行真实 headless MCP 验收，会创建独立样例文件。GUI 基础验收见 `tests/gui_acceptance.py --help`。`tests/procedural_acceptance.py` 通过真实 HOM 检查新样段的创建、更新、保护、打包和重开，独立于 MCP 传输/GUI 验收。
 
 0.5.0 通过 **34 项单元测试**、真实 GUI MCP 样段创建/幂等更新/尺寸联动/多视图/保存重开，以及无仓库源码路径的独立 HDA 加载。样段 Mantra 960×540 实际渲染通过。详见 [0.5 验证与限制](docs/V05-VALIDATION.md)。
+
+0.6.0 通过 **37项单元测试**，真实GUI MCP弯头样段完整调用、尺寸联动、参数/配方保护、保存重开，独立HDA加载及1280×720 Mantra渲染。新增headless HOM检查故意平移弯头的负例；既有直管在新工具下幂等更新且几何指纹不变。项目Skill本轮已进入Codex可用列表并实际读取；原生Houdini MCP工具发现仍是独立待验项。
 
 0.4.0 通过 30 项单元检查，并经真实 MCP stdio 调用完成 XPU 五帧取消/续渲/单帧损坏修复、原生图片、黑帧告警、Mantra 回归及 XPU 两档采样；另验 960×540 / 64 采样预览。RTX4090 逐帧 OptiX 贡献为100%，原 HIP/HDA 指纹保持不变。详见 [0.4 验证](docs/V04-VALIDATION.md)。0.3 的预设/schema/表达式保护与0.2 的资产、视频验收记录继续保留。
 

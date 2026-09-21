@@ -8,7 +8,17 @@ import hou
 
 def inspect(path):
     from .procedural_assets import managed
-    node=managed(path); geo=node.geometry()
+    node=managed(path)
+    if node.userData('workai_recipe')=='pipe_elbow_sample':
+        import importlib
+        from . import elbow_inspection
+        importlib.reload(elbow_inspection)
+        return elbow_inspection.inspect(node)
+    p={k:node.evalParm(k) for k in ('diameter','length','wall','support_pitch','bolt_count','hanger_height')}
+    return inspect_geometry(node,node.geometry(),p)
+
+
+def inspect_geometry(node,geo,p):
     if geo is None or node.errors(): raise ValueError('Sample failed to cook')
     parts={}; issues=[]; fingerprint=hashlib.sha256()
     for primitive in geo.prims():
@@ -29,7 +39,6 @@ def inspect(path):
         if bad or part['zero_area'] or any(not math.isfinite(v) for p in points for v in p):
             issues.append(dict(part=name,nonmanifold_or_open_edges=bad,zero_area_faces=part['zero_area']))
         result.append(dict(name=name,kind=part['kind'],bbox_min=mins,bbox_max=maxs,faces=part['faces'],points=len(points),closed_edges=bad==0))
-    p={k:node.evalParm(k) for k in ('diameter','length','wall','support_pitch','bolt_count','hanger_height')}
     byname={v['name']:v for v in result}
     required=('pipe_left','pipe_right','flange_left','flange_right','gasket')
     if any(k not in byname for k in required): issues.append('Missing core parts')
@@ -74,7 +83,7 @@ def inspect(path):
             if abs(x)>p['length']/2-.12+1e-6: issues.append('Support outside intended pipe span')
         measurements.update(support_count=len(webs),support_clamp_contact_gaps=gaps,bolt_count=count)
         if any(abs(g)>2e-6 for g in gaps): issues.append('Clamp does not meet channel top')
-    return dict(path=path,passed=not issues,issues=issues,measurements=measurements,parts=result,
+    return dict(path=node.path(),passed=not issues,issues=issues,measurements=measurements,parts=result,
                 part_count=len(result),geometry_sha256=fingerprint.hexdigest(),
                 world_transform=list(node.parent().worldTransform().asTuple()),
                 scope='Local-space sample dimensions, component topology and selected interface checks; not general collision or structural certification',

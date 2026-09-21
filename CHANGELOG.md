@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- Added `pipe_elbow_sample`, a fixed horizontal 90-degree route with independently sized inlet/outlet legs, a hollow elbow, two flange joints and repeated supports. The existing 21 tools now serve two recipes; no new single-operation wrappers.
+- Preserved straight recipe source and HDA identity. The elbow HDA embeds the original algorithm in a private namespace and remains standalone. Instance recipe changes are rejected; elbow updates must explicitly select the recipe.
+- Added actual endpoint-ring matching, port centers, elbow wall/diameter checks and straight-leg validation in each leg's local frame. A deliberately shifted, still-closed elbow is rejected by interface inspection.
+- Added three unit tests (37 total) and reproducible `tests/elbow_acceptance.py`. Real GUI MCP creation/update, invalid input/recipe/animation protection, multiviews, save/reopen, standalone HDA and 1280x720 Mantra render passed. Original map and straight sample files stayed unchanged.
+- Added an elbow-route Skill reference covering centerline radius, axes, interfaces and verified failure cases. Project Skill discovery is now observed in Codex's available-skill list; native Houdini MCP tool discovery remains independently unverified.
+- Scope remains a visual sample, not arbitrary routing, tee fittings, packed instancing, physical-material XPU or engineering certification. See [validation](docs/V06-VALIDATION.md).
+
 ## 0.5.0
 
 - Added four tools (21 total): procedural recipe catalog, owned-instance upsert, cooked-geometry inspection and bounded multiview/part-type previews.

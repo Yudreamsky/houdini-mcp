@@ -25,11 +25,15 @@ The pipe-joint/support recipe supplies a self-contained HDA, stable instance ups
 ## Next, driven by feedback on this sample
 
 1. Adjust shape, component simplifications and parameter relationships using user feedback or actual dimensions before multiplying asset types.
-2. If repeated pipe assemblies are needed, add one routed-pipe case (bend or branch), explicit connectors and a measured clearance check. General routing is not delivered yet.
+2. A fixed horizontal 90-degree bend is now delivered in 0.6, with measured matching end rings and explicit end-port centers. Next extend to one branch/tee case only if needed; arbitrary routing and general collision/clearance checks are not delivered.
 3. If close-ups or large layouts require them, introduce detail levels and true packed instances, checking both visible result and resource use.
 4. Expand XPU to physical materials only with a controlled conversion/render comparison for this sample; current XPU remains map-only.
 
 Each accepted increment updates its relevant Skill reference with conditions, evidence and limits. Ideas remain proposals until implemented and tested.
+
+## Added in 0.6: first routed sample
+
+Two independently sized straight legs connect through a hollow 90-degree elbow. The existing tools select a second recipe without changing old straight asset identity. Matching inner/outer end rings, a shifted-elbow negative case, full/isolated views, save/reopen, standalone HDA and Mantra image validate this bounded route. See [0.6 validation](docs/V06-VALIDATION.md).
 
 ## Later, when repeated work justifies it
 

@@ -201,7 +201,7 @@ def list_procedural_assets() -> dict:
 
 @mcp.tool(annotations=WRITE)
 def upsert_asset_instance(instance_id: str, parameters: dict | None = None, recipe: str = 'pipe_support_sample') -> dict:
-    """Create/update one owned sample HDA instance by stable ID. Metre-based illustrative geometry, not engineering specifications. Validates combined parameters; refuses animation, unlocked contents, foreign objects or implicit recipe migration. Does not save."""
+    """Create/update one owned HDA instance by stable ID. Recipes: pipe_support_sample (straight, default), pipe_elbow_sample (horizontal 90-degree route). Always specify recipe for elbow updates. Metre-based illustrative geometry; refuses animation, unlocked contents, foreign objects and implicit recipe changes. Does not save."""
     return _operation('procedural_assets', 'upsert', instance_id, parameters or {}, recipe)
 
 
