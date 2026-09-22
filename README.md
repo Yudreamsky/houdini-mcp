@@ -267,6 +267,8 @@ python tests/acceptance.py
 
 ## 边界与迭代
 
+2026-09-22 完成[首轮摄影机、GI 与单灯 A/B](docs/LOOKDEV-TRIAL-V01.md)：七张 Mantra PBR 原生预览、OCIO/Alpha 色块验证、保存重开和不变域检查。暂选一次漫反射反弹与原补光位置；属于资产外观实验，MCP 运行版仍为 0.17.0，未增加工具或更新稳定 Skill。
+
 - `execute_code` 是可信本机执行入口，不是安全沙箱；不要暴露给不可信远端。
 - Python 异常可能留下部分修改；Undo 分组不等于事务。
 - 已开始的同步执行超时不能强制终止 Houdini；必须检查实际状态后决定后续动作。
