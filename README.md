@@ -85,6 +85,8 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 详见[0.15验证](docs/V015-VALIDATION.md)及[独立垫块Skill](skills/houdini-asset-workflow/references/blue-body.md)。几何检查通过不证明减振或密封性能。
 
+后续外观细化：第一套两片法兰已加入1.5mm外圆端缘圆角、3段细分和局部法线处理。使用[原生SOP收尾脚本](scripts/finish_flange_edges.py)，保留锁定HDA；完整收尾链保存在HIP中，未增加工具或配方。参数联动、法线不变域和同灯光前后渲染见[轻倒角验证](docs/FLANGE-BEVEL-VALIDATION.md)。
+
 ### 0.14：一个蓝色本体的凸部与台阶（构造解释已撤回）
 
 **用户随后确认蓝色是逐螺栓独立橡胶垫。以下连续蓝体仅用于历史重现；技术检查通过不表示照片结构正确。**
