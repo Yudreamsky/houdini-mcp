@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+
+- Added a captured 218-part two-tier HDA with one editable height: two duct sections and two upper crossarms move together; 214 members remain fixed. Embedded geometry/code support independent instances. Ten generative recipes and 22 tools remain unchanged in count.
+- Extended schema, parameter update, inspection and filtered views for this locked HDA type. Updates cook and inspect both support stations, and verify rollback after failure. Generic node mutation semantics remain unchanged.
+- Explicitly inherited effective object materials onto 186 components during capture; companion HIP still supplies material networks. Added underside review views and tested workflow lessons to the project Skill. See [scope and validation](docs/V017-UPPER-ASSEMBLY.md).
+
 ## 0.16.0
 
 - Added `pipe_rack_all_pads`: independent rubber buffers at all three fixed isolation joints. Default 24 pads and 226 parts; 210 original base parts unchanged, two old continuous blue bodies removed, 16 pads added. Nine previous generators remain unchanged; 22 tools serve ten recipes.

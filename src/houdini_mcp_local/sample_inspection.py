@@ -7,6 +7,9 @@ import hou
 
 
 def inspect(path):
+    from . import tier_asset_ops
+    if tier_asset_ops.is_tier_asset(hou.node(path)):
+        return tier_asset_ops.inspect(hou.node(path))
     from .procedural_assets import managed
     node=managed(path)
     if node.userData('workai_recipe')=='external_coupling_sample':

@@ -13,7 +13,11 @@ def capture(path, views, width, height, part_types=None,part_names=None):
         raise ValueError('Select 1-4 unique front/right/top/perspective views')
     if type(width) is not int or type(height) is not int or not (128<=width<=1920 and 128<=height<=1080):
         raise ValueError('Unsupported preview resolution')
-    node=managed(path); parent=node.parent(); geo=node.geometry()
+    from . import tier_asset_ops
+    node=hou.node(path)
+    if tier_asset_ops.is_tier_asset(node):tier_asset_ops.managed(node)
+    else:node=managed(path)
+    parent=node.parent(); geo=node.geometry()
     kinds={p.attribValue('part_type') for p in geo.prims()}
     if part_types and not set(part_types)<=kinds: raise ValueError('Unknown part_types filter')
     names={p.attribValue('name') for p in geo.prims()}

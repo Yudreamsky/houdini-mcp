@@ -1,6 +1,8 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.16.0 / 22 工具 / 10 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.17.0 / 22 工具 / 10 个程序化配方**，另支持限定的双层总装快照HDA，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+
+0.17把照片样段的218件封入可复制HDA，仅开放上层高度，接入既有改参、检查和视图工具；写入后验收失败尝试复位并验证。不是第11个生成配方，材质网络仍由配套HIP提供。见[范围与验证](docs/V017-UPPER-ASSEMBLY.md)及[配套Skill](skills/houdini-asset-workflow/references/upper-assembly.md)。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 

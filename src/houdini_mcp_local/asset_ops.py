@@ -27,6 +27,9 @@ def validate_parameters(path, values):
 
 def set_parameters(path, values):
     validated=validate_parameters(path,values)
+    from . import tier_asset_ops
+    if tier_asset_ops.is_tier_asset(hou.node(path)):
+        return tier_asset_ops.set_parameters(hou.node(path),validated)
     # Validate the complete request before changing any parameter.
     try:
         for parm,value,_ in validated:parm.set(value)
@@ -47,7 +50,12 @@ def get_schema(path):
         if hasattr(t,'minValue'):entry.update(min=t.minValue(),max=t.maxValue(),min_strict=t.minIsStrict(),max_strict=t.maxIsStrict())
         if hasattr(t,'menuItems'):entry.update(menu_items=list(t.menuItems()),menu_labels=list(t.menuLabels()))
         parameters.append(entry)
-    return {'path':path,'node_type':node.type().nameWithCategory(),'parameters':parameters}
+    result={'path':path,'node_type':node.type().nameWithCategory(),'parameters':parameters}
+    from . import tier_asset_ops
+    if tier_asset_ops.is_tier_asset(node):
+        spec=tier_asset_ops.managed(node)
+        result['assembly']={k:spec[k] for k in ('kind','base_height','height_min','height_max','moving','stations','interpretation')}
+    return result
 
 
 def preset(action, name='', path='', overwrite=False):
