@@ -49,6 +49,8 @@ g.addAttrib(hou.attribType.Prim,'Cd',(0.48,0.52,0.56))
 g.addAttrib(hou.attribType.Prim,'shop_materialpath','/mat/duct_galvanized')
 for face in faces:
  p=g.createPolygon()
+ p.setAttribValue('name','upper_duct_shell');p.setAttribValue('part_type','rectangular_duct')
+ p.setAttribValue('Cd',(.48,.52,.56));p.setAttribValue('shop_materialpath','/mat/duct_galvanized')
  for i in face:p.addVertex(points[i])
 g.addAttrib(hou.attribType.Global,'duct_spec','')
 g.setGlobalAttribValue('duct_spec',json.dumps(dict(length=L,width=W,height=H,wall=t,bottom=y,center_z=z,source='photo-guided estimates',ends='open segment boundaries',hidden_fastening='unmodeled')))
