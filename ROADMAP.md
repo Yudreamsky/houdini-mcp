@@ -57,6 +57,8 @@ One blue body now has a scalloped profile, end collars and actual bolt holes. Th
 
 ## Later, when repeated work justifies it
 
+2026-09-22 follow-up: the user's sketch defines the paired vertical members / tier relationship, not a fixed component count. The [paired frame candidate](docs/PAIRED-FRAME-CANDIDATE.md) places two channels at one existing rack station and verifies user-corrected T end joints, clearances and unchanged parts. Upper tiers and concealed fasteners remain unmodeled. Near-contact ray distances must be explicit; default HOM ray thresholds skipped the intended millimetre contact. Runtime remains 0.16.
+
 2026-09-22: [S1 slotted-channel study](docs/SLOTTED-CHANNEL-STUDY.md) validates one continuous folded member with capsule holes, native edge finishing, planar-normal preservation, and source-independent HIP reload. It remains a standalone sample. Resolve the photo's S1/T1 interface before a connected assembly; managed local frames/endpoints should follow a real repeated-use case. No new runtime tool or recipe is claimed.
 
 0.11 completes the first photo-study component: an independent orange external split coupling with two pipe stubs, actual lug holes and measured interfaces. It uses the existing 22 tools, with save/reopen and standalone-HDA verification. 0.12 has integrated one instance into a separate rack candidate and verified neighboring supports and unchanged-part fingerprints; multiple typed joints and uncertain upper framing remain future work. See [0.11 validation](docs/V011-VALIDATION.md).
