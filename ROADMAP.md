@@ -57,6 +57,8 @@ One blue body now has a scalloped profile, end collars and actual bolt holes. Th
 
 ## Later, when repeated work justifies it
 
+2026-09-22 upper-tier follow-up: [one hollow duct and upper crossarm](docs/UPPER-TIER-CANDIDATE.md) exercise a shared tier-height control and actual T-end / bearing / airflow checks on the saved paired-frame baseline. The layer assignment and dimensions are visual estimates; remaining utilities and longitudinal supports are unresolved. This motivates reusable endpoint/dependency handling, but no generic assembly MCP API or managed recipe is claimed.
+
 2026-09-22 follow-up: the user's sketch defines the paired vertical members / tier relationship, not a fixed component count. The [paired frame candidate](docs/PAIRED-FRAME-CANDIDATE.md) places two channels at one existing rack station and verifies user-corrected T end joints, clearances and unchanged parts. Upper tiers and concealed fasteners remain unmodeled. Near-contact ray distances must be explicit; default HOM ray thresholds skipped the intended millimetre contact. Runtime remains 0.16.
 
 2026-09-22: [S1 slotted-channel study](docs/SLOTTED-CHANNEL-STUDY.md) validates one continuous folded member with capsule holes, native edge finishing, planar-normal preservation, and source-independent HIP reload. It remains a standalone sample. Resolve the photo's S1/T1 interface before a connected assembly; managed local frames/endpoints should follow a real repeated-use case. No new runtime tool or recipe is claimed.
