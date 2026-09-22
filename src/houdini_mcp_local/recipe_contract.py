@@ -9,6 +9,10 @@ INTEGER_PARAMETERS = {'segments', 'bolt_count', 'bend_segments'}
 
 
 def constraints(recipe):
+    if recipe=='pipe_rack_lobed':
+        return constraints('pipe_rack_repeated')+[
+            dict(id='lobed_body_clearance',left='spacing_23',op='ge',terms={'diameter_2':.775,'diameter_3':.82},offset=.04,message='Clear maximum lobed-body envelope plus 40mm')]
+
     if recipe=='pipe_rack_repeated':
         return constraints('pipe_rack_coupled')+[
             dict(id='second_joint_end',left='second_joint_offset_3',op='le',terms={'length':.5,'diameter_3':-.11},offset=-.149,message='Leave 80mm beyond conservative hardware envelope'),

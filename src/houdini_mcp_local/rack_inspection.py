@@ -10,9 +10,12 @@ from .sample_inspection import inspect_geometry
 
 
 def inspect(node,geometry=None):
-    repeated=node.userData('workai_recipe')=='pipe_rack_repeated'
+    lobed=node.userData('workai_recipe')=='pipe_rack_lobed'
+    repeated=lobed or node.userData('workai_recipe')=='pipe_rack_repeated'
     coupled=repeated or node.userData('workai_recipe')=='pipe_rack_coupled'
-    if repeated:
+    if lobed:
+        from .lobed_rack_geometry import PARAMETERS
+    elif repeated:
         from .repeated_rack_geometry import PARAMETERS
     elif coupled:
         from .coupled_rack_geometry import PARAMETERS
@@ -43,6 +46,7 @@ def inspect(node,geometry=None):
         if not closed or part['zero'] or any(not math.isfinite(v) for q in part['points'] for v in q):issues.append('Invalid mesh: '+part['name'])
         summaries.append(dict(name=part['name'],kind=part['kind'],points=len(part['points']),faces=len(part['faces']),bbox_min=lo,bbox_max=hi,closed_edges=closed))
     joint_parts={1:[v['name'] for v in parts.values() if v['name'].startswith('pipe1_') and v['kind']!='pipe']} if coupled else None
+    if lobed:joint_parts[3]=['pipe3_flange_left','pipe3_gasket']
     result=rack_checks.measure(list(parts.values()),p,folded=json.loads(geo.attribValue('sample_spec')).get('channel_profile')=='folded_return_v1',joint_parts=joint_parts);issues.extend(result['issues']);joints={}
     for i,z in enumerate((-p['spacing_12'],0,p['spacing_23']),1):
         if (coupled and i==1) or (repeated and i==3):continue
@@ -56,7 +60,7 @@ def inspect(node,geometry=None):
         params.update(diameter=p[f'diameter_{i}'],wall=p[f'wall_{i}'])
         checked=inspect_geometry(node,leg,params,check_supports=False);joints[str(i)]=checked['measurements']
         issues.extend(dict(pipe=i,issue=e) for e in checked['issues'])
-    if node.userData('workai_recipe') in ('pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated'):
+    if node.userData('workai_recipe') in ('pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed'):
         for i in ((2,) if repeated else (2,3) if coupled else (1,2,3)):
             names=[f'pipe{i}_'+v for v in ('gasket','flange_left','flange_right','pipe_left','pipe_right')]
             if any(v not in parts for v in names):continue
@@ -67,6 +71,10 @@ def inspect(node,geometry=None):
             joints[str(i)]['joint_contact_errors']=values
             if any(abs(v)>3e-6 for v in values):issues.append(f'Photo joint {i} offset/body/pipe interfaces mismatch')
     extra={}
+    if lobed:
+        from . import lobed_checks
+        importlib.reload(lobed_checks)
+        blue=lobed_checks.measure(list(parts.values()),p);issues.extend(blue['issues']);extra['lobed_body']=blue
     if repeated:
         from . import repeated_checks
         importlib.reload(repeated_checks)

@@ -41,7 +41,11 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 ## Added in 0.13: repeated black-pipe connection chain
 
-The seventh recipe retains the coupled rack and adds a second blue joint on pipe 3, with three continuous hollow spans. Native inspection checks interfaces, each joint separately, and the actual axial pipe span beneath every support. A new position parameter is sufficient for this fixed case; no arbitrary list or general replacement API is claimed. Photo matching still needs blue-body lobes and upper-frame attachment interpretation. See [0.13 validation](docs/V013-VALIDATION.md).
+The seventh recipe retains the coupled rack and adds a second blue joint on pipe 3, with three continuous hollow spans. Native inspection checks interfaces, each joint separately, and the actual axial pipe span beneath every support. A new position parameter is sufficient for this fixed case; no arbitrary list or general replacement API is claimed. 0.14 adds lobes to one blue body; broader propagation and upper-frame attachment interpretation remain future work. See [0.13 validation](docs/V013-VALIDATION.md).
+
+## Added in 0.14: first lobed blue body
+
+One blue body now has a scalloped profile, end collars and actual bolt holes. The bolt-in-hole check distinguishes bounded holes from exterior free space, backed by a rotated-body negative. Other bodies remain as visual comparisons. Next use user feedback on this silhouette before propagating it; upper-frame attachments remain uncertain and need reference interpretation first. See [0.14 validation](docs/V014-VALIDATION.md).
 
 ## Later, when repeated work justifies it
 

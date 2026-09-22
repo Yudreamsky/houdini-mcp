@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+- Added `pipe_rack_lobed`, refining only the first pipe-3 blue body with lobes, end collars, a central bore and actual bolt holes in one welded mesh. One diameter-relative depth parameter; existing seven generators remain unchanged. Eight recipes reuse 22 tools.
+- Native body inspection extracts actual end-cap boundary loops, requiring bolts inside bounded holes before testing projected clearance. A half-pitch rotation demonstrated why positive clearance outside the body is not successful hole engagement.
+- 69 unit tests and independent native-body/saved-rack HOM checks pass: 204 original parts unchanged, only one body modified; displaced/rotated/blocked-bore/blocked-hole negatives rejected. GUI SDK updates/reset, HIP reopen, standalone HDA and actual Mantra renders pass. See [validation](docs/V014-VALIDATION.md) for GUI/HDA/render evidence and inferred-shape limits.
+
 ## 0.13.0
 
 - Added `pipe_rack_repeated`: two blue joints on foreground pipe 3, three hollow spans and one additional second-joint position parameter. Existing six generators remain unchanged; 22 tools serve seven recipes. Fixed two-joint case, not an arbitrary joint-list API.

@@ -16,6 +16,7 @@ description: 用本仓库 Houdini MCP 制作、修改和核验可复用程序化
 - 制作橙色外抱接头独立样件：读 [外抱接头](references/external-coupling.md)，核半壳、凸耳孔、紧固件与贯通空间。
 - 将外抱接头接入三管候选：读 [局部装配与继承](references/coupled-rack.md)，核替换范围、逐件指纹及邻件间距；当前只支持固定红管单接头。
 - 制作黑管重复接头：同读 [连续管段与重复接头](references/coupled-rack.md#黑管双接头与连续管段)，使用固定双接头配方，核轴向端面与支撑落在哪段管身上。
+- 细化照片中的蓝色连接本体：读 [凸部、台阶与孔环](references/blue-body.md)，区分可见外轮廓与推定孔/背面，避免将“不碰撞”当作“确实穿孔”。
 - 修改参数前预检、验证MCP升级或打包样段：读 [预检与可复用验收](references/acceptance.md)，复用仓库脚本并单独看图。
 - 渲染、预览、取消/续渲：读 [渲染经验](references/rendering.md)。先区分 GUI 几何预览、Mantra 和限定地图 XPU。
 - 复用或补充经验：读 [经验记录规则](references/experience.md)。只记录本次明确范围内的经验，不写宿主全局记忆，不自动扩展其他项目规则。
