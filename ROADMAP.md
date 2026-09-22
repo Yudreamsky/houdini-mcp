@@ -43,9 +43,13 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 The seventh recipe retains the coupled rack and adds a second blue joint on pipe 3, with three continuous hollow spans. Native inspection checks interfaces, each joint separately, and the actual axial pipe span beneath every support. A new position parameter is sufficient for this fixed case; no arbitrary list or general replacement API is claimed. 0.14 adds lobes to one blue body; broader propagation and upper-frame attachment interpretation remain future work. See [0.13 validation](docs/V013-VALIDATION.md).
 
-## Added in 0.14: first lobed blue body
+## Added in 0.15: independent isolation pads
 
-One blue body now has a scalloped profile, end collars and actual bolt holes. The bolt-in-hole check distinguishes bounded holes from exterior free space, backed by a rotated-body negative. Other bodies remain as visual comparisons. Next use user feedback on this silhouette before propagating it; upper-frame attachments remain uncertain and need reference interpretation first. See [0.14 validation](docs/V014-VALIDATION.md).
+User correction replaces the first pipe-3 continuous blue body with separate rubber buffers, one per bolt. Verify real holes, seating and inter-pad gaps; preserve neighboring parts. The former lobed-body interpretation is withdrawn even though its geometry tests passed. Hidden flow/seal components remain unknown. Next refine this corrected sample from user feedback, then apply it to the two remaining legacy blue assemblies. See [0.15 validation](docs/V015-VALIDATION.md).
+
+## Added in 0.14: first lobed blue body (withdrawn construction interpretation)
+
+One blue body now has a scalloped profile, end collars and actual bolt holes. The bolt-in-hole check distinguishes bounded holes from exterior free space, backed by a rotated-body negative. Other bodies retain the same incorrect continuous-body interpretation. Do not propagate this silhouette; upper-frame attachments remain uncertain and need reference interpretation first. See [0.14 validation](docs/V014-VALIDATION.md).
 
 ## Later, when repeated work justifies it
 

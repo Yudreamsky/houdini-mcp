@@ -1,6 +1,14 @@
 # Changelog
 
+## 0.15.0
+
+- Corrected the user-identified construction: `pipe_rack_isolated` replaces the first pipe-3 continuous blue body with one independent rubber buffer per bolt. Default eight pads, 212 parts; 204 saved-baseline parts unchanged. Existing eight generators remain byte-identical; nine recipes reuse 22 tools.
+- Inspect actual connected pad meshes, bounded holes, paired bolt axes, flange seating and conservative pad-to-pad air gaps. Nonlinear radius/count/bore checks reject incompatible parameter combinations. Internal flow/seal connection explicitly remains unmodeled; the other two legacy blue bodies await correction.
+- Added a separately assigned matte rubber shader in the render demo. Updated the companion Skill to withdraw the old continuous-body interpretation while preserving the proven hole-membership lesson. See [validation](docs/V015-VALIDATION.md).
+
 ## 0.14.0
+
+Historical construction interpretation withdrawn in 0.15: the blue components are independent rubber buffers. The following records technical validation of the earlier geometry, not correctness of its construction.
 
 - Added `pipe_rack_lobed`, refining only the first pipe-3 blue body with lobes, end collars, a central bore and actual bolt holes in one welded mesh. One diameter-relative depth parameter; existing seven generators remain unchanged. Eight recipes reuse 22 tools.
 - Native body inspection extracts actual end-cap boundary loops, requiring bolts inside bounded holes before testing projected clearance. A half-pitch rotation demonstrated why positive clearance outside the body is not successful hole engagement.

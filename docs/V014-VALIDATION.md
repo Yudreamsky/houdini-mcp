@@ -1,5 +1,7 @@
 # 0.14：首个蓝体的凸部、收口与真实孔
 
+> Construction interpretation withdrawn in 0.15 after user correction: blue components are separate rubber pads per bolt, not one continuous body. Historical geometric tests remain valid only for their old stated geometry. See [current correction](V015-VALIDATION.md).
+
 2026-09-22，Windows / Houdini20.5.487 / Python3.11。MCP0.14.0，22工具、8配方，桥接0.1.0。本轮通过外部MCP SDK stdio实测，当前宿主没有原生Houdini工具。
 
 ## 本轮范围

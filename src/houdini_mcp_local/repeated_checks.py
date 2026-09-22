@@ -4,7 +4,7 @@ from .rack_checks import bounds,TOL
 from .assembly_checks import separation
 
 
-def measure(parts,p):
+def measure(parts,p,discrete_first=False):
     by={v['name']:v for v in parts};issues=[];spans=[];interfaces=[];support_spans=[]
     a=p['joint_offset_3'];b=p['second_joint_offset_3'];cy=.044+p['rise_3']+p['diameter_3']/2;cz=p['spacing_23']
     expected=[('pipe3_pipe_left',-p['length']/2,a-.044),('pipe3_pipe_middle',a+.044,b-.044),('pipe3_pipe_right',b+.044,p['length']/2)]
@@ -19,6 +19,14 @@ def measure(parts,p):
     pipe_names=[v['name'] for v in parts if v['kind']=='pipe' and v['name'].startswith('pipe3_')]
     if set(pipe_names)!={v[0] for v in expected}:issues.append('Unexpected pipe3 span coverage')
     for key,prefix,offset,left_pipe,right_pipe in [('joint_a','pipe3_',a,'pipe3_pipe_left','pipe3_pipe_middle'),('joint_b','pipe3_joint_b_',b,'pipe3_pipe_middle','pipe3_pipe_right')]:
+        if discrete_first and key=='joint_a':
+            names=[prefix+'flange_left',prefix+'flange_right',left_pipe,right_pipe]
+            if any(n not in by for n in names):issues.append('Missing discrete flange interface');continue
+            left,right,pl,pr=[bounds(by[n]) for n in names]
+            errors=[left[1][0]-(offset-.044),right[0][0]-(offset+.044),pl[1][0]-(offset-.044),pr[0][0]-(offset+.044)]
+            if any(abs(v)>TOL for v in errors):issues.append('Discrete joint flange/pipe endpoint mismatch')
+            interfaces.append(dict(joint=key,errors=errors,interface_mode='discrete_pads',internal_flow_connection='unmodeled'))
+            continue
         names=[prefix+'gasket',prefix+'flange_left',prefix+'flange_right',left_pipe,right_pipe]
         if any(n not in by for n in names):issues.append('Missing chain interface: '+key);continue
         body,left,right,pl,pr=[bounds(by[n]) for n in names]

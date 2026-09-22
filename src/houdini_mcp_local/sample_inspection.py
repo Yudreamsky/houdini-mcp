@@ -19,7 +19,7 @@ def inspect(path):
         from . import elbow_inspection
         importlib.reload(elbow_inspection)
         return elbow_inspection.inspect(node)
-    if node.userData('workai_recipe')in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed'):
+    if node.userData('workai_recipe')in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed','pipe_rack_isolated'):
         import importlib
         from . import rack_inspection
         importlib.reload(rack_inspection)
@@ -28,7 +28,7 @@ def inspect(path):
     return inspect_geometry(node,node.geometry(),p)
 
 
-def inspect_geometry(node,geo,p,check_supports=True):
+def inspect_geometry(node,geo,p,check_supports=True,require_gasket=True):
     if geo is None or node.errors(): raise ValueError('Sample failed to cook')
     specification=json.loads(geo.attribValue('sample_spec'))
     u_bolt_style=specification.get('support_style')=='u_bolt_v1'
@@ -52,7 +52,7 @@ def inspect_geometry(node,geo,p,check_supports=True):
             issues.append(dict(part=name,nonmanifold_or_open_edges=bad,zero_area_faces=part['zero_area']))
         result.append(dict(name=name,kind=part['kind'],bbox_min=mins,bbox_max=maxs,faces=part['faces'],points=len(points),closed_edges=bad==0))
     byname={v['name']:v for v in result}
-    required=('pipe_left','pipe_right','flange_left','flange_right','gasket')
+    required=('pipe_left','pipe_right','flange_left','flange_right')+(('gasket',) if require_gasket else ())
     if any(k not in byname for k in required): issues.append('Missing core parts')
     measurements={}
     if all(k in byname for k in required):

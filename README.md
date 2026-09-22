@@ -1,6 +1,6 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.14.0 / 22 工具 / 8 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.15.0 / 22 工具 / 9 个程序化配方**，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
 
 外部 Python 提供 MCP stdio 服务；Houdini 内部使用标准库、`hou` 及随 Houdini 提供的 NumPy / USD。命令通过本机认证 TCP 队列交给 Houdini 主线程执行，无需给 Houdini 安装 MCP SDK。
 
@@ -77,7 +77,17 @@ HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`�
 
 检查实际管/法兰包络净距、各管承托、共用横担覆盖、吊杆/管卡穿孔及下方紧固件。穿孔检查读取实际顶面多边形，要求杆中心位于孔内且杆半径小于到孔边的距离。通用碰撞、承载与厂家节点细节仍不在范围内。详见 [0.9验证](docs/V09-VALIDATION.md)。
 
-### 0.14：一个蓝色本体的凸部与台阶
+### 0.15：每根螺栓独立的橡胶缓冲垫
+
+用户纠正蓝色部件为独立橡胶缓冲垫。新ID选择 `recipe="pipe_rack_isolated"`，当前只改前景pipe3第一套：移除连续pipe3_gasket，增加8个rubber_pad，其他204件保持。新增pad_radius_ratio，默认.14；与bolt_count共同受块间空隙约束，16根示例用.10。
+
+检查实际独立连通体、孔环、螺杆对应、两端法兰接触和块间净空，明确内部流道/密封连接未建。原管段及法兰不动，其他两套蓝体仍待纠正。橡胶面在渲染样例绑定单独哑光材质。源码、Skill和22个工具共用既有生命周期，旧八份生成器保留。
+
+详见[0.15验证](docs/V015-VALIDATION.md)及[独立垫块Skill](skills/houdini-asset-workflow/references/blue-body.md)。几何检查通过不证明减振或密封性能。
+
+### 0.14：一个蓝色本体的凸部与台阶（构造解释已撤回）
+
+**用户随后确认蓝色是逐螺栓独立橡胶垫。以下连续蓝体仅用于历史重现；技术检查通过不表示照片结构正确。**
 
 新ID选择 `recipe="pipe_rack_lobed"`，仅替换前景第一套蓝体pipe3_gasket，其他204件保留。保留历史name/part_type不代表照片产品已识别为垫片。新增blue_lobe_depth（管径比例，.12–.22，默认.20），使中部凸峰与两端收口联动；凸部数沿用bolt_count，背面对称/孔位/台阶是视觉推定。
 
