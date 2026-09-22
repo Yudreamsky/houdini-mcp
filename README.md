@@ -1,6 +1,8 @@
 # Houdini MCP
 
-一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.17.0 / 22 工具 / 10 个程序化配方**，另支持限定的双层总装快照HDA，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+一个随实际资产制作逐步完善的本地 Houdini MCP。当前版本 **0.18.0 / 24 工具 / 10 个程序化配方**，另支持限定的双层总装快照HDA，针对 **Windows / Houdini 20.5.487 / Python 3.11**。
+
+0.18新增自定义采样回读、真实区域渲染与两档比较、受限物理材质XPU、可捕获/回退的三面光与相机套件、四AOV及独立OIDN降噪。见[实测范围与调用](docs/V018-RENDER-WORKFLOW.md)及[渲染Skill](skills/houdini-asset-workflow/references/rendering.md)。旧地图路线保留；物理XPU是单帧近似材质映射，不声称同画质加速。
 
 0.17把照片样段的218件封入可复制HDA，仅开放上层高度，接入既有改参、检查和视图工具；写入后验收失败尝试复位并验证。不是第11个生成配方，材质网络仍由配套HIP提供。见[范围与验证](docs/V017-UPPER-ASSEMBLY.md)及[配套Skill](skills/houdini-asset-workflow/references/upper-assembly.md)。
 
@@ -18,9 +20,11 @@
 | `save_scene` | 绝对路径另存，返回实际文件大小和 SHA256 |
 | `open_scene` | 打开工程；默认拒绝丢弃未保存修改 |
 | `set_asset_parameters` | 预验证后批量设置数字参数，拒绝动画通道 |
-| `render_frames` | 从 HIP / HDA 快照提交 Mantra 或限定地图 Karma XPU + COP2 任务 |
+| `render_frames` | HIP/HDA快照→Mantra或地图/受限物理XPU；支持自定义采样、ROI、AOV和降噪 |
 | `get_render_status` | 查询进度、最近输出、完成或具体失败原因 |
-| `get_render_preview` | 返回哈希验证后的原生 PNG 图片、画面告警、计时与 GPU 证据 |
+| `get_render_preview` | 返回已记录且哈希通过的原图/降噪/AOV PNG、对应告警及GPU证据 |
+| `compare_render_jobs` | 同场景/区域的采样比较；噪声代理、相邻MAE和实测时间 |
+| `lookdev_rig` | 独立三面光/三机位套件的检查、捕获、局部应用与冲突保护恢复 |
 | `get_capabilities` | 精确会话、保存状态、渲染节点与可选 NVIDIA 显卡/驱动探测 |
 | `preflight_render` | 检查当前已保存工程、相机、依赖、节点和磁盘空间 |
 | `cancel_render` | 请求完成当前帧后停止，须查询到 cancelled 才算停止 |
@@ -53,7 +57,7 @@
 
 HDA 首次使用时由版本化 Python 源码生成到 `.runtime/asset-library`，类型名含配方指纹；完整算法嵌入 HDA PythonModule，交付库不依赖仓库源码。保存 HIP 时显式携带对应 HDA；实例参数和 HDA 默认值须分别记录。源码仓库包含生成算法和测试，生成后的 HIP/HDA/图片保留本地。
 
-`inspect_asset_instance(path)` 核查实际局部几何与选定接口，不是通用碰撞或承载检查。`preview_asset_views(path, views=["front","right","top","perspective"])` 返回完整样段多视图；可按检查结果中的 `part_type` 过滤。预览恢复显示、选择、视角等现场设置，但临时显隐/过滤仍可能使 HIP 标为未保存；不能把该操作当作完全只读。视口图用于几何检查，实体材质已用 Mantra 实测；本样段尚不支持限定地图 XPU 适配器。
+`inspect_asset_instance(path)` 核查实际局部几何与选定接口，不是通用碰撞或承载检查。`preview_asset_views(path, views=["front","right","top","perspective"])` 返回完整样段多视图；可按检查结果中的 `part_type` 过滤。预览恢复显示、选择、视角等现场设置，但临时显隐/过滤仍可能使 HIP 标为未保存；不能把该操作当作完全只读。视口图用于几何检查，实体材质已用 Mantra 实测；0.18另提供受限物理XPU路线，按显式SOP、材质与灯光范围预检，不能走旧地图Unlit适配。
 
 配套 [houdini-asset-workflow Skill](skills/houdini-asset-workflow/SKILL.md) 与代码同仓库：入口按需读取样段方法、渲染经验和经验维护规则。MCP 提供操作，HDA/脚本实现参数关系，Skill 保存经过验证的使用方法与适用边界。为客户端安装时应链接或复制整个 Skill 文件夹；项目级 `.agents/skills` 可指向此源目录。安装路径存在与当前会话发现 Skill 是两项独立检查。
 

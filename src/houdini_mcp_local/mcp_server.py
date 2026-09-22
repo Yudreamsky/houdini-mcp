@@ -6,6 +6,7 @@ from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent, ToolAnnotations
+from pydantic import StrictInt
 
 from .protocol import HoudiniClient
 
@@ -80,7 +81,7 @@ def set_asset_parameters(path: str, parameters: dict) -> dict:
 
 
 def _operation(module, function, *args):
-    code = 'import importlib\nfrom houdini_mcp_local import ' + module + '\nimportlib.reload(' + module + ')\nresult=' + module + '.' + function + '(' + ','.join(repr(a) for a in args) + ')'
+    code = 'import importlib\nfrom houdini_mcp_local import render_options\nimportlib.reload(render_options)\nfrom houdini_mcp_local import ' + module + '\nimportlib.reload(' + module + ')\nresult=' + module + '.' + function + '(' + ','.join(repr(a) for a in args) + ')'
     return client.call('execute_code', {'code': code})['result']
 
 
@@ -117,14 +118,16 @@ def asset_preset(action: str, name: str = '', path: str = '', overwrite: bool = 
 def _preflight(request):
     import shutil
     from .render_jobs import validate_request, JOBS, HYTHON
-    from .render_options import options
-    request = dict(request, **options(request.get('renderer', 'mantra'), request.get('quality', 'preview')))
+    from .render_options import options, extensions
+    request = dict(request, **options(request.get('renderer', 'mantra'), request.get('quality', 'preview'), request.get('sampling')))
+    request.update(extensions(request['renderer'], request['width'], request['height'], request.get('region'), request.get('xpu_surface'), request.get('diagnostics')))
     validate_request(request['hip_path'], request['start_frame'], request['end_frame'], request['width'], request['height'], request.get('asset_libraries'))
     result = _operation('session_ops', 'inspect_render', request)
     free = shutil.disk_usage(JOBS if JOBS.exists() else ROOT).free
-    estimate = request['width'] * request['height'] * (request['end_frame'] - request['start_frame'] + 1) * 32 + 256 * 1024 * 1024
+    layers = 1 + len(request['diagnostics']['aovs']) + int(request['diagnostics']['denoise'])
+    estimate = request['width'] * request['height'] * (request['end_frame'] - request['start_frame'] + 1) * 32 * layers + 256 * 1024 * 1024
     result.update(disk_free_bytes=free, estimated_required_bytes=estimate)
-    result['render_options'] = options(request['renderer'], request['quality'])
+    result['render_options'] = {k: request[k] for k in ('renderer','quality','pixel_samples','sampling','region','xpu_surface','diagnostics')}
     if request['renderer'] == 'karma_xpu' and not HYTHON.with_name('husk.exe' if os.name == 'nt' else 'husk').is_file():
         result['errors'].append('Karma husk executable is missing beside the configured hython')
         result['ready'] = False
@@ -138,9 +141,10 @@ def _preflight(request):
 def preflight_render(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
                      start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
                      asset_path: str = '', parameters: dict | None = None, asset_libraries: list[str] | None = None,
-                     renderer: str = 'mantra', quality: str = 'preview') -> dict:
-    """Check saved scene and dependencies. renderer: mantra or karma_xpu; quality: preview or final. XPU supports only the validated emissive-map asset. GPU availability is not completed-frame evidence."""
-    return _preflight(dict(hip_path=hip_path, rop_path=rop_path, composite_node=composite_node, source_cop_node=source_cop_node, start_frame=start_frame, end_frame=end_frame, width=width, height=height, asset_path=asset_path, parameters=parameters or {}, asset_libraries=asset_libraries or [], renderer=renderer, quality=quality))
+                     renderer: str = 'mantra', quality: str = 'preview', sampling: dict | None = None,
+                     region: list[StrictInt] | None = None, xpu_surface: dict | None = None, diagnostics: dict | None = None) -> dict:
+    """Read-only saved-scene/dependency validation. sampling overrides quality; Mantra pixel_samples=[x,y], paired min_rays/max_rays, noise_threshold, sample_lock, seed; XPU pixel_samples=integer. region=[left,top,right,bottom] exclusive full-frame pixels. xpu_surface selects bounded polygon/Principled physical adaptation. diagnostics accepts aovs and denoise. Reports limitations; availability is not completed-frame GPU proof."""
+    return _preflight(dict(hip_path=hip_path, rop_path=rop_path, composite_node=composite_node, source_cop_node=source_cop_node, start_frame=start_frame, end_frame=end_frame, width=width, height=height, asset_path=asset_path, parameters=parameters or {}, asset_libraries=asset_libraries or [], renderer=renderer, quality=quality, sampling=sampling, region=region, xpu_surface=xpu_surface, diagnostics=diagnostics))
 
 
 def _launch(identifier):
@@ -152,10 +156,12 @@ def _launch(identifier):
 def render_frames(hip_path: str, rop_path: str, composite_node: str, source_cop_node: str,
                   start_frame: int = 1, end_frame: int = 1, width: int = 960, height: int = 540,
                   asset_path: str = "", parameters: dict | None = None, asset_libraries: list[str] | None = None,
-                  request_id: str | None = None, renderer: str = 'mantra', quality: str = 'preview') -> dict:
-    """Snapshot saved HIP/HDA and launch Mantra or map-only Karma XPU plus COP2. preview/final samples: Mantra 2x2/4x4, XPU 16/64. Repeated inputs return the same job; new IDs intentionally rerender. Maximum two active jobs. Inspect status and native preview."""
+                  request_id: str | None = None, renderer: str = 'mantra', quality: str = 'preview',
+                  sampling: dict | None = None, region: list[StrictInt] | None = None,
+                  xpu_surface: dict | None = None, diagnostics: dict | None = None) -> dict:
+    """Snapshot HIP/HDA, render and record effective settings. Optional sampling/region/xpu_surface/diagnostics follow preflight_render. Defaults: Mantra 2x2/4x4, XPU 16/64. Immutable inputs include all overrides. Raw images remain separate from opt-in denoise/AOV outputs. Maximum two active jobs; inspect status and preview."""
     from .render_jobs import start_job
-    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, _launch, asset_libraries, request_id, _preflight, renderer, quality)
+    return start_job(hip_path, rop_path, start_frame, end_frame, width, height, composite_node, source_cop_node, asset_path, parameters or {}, _launch, asset_libraries, request_id, _preflight, renderer, quality, sampling, region, xpu_surface, diagnostics)
 
 
 @mcp.tool(annotations=WRITE)
@@ -184,13 +190,26 @@ def get_render_status(job_id: str) -> dict:
 
 
 @mcp.tool(annotations=READ, structured_output=False)
-def get_render_preview(job_id: str, frame: int | None = None) -> list[TextContent | ImageContent]:
+def get_render_preview(job_id: str, frame: int | None = None, variant: str = 'raw') -> list[TextContent | ImageContent]:
     """Return a verified recorded PNG as native image content, with warnings, timings and GPU evidence. Defaults to the latest completed frame. Rejects missing/corrupt output; warnings are not artistic acceptance."""
     import json
     from .render_preview import read_preview
-    metadata, raw = read_preview(job_id, frame)
+    metadata, raw = read_preview(job_id, frame, variant)
     return [TextContent(type='text', text=json.dumps(metadata)),
             ImageContent(type='image', data=base64.b64encode(raw).decode('ascii'), mimeType='image/png')]
+
+
+@mcp.tool(annotations=WRITE)
+def lookdev_rig(action: str, name: str = 'product', settings: dict | None = None) -> dict:
+    """Inspect/capture/apply/restore an owned three-area-light, three-camera rig. apply accepts partial lights(key/fill/rim) and cameras(hero/reference/detail); returns a conflict-checked restore_token. restore settings={restore_token:...}. Does not save HIP. Defaults are uncalibrated design starting points, never silently replace existing scene lights."""
+    return _operation('lookdev_rig', 'operate', action, name, settings)
+
+
+@mcp.tool(annotations=READ)
+def compare_render_jobs(job_ids: list[str], frame: int | None = None) -> dict:
+    """Compare 2-8 verified raw previews of identical scene/camera/region/backend, allowing only sampling changes. Returns local noise proxy, adjacent MAE and measured timing; no automatic claim of convergence or artistic acceptance."""
+    from .render_comparison import compare
+    return compare(job_ids, frame)
 
 
 @mcp.tool(annotations=READ)

@@ -97,6 +97,40 @@ class LifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'HDA snapshot fingerprint'):
             jobs.resume_job(identifier, self.launched.append)
 
+    def test_custom_sampling_and_region_are_immutable_request_inputs(self):
+        args=dict(sampling={'pixel_samples':[3,4],'min_rays':1,'max_rays':9},region=[10,20,100,120])
+        identifier=self.start('custom',**args)['job_id']
+        self.assertEqual(self.start('custom',**args)['job_id'],identifier)
+        with self.assertRaisesRegex(ValueError,'different render inputs'):
+            self.start('custom',sampling={'pixel_samples':[4,4]},region=args['region'])
+        folder=self.terminal(identifier)
+        request=json.loads((folder/'request.json').read_text())
+        request['sampling']['pixel_samples']=[32,32]
+        atomic_json(folder/'request.json',request)
+        with self.assertRaisesRegex(ValueError,'Frozen request manifest changed'):
+            jobs.resume_job(identifier,self.launched.append)
+
+    def test_diagnostic_artifacts_are_required_and_recursively_copied(self):
+        identifier=self.start(diagnostics={'aovs':['direct_diffuse'],'denoise':True})['job_id']
+        folder=self.terminal(identifier)
+        state=json.loads((folder/'status.json').read_text());item=state['outputs'][0]
+        request=json.loads((folder/'request.json').read_text())
+        fake={'path':str(folder/'missing.png'),'sha256':'missing'}
+        item['diagnostics']={'aovs':{'direct_diffuse':{'exr':fake,'png':fake}},'denoised':{'exr':fake,'png':fake}}
+        self.assertEqual(jobs.verified_outputs(folder,request,[item]),[])
+        for group,stem in ((item['diagnostics']['aovs']['direct_diffuse'],'aov'),(item['diagnostics']['denoised'],'denoised')):
+            for kind in ('png','exr'):
+                path=folder/(stem+'.'+kind);path.write_bytes(b'test')
+                group[kind]={'path':str(path),'sha256':jobs.digest(path),'bytes':4}
+        self.assertEqual(len(jobs.verified_outputs(folder,request,[item])),1)
+        atomic_json(folder/'status.json',state)
+        child=jobs.resume_job(identifier,self.launched.append)
+        self.assertEqual(child['reused_frames'],[1])
+        copied=child['outputs'][0]['diagnostics']['denoised']['png']
+        self.assertEqual(Path(copied['path']).parent,jobs.job_dir(child['job_id']))
+        Path(item['diagnostics']['denoised']['png']['path']).write_bytes(b'bad')
+        self.assertEqual(jobs.verified_outputs(folder,request,[item]),[])
+
     def test_changed_external_input_rejects_resume_and_duplicate(self):
         texture = self.root / 'texture.exr'
         texture.write_bytes(b'original')

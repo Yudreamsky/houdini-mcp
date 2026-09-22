@@ -17,6 +17,7 @@ from houdini_mcp_local.io_utils import atomic_json
 from houdini_mcp_local.render_jobs import verify_inputs, verified_outputs, process_created
 from houdini_mcp_local.render_options import device_evidence, cancellation_receipt
 from houdini_mcp_local.image_inspection import inspect_pixels
+from houdini_mcp_local import render_controls, render_diagnostics
 
 folder = Path(sys.argv[1])
 request = json.loads((folder / 'request.json').read_text(encoding='utf-8'))
@@ -78,6 +79,11 @@ def finish_frame(frame, timings, gpu=None):
               'warnings': sorted(set(raw_check['warnings'] + preview_check['warnings'])),
               'width': request['width'], 'height': request['height']}
     output = dict(frame=frame, png=image_info, exr=raw_info, timings=timings, visual_check=visual)
+    output['effective_settings'] = state.get('effective_settings')
+    output['region'] = request.get('region')
+    t = time.perf_counter()
+    output['diagnostics'] = render_diagnostics.postprocess(folder, frame, request, source, comp)
+    timings['diagnostics_seconds'] = time.perf_counter() - t
     if gpu is not None:
         output['gpu_evidence'] = gpu
     state['outputs'].append(output)
@@ -133,19 +139,27 @@ try:
         rop.parm('override_camerares').set(1); rop.parm('res_fraction').set('specific')
         rop.parmTuple('res_override').set((request['width'], request['height']))
         rop.parm('soho_pipecmd').set('mantra -j 8')
-        if 'pixel_samples' in request:
-            axis = int(request['pixel_samples'] ** .5)
-            rop.parm('vm_samplesx').set(axis); rop.parm('vm_samplesy').set(axis)
+        state['aov_configuration'] = render_diagnostics.configure_mantra(rop, request.get('diagnostics'))
         state['timing_scope'] = 'Mantra render_call includes IFD export, process startup and rendering; these components are not separately measured.'
         for frame in pending:
             cancellation_point(); state['current_frame'] = frame; status(); hou.setFrame(frame)
+            state['effective_settings'] = render_controls.configure_mantra(rop, request)
+            state['effective_settings']['region'] = render_controls.configure_mantra_region(hou.node(rop.evalParm('camera')), request)
+            atomic_json(folder / f'effective_{frame:04}.json', state['effective_settings'])
             rop.parm('vm_picture').set((folder / f'raw_{frame:04}.exr').as_posix())
             t = time.perf_counter(); rop.render(frame_range=(frame, frame))
             finish_frame(frame, {'render_call_seconds': time.perf_counter() - t})
     elif renderer == 'karma_xpu' and pending:
-        from houdini_mcp_local.xpu_adapter import export_map
+        if request.get('xpu_surface') is not None:
+            from houdini_mcp_local.xpu_surface_adapter import export_surface as export_map
+        else:
+            from houdini_mcp_local.xpu_adapter import export_map
         state['phase'] = 'exporting_usd'; status()
         t = time.perf_counter(); usd = export_map(folder, request, pending, cancellation_point)
+        state['effective_settings'] = {'effective': {'pixel_samples': request.get('pixel_samples', 16)},
+                                       'source': 'husk command -p; command is recorded',
+                                       'region': render_controls.configure_usd_region(usd, request)}
+        state['aov_configuration'] = render_diagnostics.configure_usd(usd, request)
         state['timings']['export_seconds'] = time.perf_counter() - t
         state['usd_snapshot'] = info(usd)
         cancellation_point()

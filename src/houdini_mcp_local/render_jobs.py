@@ -3,7 +3,7 @@ import ctypes,hashlib,json,os,shutil,subprocess,sys,time,uuid
 from pathlib import Path
 from .io_utils import atomic_json
 from .locking import file_lock
-from .render_options import options
+from .render_options import options, extensions
 
 ROOT=Path(__file__).resolve().parents[2]
 JOBS=ROOT/'evidence'/'render-jobs'
@@ -82,6 +82,7 @@ def digest(path):
 
 
 def verify_inputs(folder,request):
+    if request.get('request_version',0)>=6 and request.get('request_sha256')!=request_digest(request):raise ValueError('Frozen request manifest changed')
     if digest(folder/'scene.hip')!=request['scene_sha256']:raise ValueError('HIP snapshot fingerprint changed')
     for item in request.get('libraries',[]):
         path=Path(item['snapshot']).resolve()
@@ -90,19 +91,41 @@ def verify_inputs(folder,request):
         if digest(item['path'])!=item['sha256']:raise ValueError('External dependency fingerprint changed: '+item['path'])
 
 
+def request_digest(request):
+    return hashlib.sha256(json.dumps({k:v for k,v in request.items() if k!='request_sha256'},sort_keys=True,allow_nan=False).encode()).hexdigest()
+
+
 def verified_outputs(folder,request,outputs):
     valid={}
     for item in outputs:
         frame=item.get('frame')
         if type(frame) is not int or not request['start_frame']<=frame<=request['end_frame']:continue
         try:
-            for kind in ('png','exr'):
-                path=Path(item[kind]['path']).resolve()
-                if path.parent!=folder.resolve() or path.stat().st_size==0 or digest(path)!=item[kind]['sha256']:raise ValueError('Output mismatch')
+            required_records=[item[k] for k in ('png','exr')]
+            expected = request.get('diagnostics', {})
+            diagnostic = item.get('diagnostics', {})
+            for name in expected.get('aovs', []):
+                required_records.extend(diagnostic['aovs'][name][k] for k in ('exr','png'))
+            if expected.get('denoise'):
+                required_records.extend(diagnostic['denoised'][k] for k in ('exr','png'))
+            if any(not isinstance(v,dict) or not {'path','sha256','bytes'} <= v.keys() for v in required_records):raise ValueError('Incomplete artifact record')
+            for record in artifact_records({'png':item['png'],'exr':item['exr'],'diagnostics':diagnostic}):
+                path=Path(record['path']).resolve()
+                if path.parent!=folder.resolve() or path.stat().st_size==0 or path.stat().st_size!=record['bytes'] or digest(path)!=record['sha256']:raise ValueError('Output mismatch')
             if not Path(item['png']['path']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n'):raise ValueError('Invalid PNG')
             valid[frame]=item
-        except (OSError,KeyError,ValueError):continue
+        except (OSError,KeyError,ValueError,TypeError):continue
     return [valid[f] for f in sorted(valid)]
+
+
+def artifact_records(value):
+    if isinstance(value, dict):
+        if {'path', 'sha256', 'bytes'} <= value.keys():
+            yield value
+        else:
+            for child in value.values(): yield from artifact_records(child)
+    elif isinstance(value, list):
+        for child in value: yield from artifact_records(child)
 
 
 def _key(request_id,fingerprint):
@@ -129,21 +152,20 @@ def _create(request,hip,libraries,key,fingerprint,reuse=None,parent=None):
     if len(active)>=2:raise RuntimeError('Two render jobs are already active; inspect or cancel before submitting another')
     identifier=uuid.uuid4().hex;folder=JOBS/identifier;folder.mkdir()
     shutil.copy2(hip,folder/'scene.hip')
-    request=dict(request,libraries=[],fingerprint=fingerprint,request_version=4)
+    request=dict(request,libraries=[],fingerprint=fingerprint,request_version=6)
     for path,original in libraries:
         dest=folder/path.name;shutil.copy2(path,dest)
         request['libraries'].append(dict(snapshot=str(dest),source=original['source'],sha256=original['sha256']))
     outputs=[]
     for item in reuse or []:
-        copied={'frame':item['frame']}
-        for kind in ('png','exr'):
-            source=Path(item[kind]['path']);dest=folder/source.name;shutil.copy2(source,dest)
-            copied[kind]=dict(item[kind],path=str(dest))
-        for field in ('visual_check','gpu_evidence','timings'):
-            if field in item:copied[field]=item[field]
+        copied=json.loads(json.dumps(item))
+        for record in artifact_records(copied):
+            source=Path(record['path']);dest=folder/source.name;shutil.copy2(source,dest)
+            record['path']=str(dest)
         copied['reused_from_job']=parent
         outputs.append(copied)
     request.update(reused_outputs=outputs,parent_job_id=parent)
+    request['request_sha256']=request_digest(request)
     verify_inputs(folder,request)
     atomic_json(folder/'request.json',request)
     atomic_json(folder/'status.json',dict(state='queued',renderer=request.get('renderer','mantra'),quality=request.get('quality','scene'),completed_frames=len(outputs),total_frames=request['end_frame']-request['start_frame']+1,outputs=outputs,reused_frames=[v['frame'] for v in outputs],parent_job_id=parent,updated_at=time.time()))
@@ -166,10 +188,11 @@ def _launch(identifier,launcher):
     return get_status(identifier)
 
 
-def start_job(hip_path,rop_path,start_frame,end_frame,width,height,composite_node,source_cop_node,asset_path,parameters,launcher,asset_libraries=None,request_id=None,preflight=None,renderer='mantra',quality='preview'):
+def start_job(hip_path,rop_path,start_frame,end_frame,width,height,composite_node,source_cop_node,asset_path,parameters,launcher,asset_libraries=None,request_id=None,preflight=None,renderer='mantra',quality='preview',sampling=None,region=None,xpu_surface=None,diagnostics=None):
     hip,libraries=validate_request(hip_path,start_frame,end_frame,width,height,asset_libraries)
     request=dict(hip_path=str(hip),scene_sha256=digest(hip),rop_path=rop_path,start_frame=start_frame,end_frame=end_frame,width=width,height=height,composite_node=composite_node,source_cop_node=source_cop_node,asset_path=asset_path,parameters=parameters)
-    request.update(options(renderer,quality),adapter_version=1)
+    request.update(options(renderer,quality,sampling),adapter_version=3)
+    request.update(extensions(renderer,width,height,region,xpu_surface,diagnostics))
     library_info=[(p,dict(source=str(p),sha256=digest(p))) for p in libraries]
     fingerprint=hashlib.sha256(json.dumps([request,[v for _,v in library_info]],sort_keys=True,allow_nan=False).encode()).hexdigest()
     key=_key(request_id,fingerprint);JOBS.mkdir(parents=True,exist_ok=True)
