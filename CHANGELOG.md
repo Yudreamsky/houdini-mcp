@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+- Added `pipe_rack_all_pads`: independent rubber buffers at all three fixed isolation joints. Default 24 pads and 226 parts; 210 original base parts unchanged, two old continuous blue bodies removed, 16 pads added. Nine previous generators remain unchanged; 22 tools serve ten recipes.
+- Inspect every actual joint independently and validate global pad coverage. Pipe2 size/axis and the second pipe3 joint use their own parameters; hidden flow/seal connections remain explicitly unmodeled.
+- Extended the native finishing script to six flange outer rims, retaining non-target normals and protected hole faces. Geometry remains in a locked base HDA; the finishing chain is stored in the HIP. See [validation](docs/V016-VALIDATION.md).
+
 ## 0.15.0
 
 - Corrected the user-identified construction: `pipe_rack_isolated` replaces the first pipe-3 continuous blue body with one independent rubber buffer per bolt. Default eight pads, 212 parts; 204 saved-baseline parts unchanged. Existing eight generators remain byte-identical; nine recipes reuse 22 tools.

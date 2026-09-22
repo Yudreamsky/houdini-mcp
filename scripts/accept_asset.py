@@ -28,6 +28,7 @@ UPDATES['pipe_rack_coupled']={'length':3.6,'diameter_1':.4,'spacing_12':.65,'spa
 
 UPDATES['pipe_rack_repeated']={'length':4.4,'diameter_3':.32,'spacing_23':.58,'second_joint_offset_3':1.10}
 
+UPDATES['pipe_rack_all_pads']={'diameter_2':.30,'diameter_3':.32,'spacing_12':.65,'spacing_23':.65,'pad_radius_ratio':.12}
 UPDATES['pipe_rack_isolated']={'diameter_3':.32,'spacing_23':.58,'pad_radius_ratio':.12}
 
 UPDATES['pipe_rack_lobed']={'diameter_3':.32,'spacing_23':.58,'blue_lobe_depth':.22}
@@ -87,8 +88,8 @@ async def run(args):
                         ensure(duplicate['recipe']==args.recipe and not duplicate['changed'] and not duplicate['created'],'Inference/no-op failed')
                         ensure(not (await call('get_capabilities'))['unsaved_changes'],'No-op dirtied scene')
                         before=await code(snapshot)
-                        bad_values={'diameter_1':.1,'wall_1':.03} if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed','pipe_rack_isolated') else {'diameter':.1,'wall':.03}
-                        bad_code='wall_ratio_1' if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed','pipe_rack_isolated') else 'wall_ratio'
+                        bad_values={'diameter_1':.1,'wall_1':.03} if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed','pipe_rack_isolated','pipe_rack_all_pads') else {'diameter':.1,'wall':.03}
+                        bad_code='wall_ratio_1' if args.recipe in ('pipe_rack_sample','pipe_rack_reference','pipe_rack_coupled','pipe_rack_repeated','pipe_rack_lobed','pipe_rack_isolated','pipe_rack_all_pads') else 'wall_ratio'
                         bad=await call('preflight_asset_instance',{'instance_id':instance_id,'parameters':bad_values})
                         ensure(not bad['ready'] and any(e['code']==bad_code for e in bad['errors']),'Missing structured constraint rejection')
                         other='pipe_elbow_sample' if args.recipe=='pipe_support_sample' else 'pipe_support_sample'
@@ -153,7 +154,7 @@ asset=hou.node('''+repr(path)+''');obj=hou.node('/obj')
 material=hou.node('/mat').createNode('principledshader::2.0','accept_material')
 material.parmTuple('basecolor').set((1,1,1));material.parm('basecolor_usePointColor').set(1);material.parm('rough').set(.4)
 asset.parent().parm('shop_materialpath').set(material.path())
-if asset.userData('workai_recipe')=='pipe_rack_isolated':
+if asset.userData('workai_recipe') in ('pipe_rack_isolated','pipe_rack_all_pads'):
  rubber=hou.node('/mat').createNode('principledshader::2.0','accept_rubber')
  rubber.parmTuple('basecolor').set((1,1,1));rubber.parm('basecolor_usePointColor').set(1);rubber.parm('rough').set(.85);rubber.parm('reflect').set(.12)
  assigned=asset.parent().createNode('material','rubber_assignment');assigned.setInput(0,asset)

@@ -43,6 +43,10 @@ Two independently sized straight legs connect through a hollow 90-degree elbow. 
 
 The seventh recipe retains the coupled rack and adds a second blue joint on pipe 3, with three continuous hollow spans. Native inspection checks interfaces, each joint separately, and the actual axial pipe span beneath every support. A new position parameter is sufficient for this fixed case; no arbitrary list or general replacement API is claimed. 0.14 adds lobes to one blue body; broader propagation and upper-frame attachment interpretation remain future work. See [0.13 validation](docs/V013-VALIDATION.md).
 
+## Added in 0.16: all three isolation flange assemblies
+
+The corrected independent pads now cover all three fixed modeled joints, with six lightly rounded flange rims in the HIP finishing layer. Checks cover each actual bolt/pad/flange interface and global coverage. Do not infer concealed flow/seal components from this visible correction. Next choose one reference-backed remaining component or request actual internal construction details; avoid multiplying recipe variants for purely cosmetic revisions. See [0.16 validation](docs/V016-VALIDATION.md).
+
 ## Added in 0.15: independent isolation pads
 
 User correction replaces the first pipe-3 continuous blue body with separate rubber buffers, one per bolt. Verify real holes, seating and inter-pad gaps; preserve neighboring parts. The former lobed-body interpretation is withdrawn even though its geometry tests passed. Hidden flow/seal components remain unknown. Next refine this corrected sample from user feedback, then apply it to the two remaining legacy blue assemblies. See [0.15 validation](docs/V015-VALIDATION.md).

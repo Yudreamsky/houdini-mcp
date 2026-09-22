@@ -9,6 +9,8 @@ INTEGER_PARAMETERS = {'segments', 'bolt_count', 'bend_segments'}
 
 
 def constraints(recipe):
+    if recipe=='pipe_rack_all_pads':
+        return constraints('pipe_rack_isolated')+[dict(id='all_pad_clearance_12',left='spacing_12',op='ge',terms={'diameter_1':.775,'diameter_2':.795},offset=.04,message='Clear pipe 2 pad envelope'),dict(id='all_pad_clearance_23',left='spacing_23',op='ge',terms={'diameter_2':.795,'diameter_3':.795},offset=.04,message='Clear both pad envelopes')]
     if recipe=='pipe_rack_isolated':
         return constraints('pipe_rack_repeated')+[dict(id='pad_neighbor_envelope',left='spacing_23',op='ge',terms={'diameter_2':.775,'diameter_3':.795},offset=.04,message='Clear maximum pad envelope plus 40mm')]
     if recipe=='pipe_rack_lobed':
