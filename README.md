@@ -33,6 +33,8 @@
 
 ## 程序化资产与配套 Skill
 
+2026-09-22 新增 [上方长孔型钢独立研究样件](docs/SLOTTED-CHANNEL-STUDY.md)：可调胶囊孔、回折唇和轻倒角，脱离源码的 HIP 重开已验。复用现有 MCP 渲染流程，运行版本和配方数量不变；尚未与照片中的横担装配，也不属于受管理 HDA 配方。
+
 0.5 首个配方 `pipe_support_sample` 包含空心直管、带实际螺栓孔的法兰、垫片、螺栓/垫圈/螺母、穿孔槽钢横担、夹箍、吊杆和简化锚板。它是可调视觉样段，尺寸不是照片实测值或工程规格。
 
 先调用 `list_procedural_assets`，再调用 `upsert_asset_instance(instance_id="pipe-sample", parameters={"length":2.4,"diameter":0.32})`。返回实际 SOP 路径、HDA 库、参数、修改前值和几何检查结果；实例需另行保存。相同 ID 原地更新，参数相同不修改节点；动画通道、人工解锁的 HDA 内容和配方版本变化均拒绝静默覆盖。

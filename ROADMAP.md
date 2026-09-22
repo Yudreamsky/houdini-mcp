@@ -57,6 +57,8 @@ One blue body now has a scalloped profile, end collars and actual bolt holes. Th
 
 ## Later, when repeated work justifies it
 
+2026-09-22: [S1 slotted-channel study](docs/SLOTTED-CHANNEL-STUDY.md) validates one continuous folded member with capsule holes, native edge finishing, planar-normal preservation, and source-independent HIP reload. It remains a standalone sample. Resolve the photo's S1/T1 interface before a connected assembly; managed local frames/endpoints should follow a real repeated-use case. No new runtime tool or recipe is claimed.
+
 0.11 completes the first photo-study component: an independent orange external split coupling with two pipe stubs, actual lug holes and measured interfaces. It uses the existing 22 tools, with save/reopen and standalone-HDA verification. 0.12 has integrated one instance into a separate rack candidate and verified neighboring supports and unchanged-part fingerprints; multiple typed joints and uncertain upper framing remain future work. See [0.11 validation](docs/V011-VALIDATION.md).
 
 2026-09-21 photo-understanding follow-up (documentation only): first prototype one orange external coupling and two short pipes, then validate its interfaces before supporting multiple typed joints. Identify slotted framing by member continuity and attachments, not screen direction; occluded intersections remain uncertain. See [case and implementation boundary](docs/PHOTO-READING-CASE.md). Runtime remains 0.10; no new tool is claimed for this review.
