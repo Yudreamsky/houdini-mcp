@@ -1,5 +1,28 @@
 # Houdini Research MCP
 
+## 给 Claude Code 接入
+
+在装有 Houdini 的 Windows 电脑上克隆本私有仓库。在仓库根目录的 PowerShell 执行以下命令。需要 Python 3.11 或更新版本，Houdini 的本机验证版本为 20.5.487。
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+$pythonExe = (Resolve-Path .\.venv\Scripts\python.exe).Path
+$mcpEntry = (Resolve-Path .\run_mcp.py).Path
+claude mcp add --scope local --transport stdio houdini-research -- $pythonExe $mcpEntry
+claude mcp get houdini-research
+```
+
+看到 `Connected` 后，在同一个目录启动 Claude Code。若 Houdini 安装路径不同，注册时在 `--transport` 前加入 `--env "HOUDINI_EXE=完整的houdini.exe路径"`。其他本地 stdio 客户端也可使用上面的 Python 绝对路径作为 command、入口文件绝对路径作为唯一参数。[Claude Code 的 MCP 接入说明](https://code.claude.com/docs/en/mcp)
+
+第一条可以直接发给 Claude 的测试指令：
+
+> 用 Houdini MCP 的 animation_gap 打开随仓库提供的 sample:mechanisms/Climbing-support-transfer.hip。上件用 /obj/CLIMBING_STUDY/New_section，下件用 /obj/CLIMBING_STUDY/Cart。量第 1379 到 1454 帧的 Y 向净距，最低要求 0.228 米，告诉我测了多少帧和最小净距。
+
+预期结果为 76 帧全部通过，最小净距约 0.230 米。此检查在后台读取已保存工程。需要看窗口时可从仓库根目录执行 `.\.venv\Scripts\python.exe launch.py --hip .\examples\mechanisms\Climbing-support-transfer.hip`。
+
+查机械案例用 `knowledge(topic="mechanical-animation", kind="mechanism_test")`，取回卡片后按 ID 展开证据。仓库附有[四个可编辑机械工程和演示](examples/mechanisms)、[实测数据](examples/mechanisms/verification.json)及[渐进式经验 Skill](skills/houdini-research/SKILL.md)。
+
 ### 跟踪一项正在运行的解算或 XPU 渲染
 
 `fx_watch(action="register",manifest=清单绝对路径)` 登记本机作业并返回 job ID。用 `status` 查每阶段的实际帧数，用 `wait` 传入上次的 cursor 等待变化（单次最长 45 秒），重新连接后用相同 ID 继续。XPU 阶段需要日志中出现 Saved Image 且输出文件存在并非空；若有 receipt，会同时检查退出码。渲染剩余时间是该阶段最近已写帧间隔的估计。指定 events 后可按部件名查询真实断裂帧与相对于触顶的时间。
@@ -21,7 +44,7 @@
 - `nodes` 列直接子节点，`inspect` 按 query、limit、offset 筛选真实 SOP 参数。
 - `sweep` 可先写 prediction，再指定节点、一个未绑定的数值参数、2–5 个值、固定帧和领域 topic。可选 renderer 指向 Mantra ROP。读取 experiment 卡看测量，用 evidence 按序号取单张真实帧。
 - `replay` 重开相同 HIP 重跑实验。按点序比较 P 和存在的三分量浮点 Cd；拓扑统计检查点数及图元数。保留原始哈希，差异按每个坐标的最大绝对误差判定，几何容差为最大轴跨度的千万分之一、下限为 1e-7 场景单位，颜色为 1e-6。这个结果不证明全部属性或拓扑连接完全一致。
-- `variant` 指定控制节点、changes、用途 note、topic 和输出 witness SOP，写成独立的 HIP 并登记 scene_recipe。只改变传入的数值，保留当前版本。用 `restore` 查验证读数及输出，再用 `frame` 查看该版本的实际渲染。独立打开候选可用 `python launch.py --hip 完整路径`。
+- `variant` 指定控制节点、changes、用途 note、topic 和输出 witness SOP，写成独立的 HIP 并登记 scene_recipe。只改变传入的数值，保留当前版本。用 `restore` 查验证读数及输出，再用 `frame` 查看该版本的实际渲染。用 `python launch.py --hip 完整路径` 在已有工程窗口打开候选。需要另开窗口时加 `--new-window`。
 
 示例 `node_lab(action="sweep", hip="rain", node="/obj/RAIN/Wave_1", control="height", values=[0.018,0.045,0.09], frame=38, renderer="/out/RAIN_BEAUTY", topic="water", prediction="固定输入与帧，点位移 RMS 与波高成正比")`。
 
@@ -44,6 +67,8 @@
 
 第 11 帧柳枝起爆，第 49 帧第二发点亮残烟。缓存只含第一发产生的烟，Mantra 通过爆心及四个随火星移动的点光源照亮体积。镜头目录中的 `Afterglow.hip` 通过 `$HIP/cache` 引用缓存，可整体复制。DIRECTION 节点提供烟密度、二发光强和余照衰减时间。工作方法见 [残烟镜头](skills/houdini-research/references/afterglow.md)。
 
+`window_session(action="list")` 列出受管窗口。取返回的 id，传给 `state` 或 `open` 的 session_id；`open` 另传 hip 的绝对路径。窗口有未保存修改时，切换请求返回 `unsaved_changes` 和当前路径。
+
 ## 启动
 
 在本仓库根目录，使用外部 Python 3.11+ 创建环境并安装依赖。Houdini 使用其内置 Python。
@@ -59,6 +84,16 @@ py -3.11 -m venv .venv
 `HOUDINI_RESEARCH_HOME` 可指定本地数据目录，启动器和 MCP 应用同一绝对路径。默认目录是用户主目录下的 `.houdini-research`。窗口独立于 MCP 客户端，关闭窗口即可结束桥接。每个数据目录同时绑定一个研发窗口。仓库 `examples/fireworks` 随附真实对照图、短片和只读样例库，新写入的证据进入个人数据目录。可用 `knowledge` 分页筛选标题与状态，`evidence` 只调取指定的原始帧。
 
 ## 第一个工作流
+
+有闭环、穿绳或支承交接时，使用 `mechanism(hip, spec, output, topic)`。只填写当前机构对应的 spec，结果另存为与源文件同目录的 HIP，传 topic 可留存复测记录。
+
+- `fourbar` 用两个固定销、三根活动杆长、初始装配侧和曲柄角度关键帧驱动平面四连杆。可将同级的三个刚性 OBJ 依次绑定为曲柄、连杆、摇杆。支点使用所选网络的 XY 坐标。生成前会检查整段角度是否经过不可达位形或死点。
+- `reeving` 将卷筒圈数、有效半径和两股或四股承载绳换算为吊钩行程，同时生成对应穿法的可见绳路。正转收绳。可接到模型已有的吊钩下放量和卷筒角度通道，模型穿法须与所选倍率匹配。计算假设绳拉紧、卷绕半径固定。
+- `transfer` 为载荷指定按帧顺序接手的支承，以及每对构件各自局部坐标中的接点。交接按同一时刻的世界姿态保持偏移，并检查两接点的三维距离。改变原支承轨迹或交接时刻后，重新构建以更新交接偏移。结果验证几何运动，受力、油压和结构强度另行求解。
+
+多级机械绑定用 `mechanical_rig`。在已保存的 HIP 中选择同一 OBJ 网络内还没有变换父级的几何对象，先列父级再列子级。例如缸体选 `fixed`，活塞杆以缸体为父级选 `slider/y`，支脚以活塞杆为父级选 `slider/x`。转轴用 `hinge`。各关节在绑定帧传世界坐标支点，轴向会随后继承父级旋转。可为每个活动关节传行程范围 `limits` 和线性关键帧 `keys`，绑定帧的驱动值须为零。返回的新 HIP 与原工程同目录，可在各个 `JNT_` 控制器的 Angle 或 Travel 参数调节。已有的物体变换动画默认会阻止重绑，传 `replace_motion=true` 才会在副本中以新关节动画替换选定物体的变换曲线。适用范围为每个子件只有一个驱动父级的刚性运动链。
+
+检查保存工程中的机械动画时，用 `animation_gap` 对两个几何 OBJ 或 SOP 沿世界轴逐帧量净距。传入 `hip, upper, lower, start, end`，默认 Y 轴，帧段含两端。净距等于前者最低投影减去后者最高投影，使用场景单位。可指定 `minimum` 或 `maximum`，返回极值和首次越界帧。缺少几何的帧单列，无法判为通过。两个构件即使横向错开也能测到轴向间隔，因此三维碰撞须另行验证。可传 `topic` 保存证据，再用 `knowledge` 检索。
 
 1. `session(initialize=true)` 在空研发窗口初始化专用网络。打开 SCATTER 或 TRAILS 即可看到实际参数。
 2. `experiment(control="npts",samples=[32,96,192],frame=36)` 回传逐档视口对照，并恢复起点。通过 `knowledge` 查摘要和证据。若测试输出完全相同，实验自动留下待查缺口。

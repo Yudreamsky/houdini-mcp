@@ -1,0 +1,27 @@
+{
+  "hip": "sample:mechanisms/Climbing-support-transfer.hip",
+  "sha256": "ba5e0d25be5561049eb7049787add2176c301260548a1aeb8026bedbe48bbfda",
+  "measurement": {
+    "integer_frames": 1824,
+    "active_support_every_frame": true,
+    "max_world_matrix_delta_vs_original": 0.0,
+    "switches": [
+      {
+        "frame": 404,
+        "from_support": "Old_9",
+        "to_support": "Cage",
+        "same_instant_jump_m": 0.0,
+        "seat_error_m": 0.0
+      },
+      {
+        "frame": 1661,
+        "from_support": "Cage",
+        "to_support": "New_section",
+        "same_instant_jump_m": 0.0,
+        "seat_error_m": 0.0
+      }
+    ]
+  },
+  "scope": "运动学几何复测",
+  "report": "examples/mechanisms/verification.json"
+}

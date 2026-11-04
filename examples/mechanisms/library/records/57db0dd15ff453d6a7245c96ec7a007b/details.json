@@ -1,0 +1,17 @@
+{
+  "hip": "sample:mechanisms/FourBar.hip",
+  "sha256": "36322d166e0cc6d45928f9e3e33e96586188da5cf284de4e9e2c02e6d1b28e5f",
+  "measurement": {
+    "integer_frames": 97,
+    "crank_rotation_deg": 360,
+    "max_measured_pin_separation_m": 4.6675112799333876e-07,
+    "physical_bar_lengths_m": [
+      1,
+      2.4,
+      2,
+      3
+    ]
+  },
+  "scope": "运动学几何复测",
+  "report": "examples/mechanisms/verification.json"
+}

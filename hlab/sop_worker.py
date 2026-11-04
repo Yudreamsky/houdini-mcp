@@ -88,6 +88,15 @@ def numeric(node,name,vals,allow_toggle=False):
 
 def work(req,folder):
     hou.hipFile.load(req["hip"],suppress_save_prompt=True)
+    if req["action"] == "mechanical_rig":
+        from rig_worker import build
+        return build(req)
+    if req["action"] == "mechanism":
+        from mechanism_worker import build
+        return build(req)
+    if req["action"] == "animation_gap":
+        from animation_gap import measure_frames
+        return measure_frames(req)
     hou.setFrame(req["frame"])
     if req["action"]=="frame":
         rop=hou.node(req["renderer"])

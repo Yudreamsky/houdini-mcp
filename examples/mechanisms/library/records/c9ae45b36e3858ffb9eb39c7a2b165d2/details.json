@@ -1,0 +1,13 @@
+{
+  "hip": "sample:mechanisms/Reeving-4falls.hip",
+  "sha256": "2d5d4953632833d892c8cffc29120d195c12c5d8bc3cb9211ec9a54cee8fde46",
+  "measurement": {
+    "frames": 49,
+    "measured_strands": 4,
+    "guide_rope_shortening_m": 2.0,
+    "guide_block_rise_m": 0.5,
+    "returned": true
+  },
+  "scope": "运动学几何复测",
+  "report": "examples/mechanisms/verification.json"
+}

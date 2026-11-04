@@ -1,0 +1,13 @@
+{
+  "id": "9bc960422db05480905c408de60f0215",
+  "kind": "mechanism_test",
+  "title": "塔吊两股绳起升",
+  "topics": [
+    "mechanical-animation",
+    "机械",
+    "reeving"
+  ],
+  "summary": "卷筒收绳 2 米，原塔吊吊钩销上升约 1 米。",
+  "status": "observed",
+  "parent": null
+}

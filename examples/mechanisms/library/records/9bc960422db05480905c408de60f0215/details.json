@@ -1,0 +1,30 @@
+{
+  "hip": "sample:mechanisms/Crane-hoist-2falls.hip",
+  "sha256": "57ed5fd9e8f3bd813d4791feea68b6838898ae72efd65ed7fb922c9cf134fd3b",
+  "measurement": {
+    "frames": 49,
+    "measured_strands": 2,
+    "guide_rope_shortening_m": 2.0,
+    "guide_block_rise_m": 1.0,
+    "returned": true,
+    "actual_hook_pin_rise_m": 0.9999997615814209,
+    "actual_rope_tube_shortening_m": 1.9999999531158608,
+    "actual_drum_rotation_deg": 238.73241463784302,
+    "actual_geometry_frames": [
+      1,
+      13,
+      25,
+      37,
+      49
+    ],
+    "real_rope_spans": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ]
+  },
+  "scope": "运动学几何复测",
+  "report": "examples/mechanisms/verification.json"
+}

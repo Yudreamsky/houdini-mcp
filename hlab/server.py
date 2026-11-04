@@ -5,6 +5,8 @@ from mcp.types import TextContent
 
 from .bridge import call
 from .media import png, sheet, viewport_image
+from .mechanical_rig import Joint
+from .mechanisms import FourBar, Reeving, Transfer
 from .storage import details, home, ident, record, search, sha, uid
 
 mcp = FastMCP("Houdini Research", instructions="Start with session or knowledge. Execute scene operations in the dedicated research window. Evidence is opt-in.")
@@ -12,6 +14,14 @@ mcp = FastMCP("Houdini Research", instructions="Start with session or knowledge.
 
 def illustrated(data, im):
     return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False)), Image(data=png(im),format="png").to_image_content()]
+
+
+@mcp.tool()
+def window_session(action: str = "list", session_id: str = "", hip: str = "") -> dict:
+    """List managed Houdini windows; state/open target a returned session_id (the window's id).
+    Open a saved HIP in that existing GUI. Unsaved work is retained and reported."""
+    from .window import manage
+    return manage(home(), action, session_id, hip)
 
 
 @mcp.tool()
@@ -182,6 +192,38 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave
     else:
         result=run(action,hip,node,control,values or [],frame,renderer,topic,query,offset,limit,key,prediction,expect_change)
     return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
+
+
+@mcp.tool()
+def mechanical_rig(hip: str, joints: list[Joint], frame: int = 1, output: str = "",
+                   replace_motion: bool = False) -> dict:
+    """Build a parent-first tree of native fixed, hinge and slider OBJ joints on existing unparented geometry OBJs.
+    Each edge connects siblings. World-space pivots and axes refer to the bind pose. Drives start at zero on that frame.
+    Saves a new sibling HIP, reopens and verifies parentage and rest poses. replace_motion explicitly freezes the selected objects'
+    existing animated transform channels at the bind pose before applying new joint keys. Read returned control paths to edit drive."""
+    from .mechanical_rig import run
+    return run(hip, joints, frame, output, replace_motion)
+
+
+@mcp.tool()
+def mechanism(hip: str, spec: FourBar | Reeving | Transfer, output: str = "", topic: str = "") -> dict:
+    """Build live constraints in a new sibling HIP. fourbar: planar XY linkage with optional rigid part bindings.
+    reeving: constant-radius 2/4-fall rope with a drum drive, optionally linked to model channels.
+    transfer: switch a payload between sibling supports at seated local anchors without a world-space jump.
+    Optional topic saves searchable verification evidence."""
+    from .mechanisms import run
+    return run(hip, spec, output, topic)
+
+
+@mcp.tool()
+def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
+                  axis: str = "y", minimum: float | None = None, maximum: float | None = None,
+                  topic: str = "") -> dict:
+    """Check a saved HIP's signed world-axis bounds gap (upper min minus lower max) at every integer frame, inclusive.
+    Pass two geometry OBJ or SOP paths and optional limits in scene units. Returns extrema, first violation and missing frames.
+    Measures projected bounds, not mesh contact. Supply topic to save a searchable evidence record."""
+    from .animation_gap import run
+    return run(hip, upper, lower, start, end, axis, minimum, maximum, topic)
 
 
 @mcp.tool()

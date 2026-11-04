@@ -1,0 +1,76 @@
+{
+  "fourbar": {
+    "integer_frames": 97,
+    "crank_rotation_deg": 360,
+    "max_measured_pin_separation_m": 4.6675112799333876e-07,
+    "physical_bar_lengths_m": [
+      1,
+      2.4,
+      2,
+      3
+    ]
+  },
+  "reeving": {
+    "frames": 49,
+    "measured_strands": 2,
+    "guide_rope_shortening_m": 2.0,
+    "guide_block_rise_m": 1.0,
+    "returned": true,
+    "actual_hook_pin_rise_m": 0.9999997615814209,
+    "actual_rope_tube_shortening_m": 1.9999999531158608,
+    "actual_drum_rotation_deg": 238.73241463784302,
+    "actual_geometry_frames": [
+      1,
+      13,
+      25,
+      37,
+      49
+    ],
+    "real_rope_spans": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ]
+  },
+  "fourfalls": {
+    "frames": 49,
+    "measured_strands": 4,
+    "guide_rope_shortening_m": 2.0,
+    "guide_block_rise_m": 0.5,
+    "returned": true
+  },
+  "transfer": {
+    "integer_frames": 1824,
+    "active_support_every_frame": true,
+    "max_world_matrix_delta_vs_original": 0.0,
+    "switches": [
+      {
+        "frame": 404,
+        "from_support": "Old_9",
+        "to_support": "Cage",
+        "same_instant_jump_m": 0.0,
+        "seat_error_m": 0.0
+      },
+      {
+        "frame": 1661,
+        "from_support": "Cage",
+        "to_support": "New_section",
+        "same_instant_jump_m": 0.0,
+        "seat_error_m": 0.0
+      }
+    ]
+  },
+  "files": {
+    "Climbing-support-transfer.hip": "ba5e0d25be5561049eb7049787add2176c301260548a1aeb8026bedbe48bbfda",
+    "Crane-hoist-2falls.hip": "57ed5fd9e8f3bd813d4791feea68b6838898ae72efd65ed7fb922c9cf134fd3b",
+    "FourBar.hip": "36322d166e0cc6d45928f9e3e33e96586188da5cf284de4e9e2c02e6d1b28e5f",
+    "Reeving-4falls.hip": "2d5d4953632833d892c8cffc29120d195c12c5d8bc3cb9211ec9a54cee8fde46"
+  },
+  "negative_controls": {
+    "fourbar": "Error executing tool mechanism: Four-bar cannot close on a unique branch at 180 degrees",
+    "reeving": "Error executing tool mechanism: ValueError: Upper and lower sheave blocks need more separation",
+    "transfer": "Error executing tool mechanism: ValueError: Support Cage is not seated at frame 404: distance 0.05"
+  }
+}

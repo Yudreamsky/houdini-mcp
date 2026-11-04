@@ -1,0 +1,13 @@
+{
+  "id": "57db0dd15ff453d6a7245c96ec7a007b",
+  "kind": "mechanism_test",
+  "title": "四连杆转动一周",
+  "topics": [
+    "mechanical-animation",
+    "机械",
+    "fourbar"
+  ],
+  "summary": "转过 360° 的 97 帧中，实测铰点最大偏差小于 0.001 毫米。",
+  "status": "observed",
+  "parent": null
+}

@@ -7,11 +7,13 @@ def call(op, **args):
     return call_in(home(), op, **args)
 
 
-def call_in(directory, op, **args):
+def call_in(directory, op, *, expected_session=None, **args):
     root = directory / "bridge"
     session = active(directory)
     if not session:
         raise RuntimeError("Start launch.py separately, then call session(initialize=true)")
+    if expected_session is not None and session["id"] != expected_session:
+        raise RuntimeError("The selected Houdini window has changed; list windows again")
     key = uid()
     box = root / session["id"]
     expires = time.time() + 120

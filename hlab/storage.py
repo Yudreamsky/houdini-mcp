@@ -25,9 +25,13 @@ def example(domain="fireworks"):
     return Path(__file__).resolve().parents[1] / "examples" / domain / "library"
 
 
+def bundled_libraries():
+    return (example(), example("rain"), example("mechanisms"))
+
+
 def stored(*parts):
     local = home().joinpath(*parts)
-    for root in (home(),example(),example("rain")):
+    for root in (home(), *bundled_libraries()):
         path=root.joinpath(*parts)
         if path.exists():return path
     return local
@@ -73,7 +77,7 @@ def search(topic="", kind="", limit=8, offset=0, status="", query=""):
     aliases = {"烟花":"fireworks","粒子":"particles","水":"water","火":"fire","散点":"scatter"}
     word = aliases.get(topic.lower().strip(), topic.lower().strip())
     cards = []
-    paths = {p.parent.name:p for root in (example(),example("rain")) for p in (root / "records").glob("*/card.json")}
+    paths = {p.parent.name:p for root in bundled_libraries() for p in (root / "records").glob("*/card.json")}
     paths.update({p.parent.name:p for p in (home() / "records").glob("*/card.json")})
     for path in paths.values():
         card = read(path)

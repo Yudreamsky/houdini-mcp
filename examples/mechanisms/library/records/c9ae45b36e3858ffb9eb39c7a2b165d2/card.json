@@ -1,0 +1,13 @@
+{
+  "id": "c9ae45b36e3858ffb9eb39c7a2b165d2",
+  "kind": "mechanism_test",
+  "title": "四股绳倍率对照",
+  "topics": [
+    "mechanical-animation",
+    "机械",
+    "fourfalls"
+  ],
+  "summary": "同样收绳 2 米，四股绳对照机构的动滑轮组上升 0.5 米。",
+  "status": "observed",
+  "parent": null
+}

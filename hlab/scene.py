@@ -332,5 +332,30 @@ def afterglow_live(changes=None, frame=None):
             "hip":hou.hipFile.path(), "pid":os.getpid()}
 
 
-ACTIONS = {"afterglow_live":afterglow_live, "initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
+def window_hip(hip=""):
+    """Run the dirty check and load together in Houdini's GUI event loop."""
+    def result(status):
+        return {"status": status, "pid": os.getpid(), "hip": hou.hipFile.path(),
+                "unsaved": hou.hipFile.hasUnsavedChanges()}
+
+    if not hip:
+        return result("state")
+    from .sop_lab import hip_path
+    target = hip_path(hip)
+    if Path(hou.hipFile.path()).resolve() == target:
+        return result("already_open")
+    if hou.hipFile.hasUnsavedChanges():
+        return result("unsaved_changes")
+    try:
+        hou.hipFile.load(str(target), suppress_save_prompt=True)
+    except hou.LoadWarning as exc:
+        if Path(hou.hipFile.path()).resolve() != target:
+            raise
+        return {**result("opened_with_warnings"), "warning": str(exc)}
+    if Path(hou.hipFile.path()).resolve() != target:
+        raise RuntimeError("Houdini did not switch to the requested HIP")
+    return result("opened")
+
+
+ACTIONS = {"window_hip":window_hip, "afterglow_live":afterglow_live, "initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
            "sweep":sweep, "compare":compare, "motion":motion, "checkpoint":checkpoint, "replay":replay}

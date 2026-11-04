@@ -22,6 +22,35 @@ def active(directory):
     return None
 
 
+def registered(root, scene_only=False):
+    """Yield live, bridge-managed GUI sessions, ignoring stale registrations."""
+    directories = list(root.glob("scene-windows/*"))
+    if not scene_only:
+        directories += [root, *root.glob("shots/*/windows/*")]
+    for directory in sorted(directories):
+        if directory.is_dir():
+            session = active(directory)
+            if session:
+                yield directory, session
+
+
+def manage(root, action, session_id="", hip=""):
+    from .bridge import call_in
+    sessions = list(registered(root))
+    if action == "list":
+        return {"windows": [s for _, s in sessions]}
+    if action not in ("state", "open"):
+        raise ValueError("Use list, state or open")
+    if action == "open":
+        from .sop_lab import hip_path
+        hip = str(hip_path(hip))
+    for directory, session in sessions:
+        if session["id"] == session_id:
+            return call_in(directory, "window_hip", expected_session=session_id,
+                           hip=hip if action == "open" else "")
+    raise ValueError("The selected session is not live; list windows again")
+
+
 def ensure(directory=None, executable=None, hip=None):
     directory = Path(directory or home()).resolve()
     directory.mkdir(parents=True,exist_ok=True)
