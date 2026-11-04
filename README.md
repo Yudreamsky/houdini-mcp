@@ -17,13 +17,19 @@ claude mcp get houdini-research
 
 看到 `Connected` 后，在同一个目录启动 Claude Code。若 Houdini 安装路径不同，注册时在 `--transport` 前加入 `--env "HOUDINI_EXE=完整的houdini.exe路径"`。其他本地 stdio 客户端也可使用上面的 Python 绝对路径作为 command、入口文件绝对路径作为唯一参数。[Claude Code 的 MCP 接入说明](https://code.claude.com/docs/en/mcp)
 
-第一条可以直接发给 Claude 的测试指令：
+连接后可以用塔吊案例做一次实测。
 
-> 用 Houdini MCP 的 animation_gap 打开随仓库提供的 sample:mechanisms/Climbing-support-transfer.hip。上件用 /obj/CLIMBING_STUDY/New_section，下件用 /obj/CLIMBING_STUDY/Cart。量第 1379 到 1454 帧的 Y 向净距，最低要求 0.228 米，告诉我测了多少帧和最小净距。
+> 用 Houdini MCP 查机械领域的净距测量配方。工程用 sample:mechanisms/Climbing-support-transfer.hip，上件用 /obj/CLIMBING_STUDY/New_section，下件用 /obj/CLIMBING_STUDY/Cart。量第 1379 到 1454 帧的 Y 向净距，最低要求 0.228 米，告诉我测了多少帧和最小净距。
 
 预期结果为 76 帧全部通过，最小净距约 0.230 米。此检查在后台读取已保存工程。需要看窗口时可从仓库根目录执行 `.\.venv\Scripts\python.exe launch.py --hip .\examples\mechanisms\Climbing-support-transfer.hip`。
 
 查机械案例用 `knowledge(topic="mechanical-animation", kind="mechanism_test")`，取回卡片后按 ID 展开证据。仓库附有[四个可编辑机械工程和演示](examples/mechanisms)、[实测数据](examples/mechanisms/verification.json)及[渐进式经验 Skill](skills/houdini-research/SKILL.md)。
+
+### 在现有窗口建模
+
+先用 `window_session(action="list")` 找到目标窗口。将它的 `id` 传给 `graph_read` 浏览网络，用 `node_types` 查安装的节点类型，再用 `graph_edit` 一次建节点、连线和设参。`cook` 给出几何读数，`capture` 返回当前场景的视口截图，`diff` 比较改动前后的连线、参数和标志。默认工具列表共 15 项。烟花、残烟和机械的专用操作按领域展开，旧工具名仍可直接调用。[建模示例、准入与验收](docs/live-graph.md)
+
+`domain_recipe(action="catalog",domain="mechanics")` 只列机械操作及摘要，`domain_recipe(name="animation_gap")` 才返回该操作的完整参数。调用时传 `action="run"`、`name`、`arguments`。水、火、机械等经验用 `knowledge` 筛选摘要，再取相应记录和画面。[双语检索和 Windows 测试](docs/knowledge-ci.md)
 
 ### 让 Claude 在施工中发现缺口
 
@@ -49,7 +55,7 @@ claude mcp get houdini-research
 
 运行 `python launch.py --shot rain` 可打开随附的水面工程。[前后对照](examples/rain/before-after.mp4)、[四次画面](examples/rain/iterations.jpg)、[定稿候选](examples/rain/rain.mp4) 与 [可编辑 HIP](examples/rain/Rain.hip) 使用同一机位。工作单位为厘米，24 fps，以 0.055 倍物理时间作慢动作观察。水面使用 Ripple SOP 叠加有限波包，亮带为根据表面法线构造的天空倒影，水滴使用折射材质。没有运行 FLIP。
 
-在新对话查 `knowledge(topic="水",kind="node")`，只有需要验证结论时才展开来源。通用工具 `node_lab` 在独立进程中读取可信的已保存 HIP，支持别名 rain、afterglow 或绝对路径。
+在新对话查 `knowledge(topic="水",kind="node")`，只有需要验证结论时才展开来源。通用工具 `node_lab` 默认在后台读取可信的已保存 HIP，支持别名 rain、afterglow 或绝对路径。`scope="live"` 在选定窗口做 `sweep`、`compare` 或 `motion`，结束后恢复参数和时间。实时实验可指定下游 `witness`。已保存 HIP 的 `compare` 和 `motion` 也可指定下游输出，并可选择 Mantra ROP 获取实际渲染。[窗口与实验参数](docs/live-graph.md)
 
 - `nodes` 列直接子节点，`inspect` 按 query、limit、offset 筛选真实 SOP 参数。
 - `sweep` 可先写 prediction，再指定节点、一个未绑定的数值参数、2–5 个值、固定帧和领域 topic。可选 renderer 指向 Mantra ROP。读取 experiment 卡看测量，用 evidence 按序号取单张真实帧。
@@ -72,7 +78,9 @@ claude mcp get houdini-research
 安装 `pip install -e ".[afterglow]"`。在本机使用已烘焙的项目时执行 `python launch.py --shot afterglow`。全新机器可先在仓库根目录执行以下 PowerShell 命令生成 HIP 和逐帧烟缓存。
 
 ```powershell
-& 'C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe' hlab/afterglow_build.py "$env:USERPROFILE/.houdini-research/shots/afterglow"
+$hython = & .\.venv\Scripts\python.exe -c "from hlab.runtime import discover; print(discover().hython)"
+$library = & .\.venv\Scripts\python.exe -c "from hlab.storage import home; print(home())"
+& $hython hlab/afterglow_build.py (Join-Path $library 'shots/afterglow')
 ```
 
 第 11 帧柳枝起爆，第 49 帧第二发点亮残烟。缓存只含第一发产生的烟，Mantra 通过爆心及四个随火星移动的点光源照亮体积。镜头目录中的 `Afterglow.hip` 通过 `$HIP/cache` 引用缓存，可整体复制。DIRECTION 节点提供烟密度、二发光强和余照衰减时间。工作方法见 [残烟镜头](skills/houdini-research/references/afterglow.md)。
@@ -93,7 +101,7 @@ py -3.11 -m venv .venv
 
 `HOUDINI_RESEARCH_HOME` 可指定本地数据目录，启动器和 MCP 应用同一绝对路径。默认目录是用户主目录下的 `.houdini-research`。窗口独立于 MCP 客户端，关闭窗口即可结束桥接。每个数据目录同时绑定一个研发窗口。仓库 `examples/fireworks` 随附真实对照图、短片和只读样例库，新写入的证据进入个人数据目录。可用 `knowledge` 分页筛选标题与状态，`evidence` 只调取指定的原始帧。
 
-## 第一个工作流
+## 机械与烟花的领域配方
 
 有闭环、穿绳或支承交接时，使用 `mechanism(hip, spec, output, topic)`。只填写当前机构对应的 spec，结果另存为与源文件同目录的 HIP，传 topic 可留存复测记录。
 
@@ -105,10 +113,12 @@ py -3.11 -m venv .venv
 
 检查保存工程中的机械动画时，用 `animation_gap` 对两个几何 OBJ 或 SOP 沿世界轴逐帧量净距。传入 `hip, upper, lower, start, end`，默认 Y 轴，帧段含两端。净距等于前者最低投影减去后者最高投影，使用场景单位。可指定 `minimum` 或 `maximum`，返回极值和首次越界帧。缺少几何的帧单列，无法判为通过。两个构件即使横向错开也能测到轴向间隔，因此三维碰撞须另行验证。可传 `topic` 保存证据，再用 `knowledge` 检索。
 
-1. `session(initialize=true)` 在空研发窗口初始化专用网络。打开 SCATTER 或 TRAILS 即可看到实际参数。
+下列烟花操作可通过 `domain_recipe` 的 `fireworks` 域发现。原有自动化仍可使用下列调用名。
+
+1. `session(initialize=true)` 在空的主研发窗口初始化专用网络。打开 SCATTER 或 TRAILS 即可看到实际参数。
 2. `experiment(control="npts",samples=[32,96,192],frame=36)` 回传逐档视口对照，并恢复起点。通过 `knowledge` 查摘要和证据。若测试输出完全相同，实验自动留下待查缺口。
 3. `compare()` 查看同机位 A/B/C；`adjust(preset="B")` 后可在 Houdini 手调，`motion()` 查看连续帧。数值调节支持点数、种子、松弛迭代、主爆帧、速度、阻力、重力、尾长、二次爆延迟与色调。
-4. `recipe(action="save",title="...",reason="...")` 保存当前网络快照。新客户端检索该配方，`recipe(action="replay",key="...")` 校验版本、参数和该帧的几何指纹，在新节点中恢复。原版与分支可并存。
+4. `recipe(action="save",title="...",reason="...")` 保存烟花网络快照。`recipe(action="replay",key="...")` 在全新后台进程核对参数和几何，并在主研发窗口的新节点中恢复。Houdini 版本改变会记录 `conditions_changed`、新旧版本和实际比对结果。原版与分支可并存。
 5. 用 `learn` 添加有来源的节点简历、缺口、项目偏好和复用记录。检索水、火可定向找到以后录入的卡片。新建记录默认只存在本机。
 
-修改工作区或发布配置请遵守使用者的协作约定。本工具仅在专用研发窗口内工作，可信的本地知识目录中含可执行的 Houdini 节点快照。
+实时操作限定在已登记的研发窗口。后台研究可单独读取可信 HIP。个人经验库中的配方可以包含会执行的 Houdini 节点，回放时选择可信来源。

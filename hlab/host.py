@@ -1,12 +1,11 @@
 """Event-loop side of a local, single-user bridge. Imported inside Houdini only."""
 import msvcrt
 import os
-import time
 
 import hou
 
-from . import scene
-from .storage import home, read, uid, write
+from . import bridge_queue, scene
+from .storage import home, uid, write
 
 _session_lock = None
 
@@ -25,35 +24,27 @@ def start():
     _session_lock = lock
     key = uid()
     box = root / key
-    inbox = box / "in"
-    inbox.mkdir(parents=True)
-    (box / "out").mkdir()
-    write(root / "session.json", {"id": key, "pid": os.getpid(), "version": hou.applicationVersionString()})
+    bridge_queue.cleanup(root)
+    bridge_queue.prepare(box)
+    write(root / "session.json", {"id": key, "pid": os.getpid(), "version": hou.applicationVersionString(), "protocol": 2})
     busy = False
+
+    def dispatch(op, args):
+        if hasattr(scene, "dispatch"):
+            return scene.dispatch(op, args)
+        if op not in scene.ACTIONS:
+            raise ValueError("Unknown action")
+        return scene.ACTIONS[op](**args)
 
     def step():
         nonlocal busy
         if busy:
             return
-        item = next(inbox.glob("*.json"), None)
-        if not item:
-            return
         busy = True
         try:
-            request = read(item)
-            if time.time() >= request["deadline"]:
-                raise RuntimeError("Request expired before execution")
-            if request["op"] not in scene.ACTIONS:
-                raise ValueError("Unknown action")
-            result = {"ok": scene.ACTIONS[request["op"]](**request["args"])}
-        except Exception as exc:
-            result = {"error": f"{type(exc).__name__}: {exc}"}
+            bridge_queue.process_one(box, dispatch)
         finally:
-            try:
-                write(box / "out" / item.name, result)
-                item.unlink()
-            finally:
-                busy = False
+            busy = False
 
     hou.ui.addEventLoopCallback(step)
     if hou.node("/obj/RESIDUAL_SMOKE/First_burst_cache"):

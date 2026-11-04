@@ -1,0 +1,14 @@
+{
+  "water": ["水", "雨", "雨滴", "水面", "波纹", "涟漪", "rain", "ripple", "ripples"],
+  "smoke": ["烟", "烟雾", "残烟", "pyro"],
+  "fire": ["火", "火焰", "flame"],
+  "fireworks": ["烟花", "焰火", "firework"],
+  "ember": ["火星", "余烬", "embers"],
+  "particles": ["粒子", "particle"],
+  "scatter": ["散点", "散布"],
+  "seed": ["种子", "随机种子", "seeds"],
+  "lighting": ["照明", "光照"],
+  "afterglow": ["余照", "余辉"],
+  "mechanical-animation": ["机械", "机械动画"],
+  "procedural-modeling": ["程序化建模", "procedural modeling", "procedural modelling"]
+}

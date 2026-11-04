@@ -1,12 +1,16 @@
 """Inspect or run a numeric experiment in an isolated Houdini process."""
 import hashlib
-import json
 import math
+import os
 import sys
+import time
 from pathlib import Path
 
 import hou
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from hlab.storage import read, sha, write
 
 
 def signature(node):
@@ -86,8 +90,22 @@ def numeric(node,name,vals,allow_toggle=False):
     return parm
 
 
-def work(req,folder):
-    hou.hipFile.load(req["hip"],suppress_save_prompt=True)
+def work(req,folder,load=True,process="fresh"):
+    if req["action"] == "verify_recipe":
+        from hlab.scene import load_checkpoint, state
+        node = load_checkpoint(Path(req["bundle"]))
+        hou.session.hr_active_path = node.path()
+        hou.setFrame(req["frame"])
+        return state()
+    if load:
+        hou.hipFile.load(req["hip"],suppress_save_prompt=True)
+    if req["action"] == "study":
+        from hlab.live_study import study_file
+        return study_file(req, process)
+    if req["action"] == "afterglow_render":
+        from afterglow_render import render
+        render(Path(req["hip"]), Path(req["target"]), req["controls"], req["start"], req["end"], req["draft"], load=False)
+        return {}
     if req["action"] == "mechanical_rig":
         from rig_worker import build
         return build(req)
@@ -168,12 +186,49 @@ def work(req,folder):
     return {"baseline":baseline,"control":req["control"],"samples":results,"baseline_restored":True}
 
 
-if __name__=="__main__":
-    folder=Path(sys.argv[1])
+def execute(folder, process, cached=None):
+    request = read(folder/"request.json")
     try:
-        result={"ok":work(json.loads((folder/"request.json").read_text(encoding="utf8")),folder)}
+        signature = None
+        if process == "warm":
+            hip = Path(request["hip"])
+            signature = (str(hip), sha(hip))
+            if signature != cached:
+                hou.hipFile.clear(suppress_save_prompt=True)
+        result = work(request, folder, load=signature is None or signature != cached, process=process)
+        result.update(process=process, process_pid=os.getpid(), houdini_version=hou.applicationVersionString())
+        result = {"ok": result}
+        # Sweeps and renders can leave edited parameters or a render ROP, even after a successful result.
+        cached = signature if request["action"] in {"nodes","inspect","animation_gap"} else None
     except Exception as exc:
+        cached = None
         result={"error":f"{type(exc).__name__}: {exc}"}
         if hasattr(exc, "gap_hint"):
             result["gap_hint"] = exc.gap_hint
-    (folder/"reply.json").write_text(json.dumps(result,allow_nan=False),encoding="utf8")
+    write(folder/"reply.json",result)
+    return cached
+
+
+def serve(mailbox, idle):
+    cached = None
+    quiet_since = time.monotonic()
+    slot = mailbox/"request.json"
+    while time.monotonic() - quiet_since < idle:
+        if not slot.exists():
+            time.sleep(.025)
+            continue
+        message = read(slot)
+        slot.unlink()
+        folder = Path(message["folder"])
+        if time.time() > message["deadline"]:
+            write(folder/"reply.json", {"error": "Background request expired before execution"})
+        else:
+            cached = execute(folder, "warm", cached)
+        quiet_since = time.monotonic()
+
+
+if __name__=="__main__":
+    if sys.argv[1] == "--serve":
+        serve(Path(sys.argv[2]), float(sys.argv[3]))
+    else:
+        execute(Path(sys.argv[1]), "fresh")

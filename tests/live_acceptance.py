@@ -15,7 +15,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from PIL import Image
 
-from hlab.storage import home, write
+from hlab.storage import home, read, write
 from hlab.window import ensure
 
 
@@ -35,8 +35,8 @@ async def run():
     if (home()/"records").exists():
         raise RuntimeError("Test directory already contains evidence; choose a fresh name")
     ensure()
-    async def use(session,name,**args):
-        result = await session.call_tool(name,args)
+    async def use(session,tool,**args):
+        result = await session.call_tool(tool,args)
         if result.isError:
             raise AssertionError(result.content)
         images = [item for item in result.content if item.type == "image"]
@@ -49,6 +49,10 @@ async def run():
     async with client() as first:
         report["tools"] = [t.name for t in (await first.list_tools()).tools]
         original,_ = await use(first,"session",initialize=True)
+        shot,n = await use(first,"domain_recipe",action="run",name="observe",arguments={"frame":43})
+        assert n == 1 and shot["frame"] == 43 and shot["metrics"] != original["metrics"]
+        assert (await use(first,"session"))[0] == original
+        report["observe_restored_frame"] = original["frame"]
         for pass_no in range(2):
             card,image_count = await use(first,"experiment",control="npts",samples=[32,96,192])
             assert image_count == 1
@@ -62,10 +66,29 @@ async def run():
         assert len({s["metrics"]["scatter_sha256"] for s in trials})==3
         assert {s["metrics"]["scatter_points"] for s in trials}=={original["parameters"]["npts"]}
         report["seed"] = seed["id"]
-        gap,_ = await use(first,"experiment",control="second_delay",samples=[.5,.75],frame=12)
-        assert gap.get("gap")
+        gap_args = dict(control="second_delay",samples=[.5,.75],frame=12)
+        gap,_ = await use(first,"experiment",**gap_args)
+        again,_ = await use(first,"experiment",**gap_args)
+        assert gap["gap"] == again["gap"] and gap["observation"] != again["observation"]
+        opened,_ = await use(first,"knowledge",kind="gap",status="open",query=gap["capability"])
+        assert [c["id"] for c in opened["cards"]] == [gap["gap"]]
+        for witness in (gap,again):
+            observation,_ = await use(first,"knowledge",key=witness["observation"])
+            assert observation["parent"] == gap["gap"] and witness["id"] in observation["details"]["sources"]
+        manual,_ = await use(first,"improvement",request=dict(action="report",topic="fireworks",signal="unexplained_result",
+            capability=gap["capability"],expected="Secondary delay changes branches.",observed="The pre-burst frame is unchanged.",
+            reproduce="Sweep delay 0.5 and 0.75 at frame 12.",sources=[gap["id"]]))
+        assert not manual["created"] and manual["gap"] == gap["gap"]
+        later,_ = await use(first,"experiment",**{**gap_args,"frame":48})
+        assert "gap" not in later
+        resolved,_ = await use(first,"learn",kind="gap",status="resolved",title="Delay is visible after the burst",
+            topics=["fireworks"],summary="The same delay settings produce different branch geometry at frame 48.",sources=[gap["gap"],later["id"]])
+        repeat,_ = await use(first,"experiment",**gap_args)
+        assert repeat["gap"] == gap["gap"] and repeat["prior_resolution"] == resolved["id"]
         report["gap"] = gap["gap"]
-        report["node"] = (await use(first,"learn",kind="node",status="reproduced",title="Scatter 2.0 · npts",
+        report["gap_witnesses"] = [gap["observation"],again["observation"]]
+        report["gap_prior_resolution"] = resolved["id"]
+        report["node"] = (await use(first,"learn",kind="node",status="observed",title="Scatter 2.0 · npts",
             summary="Houdini 20.5.487，球面输入、固定种子、强制总数开启。两轮 npts=32/96/192 的实际点数分别为 32/96/192。仅限该输入。",
             topics=["scatter","fireworks","particles"],sources=[report["npts_0"],report["npts_1"]]))[0]["id"]
         report["seed_node"] = (await use(first,"learn",kind="node",status="observed",title="Scatter 2.0 · seed",
@@ -100,6 +123,19 @@ async def run():
         assert rejected.isError
         assert (await use(second,"session"))[0]==child
         report["replay"] = {"verified":True,"changed":changed,"version":reference["version"],"baseline":reference["metrics"]}
+        archived,_ = await use(second,"recipe",action="save",origin="test",title="QA · Older version metadata")
+        source = home()/"records"/archived["id"]/"details.json"
+        saved = read(source)
+        saved["state"]["version"] = "20.5.000"
+        write(source,saved)
+        before = source.read_bytes()
+        cross,_ = await use(second,"recipe",action="replay",key=archived["id"])
+        assert cross["reuse_status"] == "conditions_changed" and not cross["verified"]
+        assert cross["recorded_version"] == "20.5.000" and cross["current_version"] == reference["version"]
+        assert cross["geometry_match"] and cross["parameters_match"] and source.read_bytes() == before
+        reuse,_ = await use(second,"knowledge",key=cross["reuse_id"])
+        assert reuse["status"] == "conditions_changed" and reuse["details"]["process"] == "fresh"
+        report["changed_version_reuse"] = {k:cross[k] for k in ("reuse_id","recorded_version","current_version","reuse_status","geometry_match","parameters_match")}
         write(home()/"acceptance.json",report)
         print(json.dumps(report,ensure_ascii=True,indent=2))
 

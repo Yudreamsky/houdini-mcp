@@ -1,14 +1,10 @@
 """Reproducible capability gaps and proposed changes in the local research library."""
-import hashlib
-import json
-import tempfile
-import unicodedata
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .storage import details, home, ident, read, search, write
+from .gap_records import evidence_ids, fingerprint, once, resolution, save_gap
+from .storage import details
 
 
 class GapReport(BaseModel):
@@ -32,63 +28,9 @@ class Proposal(BaseModel):
     sources: list[str] = Field(default_factory=list, max_length=12, description="Additional observation or evidence IDs.")
 
 
-def fingerprint(*values):
-    value = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(value.encode("utf8")).hexdigest()[:32]
-
-
-def once(key, kind, title, topics, summary, data, parent, status):
-    directory = home() / "records"
-    directory.mkdir(parents=True, exist_ok=True)
-    target = directory / key
-    card = dict(id=key, kind=kind, title=title, topics=topics, summary=summary, parent=parent, status=status)
-    if not target.exists():
-        # Publish the pair together. Concurrent clients can both observe the same limitation.
-        with tempfile.TemporaryDirectory(dir=directory.parent) as temp:
-            staged = Path(temp) / "record"
-            write(staged / "details.json", data)
-            write(staged / "card.json", card)
-            try:
-                staged.rename(target)
-                return card, True
-            except OSError:
-                if not (target / "card.json").is_file():
-                    raise
-    return read(target / "card.json"), False
-
-
-def evidence_ids(ids):
-    return sorted({details(ident(key))["id"] for key in ids})
-
-
-def resolution(gap):
-    offset = 0
-    while True:
-        page = search(kind="gap", status="resolved", limit=20, offset=offset)
-        for card in page["cards"]:
-            if gap in details(card["id"])["details"].get("sources", []):
-                return card["id"]
-        offset = page["next_offset"]
-        if offset is None:
-            return None
-
-
 def report(entry, replay=None):
-    sources = evidence_ids(entry.sources)
-    capability = " ".join(unicodedata.normalize("NFKC", entry.capability).casefold().split())
-    gap = fingerprint("capability-gap/v1", capability)
-    data = dict(signal=entry.signal, expected=entry.expected, observed=entry.observed,
-                reproduce=entry.reproduce, sources=sources)
-    if replay is not None:
-        data["replay"] = replay
-    observation = fingerprint("gap-observation/v1", gap, data)
-    topic = [entry.topic.casefold()]
-    once(observation, "gap_observation", capability, topic, entry.observed, data, gap, "observed")
-    card, created = once(gap, "gap", capability, topic, entry.expected,
-                         {"capability": capability, "sources": [observation]}, None, "open")
-    return {"gap": card["id"], "observation": observation, "created": created,
-            "prior_resolution": resolution(gap),
-            "next": "Call improvement with request.action='propose', gap, change, acceptance, and this observation in sources."}
+    return save_gap(entry.capability, [entry.topic.casefold()], entry.signal, entry.expected,
+                    entry.observed, entry.reproduce, entry.sources, replay)
 
 
 def propose(entry):

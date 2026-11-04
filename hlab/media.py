@@ -5,8 +5,9 @@ from PIL import Image, ImageDraw
 from .storage import ident, sha, stored
 
 
-def viewport_image(sample):
-    path = stored("images",ident(sample["image_id"]) + ".png")
+def viewport_image(sample, directory=None):
+    name = ident(sample["image_id"]) + ".png"
+    path = stored("images", name, directory=directory)
     if sha(path) != sample["sha256"]:
         raise ValueError("Evidence image checksum mismatch")
     with Image.open(path) as im:

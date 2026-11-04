@@ -1,12 +1,13 @@
 """Run experiments on a saved HIP without mutating the visible scene."""
-import os
 import hashlib
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 
-from .storage import details,example,home,read,record,sha,stored,uid,write
+from .gap_records import experiment_capability, experiment_gap
+from .storage import details,example,home,ident,record,sha,stored,uid
+from .runtime import discover
+from .worker_pool import pool
 
 
 def store_witness(path):
@@ -31,11 +32,7 @@ def hip_path(value):
 
 
 def worker(req,job):
-    hython=Path(os.environ.get("HOUDINI_EXE",r"C:\Program Files\Side Effects Software\Houdini 20.5.487\bin\houdini.exe")).with_name("hython.exe")
-    write(job/"request.json",req)
-    subprocess.run([str(hython),str(Path(__file__).with_name("sop_worker.py")),str(job)],
-                   stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,check=True,env=dict(os.environ,HOUDINI_MAXTHREADS="8"))
-    reply=read(job/"reply.json")
+    reply = pool.dispatch(discover(), req, job, fresh=req.get("fresh",False))
     if "gap_hint" in reply:
         from .improvements import native_gap
         receipt = native_gap(reply["gap_hint"], req, reply["error"])
@@ -71,12 +68,14 @@ def variant(action,hip,node,changes,witness,frame,topic,note,key):
         if action=="variant":actual["point_evidence"]=store_witness(Path(job)/"witness.npz")
     if action=="restore":
         check=actual["replay_check"]
-        good=actual["controls"]==prev["controls"] and actual["version"]==prev["version"] and all(
+        parameters_match = actual["controls"] == prev["controls"]
+        geometry_match = all(
             actual["witness"][k]==prev["witness"][k] for k in ("points","primitives")) and (
             check["matched"] if check else actual["witness"]==prev["witness"])
+        comparison = compare_replay(prev["version"], actual["version"], parameters_match, geometry_match)
         reuse=record("reuse",prior["title"],prior["topics"],"Reopened the saved scene and compared its controls and output SOP.",
-                     {"sources":[key],"actual":actual},key,"reproduced" if good else "conflict")
-        return {"verified":good,"hip":str(file),"reuse":reuse["id"],**actual}
+                     {"sources":[key],"actual":actual,**comparison},key,comparison["reuse_status"])
+        return {"hip":str(file),"reuse":reuse["id"],**comparison,**actual}
     card=record("scene_recipe",note[:120],[topic.strip().lower()],note[:600],
                 {"file":str(target),"sha256":sha(target),"node":node,"witness_path":witness,"frame":frame,**actual},key or None,"candidate")
     return {**card,"hip":str(target),**actual}
@@ -97,7 +96,45 @@ def render_frame(hip,frame,renderer,key):
         target=home()/"images"/(image_id+".png")
         target.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(job/result["file"],target)
-    return {"image_id":image_id,"sha256":sha(target),"hip":str(file),"frame":frame,"renderer":renderer}
+    return {"image_id":image_id,"sha256":sha(target),"hip":str(file),"frame":frame,"renderer":renderer,
+            **{k:result[k] for k in ("process","process_pid","houdini_version","warnings") if k in result}}
+
+
+def study_saved(hip, action, node, control="", values=None, frame=1, witness="", variants=None, frames=None,
+                capture=False, camera="", topic="", prediction="", expect_change=None, changes=None,
+                renderer=""):
+    if action not in ("compare", "motion"):
+        raise ValueError("Choose compare or motion")
+    if (capture or camera) and not renderer:
+        raise ValueError("Saved optical evidence requires a Mantra ROP in renderer; omit capture and camera for geometry")
+    study = dict(action=action, node=node, control=control, values=values, frame=frame, witness=witness,
+                 variants=variants, frames=frames, camera=camera, topic=topic, prediction=prediction,
+                 expect_change=expect_change, changes=changes, renderer=renderer)
+    with tempfile.TemporaryDirectory(prefix="houdini-saved-study-") as job:
+        return worker(dict(action="study", hip=str(hip_path(hip or "rain")), study=study), Path(job))
+
+
+def compare_replay(recorded, current, parameters_match, geometry_match):
+    status = "conditions_changed" if current != recorded else "reproduced" if parameters_match and geometry_match else "conflict"
+    return dict(reuse_status=status, verified=status=="reproduced", recorded_version=recorded,
+                current_version=current, parameters_match=parameters_match, geometry_match=geometry_match)
+
+
+def verify_recipe(key):
+    row = details(key)
+    if row["kind"] != "recipe":
+        raise ValueError("Select a recipe")
+    info = row["details"]
+    bundle = stored("bundles", ident(info["bundle"])+".cpio")
+    if sha(bundle) != info["sha256"]:
+        raise ValueError("Checkpoint content changed")
+    saved = info["state"]
+    with tempfile.TemporaryDirectory(prefix="houdini-recipe-check-") as job:
+        actual = worker(dict(action="verify_recipe", bundle=str(bundle), frame=saved["frame"]), Path(job))
+    result = compare_replay(saved["version"], actual["version"], actual["parameters"]==saved["parameters"],
+                            actual["metrics"]==saved["metrics"])
+    return {**result, "bundle_sha256":info["sha256"], "process":actual["process"],
+            "process_pid":actual["process_pid"], "warnings":actual.get("warnings",[])}
 
 
 def run(action,hip,node,control,values,frame,renderer,topic,query,offset,limit,key,prediction="",expect_change=None):
@@ -124,7 +161,7 @@ def run(action,hip,node,control,values,frame,renderer,topic,query,offset,limit,k
         job=Path(temp)
         refs=[s.get("point_evidence") for s in old["details"]["samples"]] if old else []
         extra={"expected_samples":[str(stored("point_evidence",k+".npz")) for k in refs]} if refs and all(refs) else {}
-        result=worker({**req,**extra},job)
+        result=worker({**req,**extra,"fresh":bool(old)},job)
         if req["action"]!="sweep":return result
         for i,sample in enumerate(result["samples"]):
             sample["point_evidence"]=store_witness(job/f"{i}.npz")
@@ -142,30 +179,46 @@ def run(action,hip,node,control,values,frame,renderer,topic,query,offset,limit,k
     signature={"hip":hip_hash,"node":req["node"],"control":req["control"],"frame":req["frame"],
                "version":result["baseline"]["version"],"inputs":result["baseline"]["inputs"],
                "result":[[a,m] for a,m,_ in measures]}
-    match=old is not None and signature==old["details"]["repeat_signature"]
+    comparison = {}
+    match = False
+    if old:
+        before = old["details"]
+        recorded = before["repeat_signature"]
+        parameters_match = (result["baseline"]["value"] == before["baseline"]["value"]
+                            and [s["actual"] for s in result["samples"]] == [s["actual"] for s in before["samples"]])
+        geometry_match = (signature["inputs"] == recorded["inputs"]
+                          and [s["metrics"] for s in result["samples"]] == [s["metrics"] for s in before["samples"]])
     if old and extra:
-        before=old["details"]
-        match=before["baseline"]["version"]==result["baseline"]["version"] and all(
-            s["replay_check"]["matched"] and s["actual"]==p["actual"] and all(
+        geometry_match=all(
+            s["replay_check"]["matched"] and all(
                 s["metrics"][k]==p["metrics"][k] for k in ("points","primitives"))
             for s,p in zip(result["samples"],before["samples"]))
-    status="reproduced" if match else ("conflict" if old else "observed")
-    result.update(request=req,hip_sha256=hip_hash,repeat_signature=signature)
+    if old:
+        comparison = compare_replay(before["baseline"]["version"], result["baseline"]["version"], parameters_match, geometry_match)
+        match = comparison["verified"]
+    status = comparison.get("reuse_status","observed")
+    result.update(request=req,hip_sha256=hip_hash,repeat_signature=signature,**comparison)
     if match:result["series_signature"]=old["details"].get("series_signature",old["details"]["repeat_signature"])
     title=f"{result['baseline']['node_type']} / {req['control']}"
     summary=f"Frame {req['frame']}; {req['values']}; measured point positions and bounds on {req['node']}."
     tags=[req["topic"].strip().lower(),result["baseline"]["node_type"].split("/")[-1].split("::")[0]]
-    card=record("experiment",title,tags,summary,result,old["id"] if old else None,status)
     first=result["samples"][0]["metrics"]
     identical_geometry=all(s["difference_from_first"]["matched"] and all(s["metrics"][k]==first[k] for k in ("points","primitives")) for s in result["samples"][1:])
     identical_images=len({s.get("pixel_sha256") for s in result["samples"]})==1
     changed=not (identical_geometry and identical_images)
     expected=req.get("expect_change")
     if (expected is None and not changed) or (expected is not None and expected!=changed):
-        gap=record("gap",title+" · check response",tags,
-                   "Observed change: "+str(changed)+". Check the prediction, activation conditions and selected output.",
-                   {"sources":[card["id"]]},status="open")
-        card["gap"]=gap["id"]
+        result["gap_capability"] = experiment_capability(result["baseline"]["node_type"], req["control"], expected)
+    card=record("experiment",title,tags,summary,result,old["id"] if old else None,status)
+    if status == "conditions_changed":
+        reuse = record("reuse", title, tags, "Replayed under a different Houdini version.",
+                       {"sources":[old["id"],card["id"]],"process":result["process"],**comparison},
+                       old["id"], status)
+        card["reuse"] = reuse["id"]
+    if "gap_capability" in result:
+        card.update(experiment_gap(card, result["gap_capability"], req["frame"], req["values"],
+                                   expected, changed, req.get("prediction", "")))
         card["review"] = "Check activation and the witness first. If a capability is missing, propose a change with improvement using this gap and experiment."
-    return {**card,"samples":[{"actual":s["actual"],"metrics":s["metrics"]} for s in result["samples"]],
+    return {**card,**comparison,**{k:result[k] for k in ("process","process_pid","houdini_version","warnings") if k in result},
+            "samples":[{"actual":s["actual"],"metrics":s["metrics"]} for s in result["samples"]],
             "observed_change":changed,"verified_geometry_replay":match if old else None}

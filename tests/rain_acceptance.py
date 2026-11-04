@@ -51,9 +51,11 @@ async def main():
         replay,_=await use(c,"node_lab",action="replay",key=res["height"])
         assert replay["verified_geometry_replay"]
         res["repeat"]=replay["id"]
+        independent,_=await use(c,"node_lab",action="replay",key=res["height"])
+        assert independent["process"] == replay["process"] == "fresh"
         node,_=await use(c,"learn",kind="node",status="reproduced",title="Ripple 2.0 · 波高与位移",
                          summary="Houdini 20.5.487。在同一张细分平面、同一中心、波长和第38帧条件下，height 从 0.018 到 0.045 再到 0.09，点位移 RMS 分别变为 2.5 倍和 2 倍。两次重新载入同一 HIP 均复现。画面来自下游着色后的整片水面。",
-                         topics=["water","ripple"],sources=[res["height"],res["repeat"]])
+                topics=["water","ripple"],sources=[independent["id"],res["repeat"]])
         res["node_card"]=node["id"]
         restored,_=await use(c,"node_lab",action="restore",key=res["recipe"])
         assert restored["verified"]

@@ -38,6 +38,8 @@ def main():
                 # Concurrent first launches share ensure()'s existing directory lock.
                 item = ensure(root/"scene-windows"/"workbench", args.houdini, hip)
             info = manage(root, "open", item["id"], str(hip))
+            if item.get("warnings"):
+                info["warnings"] = item["warnings"]
             if info["status"] == "unsaved_changes":
                 p.error("The existing scene has unsaved changes: " + info["hip"])
             print(info, flush=True)
@@ -47,6 +49,8 @@ def main():
         elif args.shot == "rain":
             item=ensure(directory, args.houdini, hip)
             info=manage(root, "open", item["id"], str(hip))
+            if item.get("warnings"):
+                info["warnings"] = item["warnings"]
             if info["status"] == "unsaved_changes":
                 p.error("The rain window has unsaved changes: " + info["hip"])
             print(info, flush=True)
