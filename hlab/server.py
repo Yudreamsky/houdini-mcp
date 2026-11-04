@@ -1,17 +1,22 @@
 import json
 
-from mcp.server.fastmcp import FastMCP, Image
-from mcp.types import TextContent
+from typing import Literal
+
+from mcp.server.fastmcp import Image
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
 from .bridge import call
+from .graph_schema import Edit
+from .catalog import ResearchMCP
 from .media import png, sheet, viewport_image
 from .improvements import GapReport, Proposal
 from .mechanical_rig import Joint
 from .mechanisms import FourBar, Reeving, Transfer
 from .storage import details, home, ident, record, search, sha, uid
 
-mcp = FastMCP("Houdini Research", instructions=(
-    "Start with session or knowledge. Use the dedicated research window for live edits. For an unsupported operation, a manual workaround, or an unexplained "
+mcp = ResearchMCP("Houdini Research", instructions=(
+    "Start with window_session or knowledge. Discover specialist operations via domain_recipe(action='catalog'). "
+    "Use the dedicated research window for live edits. For an unsupported operation, a manual workaround, or an unexplained "
     "mismatch, inspect the relevant tools and evidence. Report a reproducible limitation using improvement, "
     "reuse any gap ID already returned, and propose the smallest change with a pass/fail retest. "
     "A correctly rejected scene is feedback on the scene. Show proposals to the user."))
@@ -19,6 +24,78 @@ mcp = FastMCP("Houdini Research", instructions=(
 
 def illustrated(data, im):
     return [TextContent(type="text", text=json.dumps(data, ensure_ascii=False)), Image(data=png(im),format="png").to_image_content()]
+
+
+def selected_directory(session_id):
+    if not session_id:
+        return home()
+    from .window import registered
+
+    for directory, session in registered(home()):
+        if session["id"] == session_id:
+            return directory
+    raise ValueError("Select a live window_session ID")
+
+
+def live_call(operation, session_id, **args):
+    from .bridge import call_in
+
+    return call_in(selected_directory(session_id), operation, expected_session=session_id or None, **args)
+
+
+READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False)
+
+
+@mcp.tool(annotations=READ)
+def node_types(category: str = "Sop", query: str = "", offset: int = 0, limit: int = 20, session_id: str = "") -> dict:
+    """Discover installed Houdini types by category, query and page before creating nodes."""
+    return live_call("graph_types", session_id, category=category, query=query, offset=offset, limit=limit)
+
+
+@mcp.tool(annotations=READ)
+def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int = 20,
+               snapshot: bool = False, session_id: str = "") -> dict:
+    """Page a live network's nodes, wires, flags, diagnostics and nondefault parameters. Snapshot optionally records a diff baseline."""
+    return live_call("graph_read", session_id, path=path, depth=depth, offset=offset, limit=limit, snapshot=snapshot)
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
+               require_clean: bool = True, session_id: str = "") -> dict:
+    """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
+    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in."""
+    return live_call("graph_edit", session_id, ops=[op.model_dump(exclude_unset=True) for op in ops],
+                     label=label, allow_delete=allow_delete or [], require_clean=require_clean)
+
+
+@mcp.tool(annotations=READ)
+def cook(node: str, frame: int | None = None, session_id: str = "") -> dict:
+    """Cook a live SOP and return measured geometry, attributes, bounds, errors and warnings."""
+    return live_call("graph_cook", session_id, node=node, frame=frame)
+
+
+@mcp.tool(annotations=READ, structured_output=False)
+def capture(frame: int, camera: str = "", session_id: str = ""):
+    """Capture a live Scene Viewer PNG, optionally through a camera OBJ. Restore the original time and view."""
+    from .bridge import call_in
+
+    directory = selected_directory(session_id)
+    sample = call_in(directory, "graph_capture", expected_session=session_id or None, frame=frame, camera=camera)
+    return illustrated(sample, viewport_image(sample, directory))
+
+
+@mcp.tool(annotations=READ)
+def diff(key: str, path: str = "", session_id: str = "") -> dict:
+    """Compare the live graph at path to a saved graph snapshot or a trusted recipe ID."""
+    return live_call("graph_diff", session_id, key=key, path=path)
+
+
+@mcp.tool(structured_output=False)
+async def domain_recipe(action: Literal["catalog", "run"] = "catalog", domain: str = "", name: str = "",
+                        arguments: dict | None = None) -> CallToolResult:
+    """Browse domain names, then descriptions by domain or the original input schema by name. Use run with
+    a listed name and its arguments for the chosen domain."""
+    return await mcp.domain_recipe(action, domain, name, arguments)
 
 
 @mcp.tool()
@@ -43,7 +120,7 @@ def adjust(changes: dict[str, float] | None = None, preset: str = "") -> dict:
 
 @mcp.tool(structured_output=False)
 def observe(frame: int = 36):
-    """Read a real live viewport PNG and frame measurements. Positions the research window on that frame."""
+    """Read a real live viewport PNG and its measurements, then restore the previous frame."""
     sample = call("capture",frame=frame)
     return illustrated(sample, viewport_image(sample))
 
@@ -95,34 +172,40 @@ def recipe(action: str, title: str = "", reason: str = "", key: str = "", origin
             raise ValueError("Unknown recipe origin")
         return call("checkpoint",title=title[:120],reason=reason[:600],parent=key or None,origin=origin)
     if action == "replay":
-        return call("replay",key=ident(key))
+        from .sop_lab import verify_recipe
+        key = ident(key)
+        return call("replay",key=key,fresh_check=verify_recipe(key))
     raise ValueError("Use save with a title, or replay with a recipe key")
 
 
 @mcp.tool()
 def knowledge(topic: str = "", kind: str = "", key: str = "", limit: int = 6, offset: int = 0,
-              status: str = "", query: str = "") -> dict:
+              status: str = "", query: str = "", session_id: str = "") -> dict:
     """Search short cards by topic/kind, or expand one record by ID. Raw images stay on disk."""
+    if session_id:
+        return live_call("graph_knowledge", session_id, key=key, topic=topic, kind=kind,
+                         limit=limit, offset=offset, status=status, query=query)
     return details(key) if key else search(topic,kind,limit,offset,status,query)
 
 
 @mcp.tool(structured_output=False)
-def evidence(key: str, variant: str = "", index: int = 0):
-    """Return one archived, checksum-verified viewport image from an experiment or A/B/C comparison."""
-    row = details(key)
+def evidence(key: str, variant: str = "", index: int = 0, session_id: str = ""):
+    """Return one checksum-verified image from an experiment, a motion study, or a named comparison variant."""
+    row = knowledge(key=key,session_id=session_id)
     data = row["details"]
     if row["kind"]=="comparison" and variant in data["candidates"]:
         samples = data["candidates"][variant]["samples"]
-    elif row["kind"]=="experiment" and not variant:
+    elif row["kind"] in ("experiment","motion") and not variant:
         samples = data["samples"]
     else:
-        raise ValueError("Use an experiment ID, or a comparison ID plus variant A/B/C")
+        raise ValueError("Choose an experiment or motion ID, or pass a comparison ID and one of its variant names")
     if not 0 <= index < len(samples):
         raise ValueError("Image index outside the recorded range")
     sample = samples[index]
     if "image_id" not in sample:
         raise ValueError("This run recorded geometry only. Use knowledge(key) for its measured results.")
-    return illustrated({"id":key,"variant":variant,**sample},viewport_image(sample))
+    directory = selected_directory(session_id) if session_id else None
+    return illustrated({"id": key, "variant": variant, **sample}, viewport_image(sample, directory))
 
 
 @mcp.tool()
@@ -153,6 +236,10 @@ def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[
             if card["kind"] != "experiment":
                 continue
             run = card["details"]
+            # Earlier node_lab evidence used one new hython per SOP experiment. GUI runs had no such isolation.
+            process = run.get("process", "fresh" if "request" in run and "repeat_signature" in run else "live")
+            if process != "fresh" or card["status"] in {"conflict", "conditions_changed"}:
+                continue
             base = run["baseline"]
             if "repeat_signature" in run:
                 signatures.append(json.dumps(run.get("series_signature",run["repeat_signature"]),sort_keys=True))
@@ -161,7 +248,7 @@ def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[
                     json.dumps(base["parameters"], sort_keys=True), base["metrics"]["scatter_sha256"],
                     tuple((s["actual"],s["frame"],s["metrics"]["output_sha256"]) for s in run["samples"])))
         if len(signatures)<2 or len(set(signatures))!=1:
-            raise ValueError("Link repeated runs of the same control, baseline, samples and results")
+            raise ValueError("Link two fresh runs of the same control, baseline, samples and results. Replay twice if the original sweep was warm.")
     if kind=="gap" and status=="resolved":
         opened = [c for c in cards if c["kind"] == "gap" and c["status"] == "open"]
         original_evidence = {key for c in opened for key in c["details"].get("sources", [])}
@@ -202,8 +289,24 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave
              control: str = "", values: list[float] | None = None, frame: int = 38,
              renderer: str = "", topic: str = "", query: str = "", offset: int = 0,
              limit: int = 8, key: str = "", changes: dict[str,float] | None = None,
-             witness: str = "", note: str = "", prediction: str = "", expect_change: bool | None = None):
-    """Inspect/nodes: paged discovery. Sweep a numeric SOP control with a prediction and optional Mantra images. Replay repeats an experiment; variant forks a scene_recipe; restore validates it; frame renders it."""
+             witness: str = "", note: str = "", prediction: str = "", expect_change: bool | None = None,
+             scope: Literal["saved","live"] = "saved", variants: dict[str,dict[str,float]] | None = None,
+             frames: list[int] | None = None, capture: bool = False, camera: str = "", session_id: str = ""):
+    """Study saved HIPs or live SOPs. Live sweep, compare (named variants), motion (frames) restore all controls;
+    optional witness SOP and capture. Saved compare/motion optionally render with a Mantra ROP. Saved
+    inspect/nodes, sweep/replay, variant/restore and frame remain available."""
+    if scope == "live" or action in ("compare","motion"):
+        args = dict(action=action,node=node,control=control,values=values,frame=frame,witness=witness,
+                    variants=variants,frames=frames,capture=capture,camera=camera,topic=topic,
+                    prediction=prediction,expect_change=expect_change,changes=changes)
+        if scope=="live":
+            if action not in ("sweep","compare","motion") or hip or renderer or key:
+                raise ValueError("For live SOPs use sweep, compare or motion; use graph_read for inspection")
+            result=live_call("live_study",session_id,**args)
+        else:
+            from .sop_lab import study_saved
+            result=study_saved(hip,renderer=renderer,**args)
+        return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
     from .sop_lab import run,variant,render_frame
     if action=="frame":
         data=render_frame(hip,frame,renderer or "/out/RAIN_BEAUTY",key)

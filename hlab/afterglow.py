@@ -1,9 +1,9 @@
 """Editable groups and evidence for the residual-smoke shot."""
-import json
 import math
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from .bridge import call_in
@@ -87,15 +87,11 @@ def take(key, start, end, draft=False):
     asset=setup()
     controls=source(key,asset) if key else live()["controls"]
     target=folder()/"renders"/uid()
-    exe=os.environ.get("HOUDINI_EXE",r"C:\Program Files\Side Effects Software\Houdini 20.5.487\bin\houdini.exe")
-    hython=Path(exe).with_name("hython.exe")
-    cmd=[str(hython),str(Path(__file__).with_name("afterglow_render.py")),str(folder()/"Afterglow.hip"),
-         str(target),json.dumps(controls),str(start),str(end)]
-    if draft:
-        cmd.append("--draft")
-    subprocess.run(cmd,check=True,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
-                   env=dict(os.environ,HOUDINI_MAXTHREADS="10"))
-    info={"start":start,"end":end,"key":key or None,"controls":controls,"asset":asset}
+    from .sop_lab import worker
+    with tempfile.TemporaryDirectory(prefix="houdini-afterglow-") as job:
+        execution = worker(dict(action="afterglow_render", hip=str(folder()/"Afterglow.hip"),
+                                target=str(target),controls=controls,start=start,end=end,draft=draft),Path(job))
+    info={"start":start,"end":end,"key":key or None,"controls":controls,"asset":asset,**execution}
     # Decode native EXRs outside the Windows MCP stdio process (OpenCV loads native DLLs).
     subprocess.run([sys.executable,"-m","hlab.afterglow",str(target),str(start),str(end)],
                    cwd=Path(__file__).resolve().parents[1],stdin=subprocess.DEVNULL,

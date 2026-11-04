@@ -30,12 +30,12 @@ def bundled_libraries():
     return (example(), example("rain"), example("mechanisms"))
 
 
-def stored(*parts):
-    local = home().joinpath(*parts)
-    for root in (home(), *bundled_libraries()):
+def stored(*parts, directory=None):
+    local = directory if directory is not None else home()
+    for root in (local, *bundled_libraries()):
         path=root.joinpath(*parts)
         if path.exists():return path
-    return local
+    return local.joinpath(*parts)
 
 
 def write(path, data):

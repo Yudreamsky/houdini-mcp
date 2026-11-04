@@ -6,8 +6,9 @@ from pathlib import Path
 import hou
 
 
-def render(hip, target, controls, start, end, draft=False):
-    hou.hipFile.load(str(hip),suppress_save_prompt=True)
+def render(hip, target, controls, start, end, draft=False, load=True):
+    if load:
+        hou.hipFile.load(str(hip),suppress_save_prompt=True)
     hou.node("/obj/DIRECTION").setParms(controls)
     rop=hou.node("/out/RELIGHT")
     if draft:

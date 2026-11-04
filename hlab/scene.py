@@ -30,7 +30,7 @@ def viewer():
 
 
 def lab():
-    node = hou.node(getattr(hou.session, "hr_active_path", "/obj/HoudiniResearch"))
+    node = hou.node(getattr(hou.session, "hr_active_path", None) or "/obj/HoudiniResearch")
     if node is None or node.userData("research_fixture") != VERSION:
         raise RuntimeError("Initialize the research fixture first")
     return node
@@ -44,6 +44,20 @@ def focus(node):
         net.setCurrentNode(node)
         x, y = node.position()
         net.setVisibleBounds(hou.BoundingRect(x-5, y-3, x+6, y+5))
+
+
+def configure_trails(trails):
+    group = trails.parmTemplateGroup()
+    for key in ("burst_frame", *PRESETS["B"], "tick"):
+        initial = 18 if key == "burst_frame" else PRESETS["B"].get(key, 1.)
+        cls = hou.IntParmTemplate if key == "burst_frame" else hou.FloatParmTemplate
+        template = cls(key, key.replace("_", " ").title(), 1, default_value=(initial,), min=BOUNDS.get(key, (1,96))[0], max=BOUNDS.get(key, (1,96))[1])
+        if key == "tick":
+            template.hide(True)
+        group.append(template)
+    trails.setParmTemplateGroup(group)
+    trails.parm("tick").setExpression("$FF", hou.exprLanguage.Hscript)
+    trails.parm("python").set(Path(__file__).with_name("firework_sop.py").read_text(encoding="utf-8"))
 
 
 def initialize():
@@ -64,17 +78,7 @@ def initialize():
         scatter.parm("seed").set(17)
         trails = geo.createNode("python", "TRAILS")
         trails.setInput(0, scatter)
-        group = trails.parmTemplateGroup()
-        for key in ("burst_frame", *PRESETS["B"], "tick"):
-            initial = 18 if key == "burst_frame" else PRESETS["B"].get(key, 1.)
-            cls = hou.IntParmTemplate if key == "burst_frame" else hou.FloatParmTemplate
-            template = cls(key, key.replace("_", " ").title(), 1, default_value=(initial,), min=BOUNDS.get(key, (1,96))[0], max=BOUNDS.get(key, (1,96))[1])
-            if key == "tick":
-                template.hide(True)
-            group.append(template)
-        trails.setParmTemplateGroup(group)
-        trails.parm("tick").setExpression("$FF", hou.exprLanguage.Hscript)
-        trails.parm("python").set(Path(__file__).with_name("firework_sop.py").read_text(encoding="utf-8"))
+        configure_trails(trails)
         trails.setDisplayFlag(True)
         trails.setRenderFlag(True)
         geo.layoutChildren()
@@ -167,11 +171,95 @@ def set_controls(preset="", changes=None):
     return state()
 
 
+def dispatch(op, args):
+    if op in ("graph_types", "graph_read", "graph_cook", "graph_diff"):
+        from . import graph_query
+        action = {"graph_types": graph_query.node_types, "graph_read": graph_query.graph_read,
+                  "graph_cook": graph_query.cook, "graph_diff": graph_query.diff}[op]
+    elif op == "graph_edit":
+        from .live_graph import edit as action
+    elif op == "graph_capture":
+        action = capture_view
+    elif op == "live_study":
+        from .live_study import run as action
+    elif op == "graph_knowledge":
+        from .storage import search
+        key = args.pop("key", "")
+        action = (lambda **_: details(key)) if key else search
+    elif op in ACTIONS:
+        action = ACTIONS[op]
+    else:
+        raise ValueError("Unknown action")
+    from . import live_undo
+    label = "MCP: " + op
+    if op == "capture":
+        previous_frame = hou.frame()
+        with hou.undos.disabler():
+            try:
+                return action(**args)
+            finally:
+                if hou.frame() != previous_frame:
+                    hou.setFrame(previous_frame)
+    if op in ("initialize", "replay"):
+        return live_undo.object_creation(label, lambda: action(**args))
+    if op == "set_controls":
+        changes = {**PRESETS.get(args.get("preset"), {}), **(args.get("changes") or {})}
+        parms = [parameter(key) for key in validated(changes)]
+        return live_undo.controls(label, lambda: action(**args), parms)
+    if op == "afterglow_live" and args.get("changes"):
+        ctrl = hou.node("/obj/DIRECTION")
+        if ctrl is None or not hou.node("/obj/RESIDUAL_SMOKE/First_burst_cache"):
+            raise RuntimeError("Open the Afterglow shot window")
+        parms = [ctrl.parm(name) for name in args["changes"]]
+        if any(p is None or p.isLocked() or p.keyframes() or p.getReferencedParm() != p or p.isDisabled() for p in parms):
+            raise ValueError("Use editable, unanimated Afterglow controls")
+        return live_undo.controls(label, lambda: action(**args), parms)
+    if op in ("state", "sweep", "compare", "motion", "afterglow_live", "live_study") or (
+            op.startswith("graph_") and op != "graph_edit"):
+        with hou.undos.disabler():
+            return action(**args)
+    # HIP switching has its own history. graph_edit manages its transaction itself.
+    return action(**args)
+
+
 def capture(frame):
     if type(frame) is not int or not 1 <= frame <= 84:
         raise ValueError("frame must be 1..84")
     lab()
     hou.setFrame(frame)
+    return {**_flipbook(frame), "metrics": metrics()}
+
+
+def capture_view(frame, camera="", metrics_fn=None):
+    previous = hou.frame()
+    viewport = viewer().curViewport()
+    old_camera = viewport.camera()
+    old_view = viewport.defaultCamera().stash() if camera and old_camera is None else None
+    locked = viewport.isCameraLockedToView()
+    try:
+        if camera:
+            target = hou.node(camera)
+            if not isinstance(target, hou.ObjNode) or target.type().name() != "cam":
+                raise ValueError("Select an existing camera OBJ")
+            viewport.lockCameraToView(False)
+            viewport.setCamera(target)
+        hou.setFrame(frame)
+        result = _flipbook(frame)
+        if metrics_fn is not None:
+            result["metrics"] = metrics_fn()
+        return result
+    finally:
+        if camera:
+            if old_camera is None:
+                viewport.useDefaultCamera()
+                viewport.setDefaultCamera(old_view)
+            else:
+                viewport.setCamera(old_camera)
+            viewport.lockCameraToView(locked)
+        hou.setFrame(previous)
+
+
+def _flipbook(frame):
     v = viewer()
     view = v.curViewport()
     settings = v.flipbookSettings().stash()
@@ -195,7 +283,7 @@ def capture(frame):
         raise RuntimeError("Viewport did not produce a PNG")
     camera = view.camera()
     return {"image_id": key, "sha256": sha(path), "frame": frame, "camera": camera.path() if camera else "free viewport",
-            "view_transform": list(view.viewTransform().asTuple()), "metrics":metrics()}
+            "view_transform": list(view.viewTransform().asTuple())}
 
 
 def sweep(control, samples, frame=36):
@@ -221,7 +309,8 @@ def sweep(control, samples, frame=36):
     title = f"{base['node_type'] if category == 'scatter' else 'TRAILS'} / {control}"
     points = [s["metrics"]["scatter_points"] for s in results]
     summary = f"Frame {frame}, tested {samples}, scatter point counts {points}."
-    evidence = {"baseline":base, "control":control, "samples":results, "baseline_restored":True}
+    evidence = {"baseline":base, "control":control, "samples":results, "baseline_restored":True,
+                "process":"live", "process_pid":os.getpid()}
     if len({s["metrics"]["output_sha256"] for s in results}) == 1:
         node_type = parameter(control).node().type().nameWithCategory()
         evidence["gap_capability"] = experiment_capability(node_type, control, expected=None)
@@ -279,7 +368,17 @@ def checkpoint(title, reason, parent=None, origin="baseline"):
         raise
 
 
-def replay(key):
+def load_checkpoint(bundle):
+    obj = hou.node("/obj")
+    before = set(obj.children())
+    obj.loadItemsFromFile(str(bundle))
+    added = set(obj.children()) - before
+    if len(added) != 1:
+        raise ValueError("Unexpected checkpoint structure")
+    return added.pop()
+
+
+def replay(key, fresh_check=None):
     row = details(key)
     if row["kind"] != "recipe":
         raise ValueError("Select a recipe")
@@ -289,30 +388,35 @@ def replay(key):
     if sha(bundle) != info["sha256"]:
         raise ValueError("Checkpoint content changed")
     saved = info["state"]
-    if saved["version"] != hou.applicationVersionString():
-        raise ValueError("Checkpoint requires its recorded Houdini version")
+    from .sop_lab import compare_replay, verify_recipe
+    fresh_check = fresh_check or verify_recipe(key)
+    if fresh_check["process"] != "fresh" or fresh_check["bundle_sha256"] != info["sha256"]:
+        raise ValueError("Independent checkpoint verification did not match this bundle")
     obj = hou.node("/obj")
     before = set(obj.children())
     prev_frame = hou.frame()
     was_visible = prev.isDisplayFlagSet()
     try:
-        obj.loadItemsFromFile(str(bundle))
-        added = set(obj.children()) - before
-        if len(added) != 1:
-            raise ValueError("Unexpected checkpoint structure")
-        new = added.pop()
+        new = load_checkpoint(bundle)
         hou.session.hr_active_path = new.path()
         hou.setFrame(saved["frame"])
         now = state()
-        if now["parameters"] != saved["parameters"] or now["metrics"] != saved["metrics"]:
+        comparison = compare_replay(saved["version"], now["version"],
+            now["parameters"] == saved["parameters"] and fresh_check["parameters_match"],
+            now["metrics"] == saved["metrics"] and fresh_check["geometry_match"])
+        if fresh_check["reuse_status"] == "conditions_changed":
+            comparison.update(reuse_status="conditions_changed", verified=False)
+        if comparison["reuse_status"] == "conflict":
             raise ValueError("Checkpoint geometry or parameters differ on replay")
         new.setDisplayFlag(True)
         focus(new.node("TRAILS"))
         prev.setDisplayFlag(False)
         reuse = record("reuse", "Replay: " + row["title"], row["topics"],
-                       "Same Houdini version, controls and frame geometry verified.",
-                       {"sources":[key],"frame":now["frame"],"metrics":now["metrics"]}, key, "reproduced")
-        return {"recipe":key, "verified":True, "state":now,"reuse_id":reuse["id"]}
+                       "Compared the bundle in a fresh process and restored the controls and frame in the active scene.",
+                       {"sources":[key],"frame":now["frame"],"metrics":now["metrics"],
+                        "process":"fresh","fresh_check":fresh_check,**comparison}, key, comparison["reuse_status"])
+        return {"recipe":key, "state":now,"reuse_id":reuse["id"],"process":"fresh",
+                "fresh_check":fresh_check,**comparison}
     except Exception:
         hou.session.hr_active_path = prev.path()
         prev.setDisplayFlag(was_visible)

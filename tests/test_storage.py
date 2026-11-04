@@ -38,6 +38,19 @@ class StorageTest(unittest.TestCase):
         for limit in (1,20):
             self.assertEqual(storage.search(limit=limit, offset=99), {"total":0,"next_offset":None,"cards":[]})
 
+    def test_selected_window_uses_its_own_evidence_then_bundles(self):
+        selected = self.tmp / "second-window"
+        parts = ("images", "sample.png")
+        for folder in (self.local, self.bundle, selected):
+            path = folder.joinpath(*parts)
+            path.parent.mkdir(parents=True)
+            path.write_bytes(b"image")
+        self.assertEqual(storage.stored(*parts, directory=selected), selected.joinpath(*parts))
+        selected.joinpath(*parts).unlink()
+        self.assertEqual(storage.stored(*parts, directory=selected), self.bundle.joinpath(*parts))
+        self.bundle.joinpath(*parts).unlink()
+        self.assertFalse(storage.stored(*parts, directory=selected).exists())
+
     def test_bilingual_topics_query_order_and_rebuild(self):
         first = self.fixture(self.bundle, "a"*32, "波纹种子", "2021-05-01T12:00:00+00:00")
         second = self.fixture(self.bundle, "b"*32, "Ripple seed", "2022-05-01T12:00:00+00:00")

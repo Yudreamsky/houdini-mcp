@@ -15,3 +15,5 @@
 仓库的 [Windows unit tests](../.github/workflows/tests.yml) 在 push 与 pull request 上运行，矩阵使用 Python 3.11 和 3.12。每个测试作业将 `HOUDINI_RESEARCH_HOME` 指向 GitHub runner 的临时目录。
 
 本地可用 `python -m pip install -e . numpy` 安装依赖，然后执行 `python -m unittest discover -s tests -p "test_*.py" -v`。这条命令包含检索边界、双语召回、索引重建、跨进程写入、并发与多库去重回归。`tests/*_native.py`、`tests/*_acceptance.py` 及其他真实窗口或渲染验收按对应脚本的说明，在配有 Houdini 的本机会话单独运行。
+
+要验证真实窗口的建网、参数实验、Ctrl+Z 和并发请求，请使用对应的 GUI 或 hython 命令。[本机验收命令](live-graph.md#本机验收)

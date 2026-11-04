@@ -71,14 +71,16 @@ def ensure(directory=None, executable=None, hip=None):
         root = Path(__file__).resolve().parents[1]
         env = dict(os.environ,HOUDINI_RESEARCH_HOME=str(directory),HOUDINI_RESEARCH_ROOT=str(root))
         env["HOUDINI_PATH"] = str(root/"houdini") + os.pathsep + (env.get("HOUDINI_PATH") or "&")
-        executable = executable or env.get("HOUDINI_EXE", r"C:\Program Files\Side Effects Software\Houdini 20.5.487\bin\houdini.exe")
+        from .runtime import discover
+        install = discover(executable)
+        executable = str(install.gui)
         # The visible GUI must not retain the MCP stdio pipes when the client disconnects.
         command = [executable, str(hip)] if hip else [executable]
         process = subprocess.Popen(command,env=env,cwd=root,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         while time.monotonic()<deadline:
             existing = active(directory)
             if existing and existing["pid"]==process.pid:
-                return existing
+                return {**existing, **({"warnings":[install.warning]} if install.warning else {})}
             if process.poll() is not None:
                 raise RuntimeError(f"Houdini closed during startup (exit {process.returncode})")
             time.sleep(.2)

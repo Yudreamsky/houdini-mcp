@@ -19,23 +19,30 @@ async def check():
         async with stdio_client(params) as (reader, writer), ClientSession(reader, writer) as client:
             await client.initialize()
             names = {tool.name for tool in (await client.list_tools()).tools}
-            assert {"window_session", "mechanical_rig", "mechanism", "animation_gap"} <= names
+            assert {"window_session", "knowledge", "domain_recipe"} <= names
+            mechanical = {"mechanical_rig", "mechanism", "animation_gap"}
+            assert not mechanical.intersection(names)
 
-            async def call(name, **arguments):
-                result = await client.call_tool(name, arguments)
+            async def call(tool_name, **arguments):
+                result = await client.call_tool(tool_name, arguments)
                 if result.isError:
                     raise RuntimeError(result.content[0].text)
                 return result.structuredContent or json.loads(result.content[0].text)
 
+            catalog = await call("domain_recipe", domain="mechanics")
+            assert mechanical <= {recipe["name"] for recipe in catalog["recipes"]}
+            schema = await call("domain_recipe", domain="mechanics", name="animation_gap")
+            assert "minimum" in schema["inputSchema"]["properties"]
             listing = await call("knowledge", topic="mechanical-animation", kind="mechanism_test")
             assert listing["total"] == 4
             for card in listing["cards"]:
                 detail = (await call("knowledge", key=card["id"]))["details"]
                 scene = root / "examples" / detail["hip"].removeprefix("sample:")
                 assert hashlib.sha256(scene.read_bytes()).hexdigest() == detail["sha256"], scene
-            report = await call("animation_gap", hip="sample:mechanisms/Climbing-support-transfer.hip",
-                                upper="/obj/CLIMBING_STUDY/New_section", lower="/obj/CLIMBING_STUDY/Cart",
-                                start=1379, end=1454, minimum=0.228)
+            report = await call("domain_recipe", action="run", domain="mechanics", name="animation_gap",
+                                arguments=dict(hip="sample:mechanisms/Climbing-support-transfer.hip",
+                                               upper="/obj/CLIMBING_STUDY/New_section", lower="/obj/CLIMBING_STUDY/Cart",
+                                               start=1379, end=1454, minimum=0.228))
             assert report["status"] == "passed" and report["measured_frames"] == 76
             assert abs(report["lowest"]["gap"] - 0.230) < 1e-5
             print(f'{len(names)} tools, 4 bundled cases, 76 frames, minimum gap {report["lowest"]["gap"]:.6f}')
