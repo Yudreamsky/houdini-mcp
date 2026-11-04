@@ -1,0 +1,12 @@
+{
+  "id": "8ccababfaac34026b14b231eed30d537",
+  "kind": "node",
+  "title": "Ripple 2.0 · 波高与位移",
+  "topics": [
+    "water",
+    "ripple"
+  ],
+  "summary": "Houdini 20.5.487。在同一张细分平面、同一中心、波长和第38帧条件下，height 从 0.018 到 0.045 再到 0.09，点位移 RMS 分别变为 2.5 倍和 2 倍。两次重新载入同一 HIP 均复现。画面来自下游着色后的整片水面。",
+  "status": "reproduced",
+  "parent": null
+}

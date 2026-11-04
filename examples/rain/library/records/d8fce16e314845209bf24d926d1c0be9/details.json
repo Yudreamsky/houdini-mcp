@@ -1,0 +1,24 @@
+{
+  "file": "sample:rain/Rain-reviewed.hip",
+  "sha256": "0ac4ad263d08285429e9fd62f5825c84e277c68a31307eda6a6f7e7958ce814d",
+  "node": "/obj/RAIN/ART_DIRECTION",
+  "witness_path": "/obj/RAIN/Reflected_sky_and_shore",
+  "frame": 38,
+  "controls": {
+    "amplitude": 0.82,
+    "drop_detail": 1,
+    "front": 1,
+    "look_detail": 1,
+    "reflection": 3.15,
+    "stagger": 1
+  },
+  "witness": {
+    "positions_sha256": "adf1c5f396eb1fa7ea3453bda8fce2ce0bb4ebc7b693f3322113475c7567cc79",
+    "points": 112993,
+    "primitives": 112320,
+    "color_sha256": "dc7352a21e8ebc3de78ea2995b1c3d14f59dc08725a18c5e15726b3e7cb416e6"
+  },
+  "replay_check": null,
+  "version": "20.5.487",
+  "point_evidence": "a5bc3cc8eca14a3bb0c19f0bf7e8f0b3"
+}

@@ -61,3 +61,9 @@ def start():
         if pane:
             pane.curViewport().setCamera(hou.node("/obj/CAM"))
         hou.node("/obj/DIRECTION").setCurrent(True, clear_all_selected=True)
+    if hou.node("/obj/RAIN/ART_DIRECTION"):
+        pane = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
+        if pane:
+            pane.curViewport().setCamera(hou.node("/obj/CAM"))
+            pane.constructionPlane().setIsVisible(False)
+        hou.node("/obj/RAIN/ART_DIRECTION").setCurrent(True,clear_all_selected=True)

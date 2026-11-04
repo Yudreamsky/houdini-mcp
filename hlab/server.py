@@ -105,6 +105,8 @@ def evidence(key: str, variant: str = "", index: int = 0):
     if not 0 <= index < len(samples):
         raise ValueError("Image index outside the recorded range")
     sample = samples[index]
+    if "image_id" not in sample:
+        raise ValueError("This run recorded geometry only. Use knowledge(key) for its measured results.")
     return illustrated({"id":key,"variant":variant,**sample},viewport_image(sample))
 
 
@@ -128,9 +130,12 @@ def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[
                 continue
             run = card["details"]
             base = run["baseline"]
-            signatures.append((base["version"], base["node_type"], run["control"],
-                json.dumps(base["parameters"], sort_keys=True), base["metrics"]["scatter_sha256"],
-                tuple((s["actual"],s["frame"],s["metrics"]["output_sha256"]) for s in run["samples"])))
+            if "repeat_signature" in run:
+                signatures.append(json.dumps(run.get("series_signature",run["repeat_signature"]),sort_keys=True))
+            else:
+                signatures.append((base["version"], base["node_type"], run["control"],
+                    json.dumps(base["parameters"], sort_keys=True), base["metrics"]["scatter_sha256"],
+                    tuple((s["actual"],s["frame"],s["metrics"]["output_sha256"]) for s in run["samples"])))
         if len(signatures)<2 or len(set(signatures))!=1:
             raise ValueError("Link repeated runs of the same control, baseline, samples and results")
     if kind=="gap" and status=="resolved" and (not any(c["kind"]=="gap" for c in cards) or len(cards)<2):
@@ -158,6 +163,24 @@ def afterglow(action: str = "state", key: str = "", changes: dict[str,float] | N
         return illustrated(info,im)
     else:
         raise ValueError("Use state, revise, frame or clip")
+    return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
+
+
+@mcp.tool(structured_output=False)
+def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave_1",
+             control: str = "", values: list[float] | None = None, frame: int = 38,
+             renderer: str = "", topic: str = "", query: str = "", offset: int = 0,
+             limit: int = 8, key: str = "", changes: dict[str,float] | None = None,
+             witness: str = "", note: str = "", prediction: str = "", expect_change: bool | None = None):
+    """Inspect/nodes: paged discovery. Sweep a numeric SOP control with a prediction and optional Mantra images. Replay repeats an experiment; variant forks a scene_recipe; restore validates it; frame renders it."""
+    from .sop_lab import run,variant,render_frame
+    if action=="frame":
+        data=render_frame(hip,frame,renderer or "/out/RAIN_BEAUTY",key)
+        return illustrated(data,viewport_image(data))
+    if action in ("variant","restore"):
+        result=variant(action,hip,node,changes or {},witness,frame,topic,note,key)
+    else:
+        result=run(action,hip,node,control,values or [],frame,renderer,topic,query,offset,limit,key,prediction,expect_change)
     return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
 
 

@@ -1,0 +1,22 @@
+{
+  "prediction": "先有接触，再有局部波包；相交处叠加；后方逐步耗散。",
+  "evidence": {
+    "first_contact_frame": 10,
+    "first_drop_height_cm_frames_5_7_9": [
+      1.7565085887908936,
+      1.0613977909088135,
+      0.35627442598342896
+    ],
+    "group_speed_cm_per_playback_second": 2.352452048182526,
+    "front_radius_cm_at_20": 0.9801883534093858,
+    "max_displacement_beyond_front_cm": 0.0,
+    "overlap_points_at_38": 734,
+    "units": "centimetres, 24 fps, physical time factor 0.055"
+  },
+  "media": "examples/rain/before-after.mp4",
+  "sources": [
+    "7e5f70222caf4f21a6fd9256f10298cb",
+    "8ccababfaac34026b14b231eed30d537",
+    "d8fce16e314845209bf24d926d1c0be9"
+  ]
+}

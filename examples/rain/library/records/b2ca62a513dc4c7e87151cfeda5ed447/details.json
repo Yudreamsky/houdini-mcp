@@ -1,0 +1,235 @@
+{
+  "baseline": {
+    "node_type": "Sop/ripple::2.0",
+    "path": "/obj/RAIN/Wave_1",
+    "version": "20.5.487",
+    "value": 2.0,
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "frame": 38,
+    "metrics": {
+      "positions_sha256": "8db68824b03599123b1d9eb23deac4d893e9344a05d0c5f62cd93d81d4d5fc41",
+      "points": 112993,
+      "primitives": 112320,
+      "bbox_min": [
+        -6.5,
+        -0.04407778009772301,
+        -7.5
+      ],
+      "bbox_max": [
+        6.5,
+        0.03926962614059448,
+        7.5
+      ],
+      "rms_point_delta": 0.006571877282112837
+    }
+  },
+  "control": "seed",
+  "samples": [
+    {
+      "frame": 38,
+      "actual": 0.0,
+      "metrics": {
+        "positions_sha256": "c0bcacd0dcefe0ed916456c699492f58acbd603b60fa54fe1714b8aaa85513a2",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          -0.042315609753131866,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.037677742540836334,
+          7.5
+        ],
+        "rms_point_delta": 0.0065777236595749855
+      },
+      "replay_check": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "point_evidence": "b27e965f9f91462fa49ecf9d0ca201bb"
+    },
+    {
+      "frame": 38,
+      "actual": 999.0,
+      "metrics": {
+        "positions_sha256": "33a55971dd8bbe2334f44821ea2d20330b6a4d13ed7ca6d9dd8713b2a0e46118",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          -0.04347512871026993,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.038709864020347595,
+          7.5
+        ],
+        "rms_point_delta": 0.0065751937218010426
+      },
+      "replay_check": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "difference_from_first": {
+        "matched": false,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.02895154058933258,
+            "tolerance": 1.5e-06,
+            "matched": false
+          }
+        }
+      },
+      "point_evidence": "c746c18654b540c0978884e8278b49f6"
+    }
+  ],
+  "baseline_restored": true,
+  "request": {
+    "action": "sweep",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "seed",
+    "values": [
+      0,
+      999
+    ],
+    "frame": 38,
+    "renderer": "",
+    "topic": "water",
+    "query": "",
+    "offset": 0,
+    "limit": 8,
+    "prediction": "Control: fixed single centre and zero random source area. No displacement expected.",
+    "expect_change": false,
+    "hip": "rain"
+  },
+  "hip_sha256": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+  "repeat_signature": {
+    "hip": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "seed",
+    "frame": 38,
+    "version": "20.5.487",
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "result": [
+      [
+        0.0,
+        {
+          "positions_sha256": "c0bcacd0dcefe0ed916456c699492f58acbd603b60fa54fe1714b8aaa85513a2",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.042315609753131866,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.037677742540836334,
+            7.5
+          ],
+          "rms_point_delta": 0.0065777236595749855
+        }
+      ],
+      [
+        999.0,
+        {
+          "positions_sha256": "33a55971dd8bbe2334f44821ea2d20330b6a4d13ed7ca6d9dd8713b2a0e46118",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.04347512871026993,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.038709864020347595,
+            7.5
+          ],
+          "rms_point_delta": 0.0065751937218010426
+        }
+      ]
+    ]
+  },
+  "series_signature": {
+    "hip": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "seed",
+    "frame": 38,
+    "version": "20.5.487",
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "result": [
+      [
+        0.0,
+        {
+          "positions_sha256": "c0bcacd0dcefe0ed916456c699492f58acbd603b60fa54fe1714b8aaa85513a2",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.042315609753131866,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.037677742540836334,
+            7.5
+          ],
+          "rms_point_delta": 0.0065777236595749855
+        }
+      ],
+      [
+        999.0,
+        {
+          "positions_sha256": "33a55971dd8bbe2334f44821ea2d20330b6a4d13ed7ca6d9dd8713b2a0e46118",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.04347512871026993,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.038709864020347595,
+            7.5
+          ],
+          "rms_point_delta": 0.0065751937218010426
+        }
+      ]
+    ]
+  }
+}

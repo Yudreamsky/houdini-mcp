@@ -1,0 +1,12 @@
+{
+  "id": "dbf4cd04169444bb8c05ee7bf991641c",
+  "kind": "gap",
+  "title": "固定波心后换种子仍改变波形",
+  "topics": [
+    "water",
+    "ripple"
+  ],
+  "summary": "原先“源范围为零就没有变化”的预期已纠正，正例与零波高对照结果均已记录。",
+  "status": "resolved",
+  "parent": null
+}

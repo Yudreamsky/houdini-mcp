@@ -1,0 +1,12 @@
+{
+  "id": "b6802e2bc0a54eea975fa728f2f0af03",
+  "kind": "node",
+  "title": "Ripple 2.0 · 固定源时随机种子的实际作用",
+  "topics": [
+    "water",
+    "ripple"
+  ],
+  "summary": "Houdini 20.5.487，在第38帧、单一指定波心、源区域尺寸0、波高0.045 cm时，seed从0改999仍改变点高度（最大约0.02895 cm），水平坐标相同。重新打开工程后复现；波高设为零时差异消失。内部算法尚未验证。",
+  "status": "reproduced",
+  "parent": null
+}

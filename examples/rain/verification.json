@@ -1,0 +1,44 @@
+{
+  "version": "20.5.487",
+  "window": "90 frames, 24 fps",
+  "experiment": "7e5f70222caf4f21a6fd9256f10298cb",
+  "replay": "6ece67ddbc7c482bbc3b0b2c4ec9b9b7",
+  "parameter": "height",
+  "actual_samples": [
+    0.018,
+    0.045,
+    0.09
+  ],
+  "rms_indexed_point_delta_cm": [
+    0.0026287506334483624,
+    0.006571877282112837,
+    0.013143754564225674
+  ],
+  "node_resume": "8ccababfaac34026b14b231eed30d537",
+  "scene_recipe": "d8fce16e314845209bf24d926d1c0be9",
+  "wave_motion": {
+    "first_contact_frame": 10,
+    "first_drop_height_cm_frames_5_7_9": [
+      1.7565085887908936,
+      1.0613977909088135,
+      0.35627442598342896
+    ],
+    "group_speed_cm_per_playback_second": 2.352452048182526,
+    "front_radius_cm_at_20": 0.9801883534093858,
+    "max_displacement_beyond_front_cm": 0.0,
+    "overlap_points_at_38": 734,
+    "units": "centimetres, 24 fps, physical time factor 0.055"
+  },
+  "scene_reopened": true,
+  "physics_guide": "https://web.mit.edu/fluids-modules/waves/www/material/chap-3.pdf",
+  "case": "cec5b88fe5dc4465808ea88be14cbdbc",
+  "seed_prediction_test": {
+    "prediction_mismatch": "77e59811985e412f8e2ea8949709135f",
+    "original": "a6ee37257b5e40dd827008300c57c1e6",
+    "replay": "b2ca62a513dc4c7e87151cfeda5ed447",
+    "zero_scene": "805fcef6f96b4a42ae0e88a14be83fc5",
+    "null_run": "d57b3e1ae28e4efeba4c663798e7b75d",
+    "node_card": "b6802e2bc0a54eea975fa728f2f0af03",
+    "resolution": "dbf4cd04169444bb8c05ee7bf991641c"
+  }
+}

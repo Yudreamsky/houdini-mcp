@@ -1,0 +1,18 @@
+{
+  "file": "sample:rain/Rain-zero.hip",
+  "sha256": "f5e63de110596b5c04417e569b9466ad2b5375eb3c59c9d945efea87a9a48ad3",
+  "node": "/obj/RAIN/Wave_1",
+  "witness_path": "/obj/RAIN/Wave_1",
+  "frame": 38,
+  "controls": {
+    "height": 0.0
+  },
+  "witness": {
+    "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+    "points": 112993,
+    "primitives": 112320
+  },
+  "replay_check": null,
+  "version": "20.5.487",
+  "point_evidence": "27aa22afeda541509f885070b25ad26d"
+}

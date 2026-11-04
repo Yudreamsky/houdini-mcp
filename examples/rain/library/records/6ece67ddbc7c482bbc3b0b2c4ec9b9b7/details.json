@@ -1,0 +1,303 @@
+{
+  "baseline": {
+    "node_type": "Sop/ripple::2.0",
+    "path": "/obj/RAIN/Wave_1",
+    "version": "20.5.487",
+    "value": 0.045,
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "frame": 38,
+    "metrics": {
+      "positions_sha256": "1ed4df510ca4ba1eeab20f9893437b129f719ad665b36cd4ff999014da2ecc45",
+      "points": 112993,
+      "primitives": 112320,
+      "bbox_min": [
+        -6.5,
+        -0.04407778009772301,
+        -7.5
+      ],
+      "bbox_max": [
+        6.5,
+        0.03926962614059448,
+        7.5
+      ],
+      "rms_point_delta": 0.006571877282112837
+    }
+  },
+  "control": "height",
+  "samples": [
+    {
+      "frame": 38,
+      "actual": 0.018,
+      "metrics": {
+        "positions_sha256": "96ca52cc4d1d76188b08ed48e5999afdec6e038e25a8f77287b63d7e1fc6c51d",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          -0.017631109803915024,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.015707848593592644,
+          7.5
+        ],
+        "rms_point_delta": 0.0026287506334483624
+      },
+      "replay_check": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "point_evidence": "76a0f6c53df446e3a9a3bafb5811c7cd",
+      "image_id": "885921e8b8744372abe1e2ffa171c09e",
+      "sha256": "0e90b0168d1d680737393c63ef3bfef48c2653a29cd9c58347c4e9f5444f257a",
+      "renderer": "/out/RAIN_BEAUTY"
+    },
+    {
+      "frame": 38,
+      "actual": 0.045,
+      "metrics": {
+        "positions_sha256": "1ed4df510ca4ba1eeab20f9893437b129f719ad665b36cd4ff999014da2ecc45",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          -0.04407778009772301,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.03926962614059448,
+          7.5
+        ],
+        "rms_point_delta": 0.006571877282112837
+      },
+      "replay_check": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "point_evidence": "7a32289291634bc6b87653d954455653",
+      "image_id": "f058ebee8f634adea603ead04ca96b50",
+      "sha256": "12cc19bd93f065cb5d4c3697b6625a3b08dc05398ff6cc9a841c7cda2989cdb1",
+      "renderer": "/out/RAIN_BEAUTY"
+    },
+    {
+      "frame": 38,
+      "actual": 0.09,
+      "metrics": {
+        "positions_sha256": "68f0169747e217e1c5f764ce794112bce5a51c247985103f45cb02f065c0a297",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          -0.08815556019544601,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.07853925228118896,
+          7.5
+        ],
+        "rms_point_delta": 0.013143754564225674
+      },
+      "replay_check": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "point_evidence": "d03ebb71aaa64e30ab49ef68d66e5dfd",
+      "image_id": "be106dbe8f47493283832e3f656e31d9",
+      "sha256": "af5ba54072df65c8a9904247aea71c6e5f32aeeefc6ac6c445bbb682db6ee200",
+      "renderer": "/out/RAIN_BEAUTY"
+    }
+  ],
+  "baseline_restored": true,
+  "request": {
+    "action": "sweep",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "height",
+    "values": [
+      0.018,
+      0.045,
+      0.09
+    ],
+    "frame": 38,
+    "renderer": "/out/RAIN_BEAUTY",
+    "topic": "water",
+    "query": "",
+    "offset": 0,
+    "limit": 8,
+    "prediction": "复验预期：同一输入和帧，波高增大 2.5 倍再增大 2 倍，各点位移 RMS 应同比放大。",
+    "hip": "rain"
+  },
+  "hip_sha256": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+  "repeat_signature": {
+    "hip": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "height",
+    "frame": 38,
+    "version": "20.5.487",
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "result": [
+      [
+        0.018,
+        {
+          "positions_sha256": "96ca52cc4d1d76188b08ed48e5999afdec6e038e25a8f77287b63d7e1fc6c51d",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.017631109803915024,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.015707848593592644,
+            7.5
+          ],
+          "rms_point_delta": 0.0026287506334483624
+        }
+      ],
+      [
+        0.045,
+        {
+          "positions_sha256": "1ed4df510ca4ba1eeab20f9893437b129f719ad665b36cd4ff999014da2ecc45",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.04407778009772301,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.03926962614059448,
+            7.5
+          ],
+          "rms_point_delta": 0.006571877282112837
+        }
+      ],
+      [
+        0.09,
+        {
+          "positions_sha256": "68f0169747e217e1c5f764ce794112bce5a51c247985103f45cb02f065c0a297",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.08815556019544601,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.07853925228118896,
+            7.5
+          ],
+          "rms_point_delta": 0.013143754564225674
+        }
+      ]
+    ]
+  },
+  "series_signature": {
+    "hip": "4ca673cc958130a8e19be48c28b9c21c5ba2dc6255d393cc21571bb5d2d3ad31",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "height",
+    "frame": 38,
+    "version": "20.5.487",
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "result": [
+      [
+        0.018,
+        {
+          "positions_sha256": "96ca52cc4d1d76188b08ed48e5999afdec6e038e25a8f77287b63d7e1fc6c51d",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.017631109803915024,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.015707848593592644,
+            7.5
+          ],
+          "rms_point_delta": 0.0026287506334483624
+        }
+      ],
+      [
+        0.045,
+        {
+          "positions_sha256": "1ed4df510ca4ba1eeab20f9893437b129f719ad665b36cd4ff999014da2ecc45",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.04407778009772301,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.03926962614059448,
+            7.5
+          ],
+          "rms_point_delta": 0.006571877282112837
+        }
+      ],
+      [
+        0.09,
+        {
+          "positions_sha256": "68f0169747e217e1c5f764ce794112bce5a51c247985103f45cb02f065c0a297",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            -0.08815556019544601,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.07853925228118896,
+            7.5
+          ],
+          "rms_point_delta": 0.013143754564225674
+        }
+      ]
+    ]
+  }
+}

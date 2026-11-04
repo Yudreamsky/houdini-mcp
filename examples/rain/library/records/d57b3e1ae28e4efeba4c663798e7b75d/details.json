@@ -1,0 +1,163 @@
+{
+  "baseline": {
+    "node_type": "Sop/ripple::2.0",
+    "path": "/obj/RAIN/Wave_1",
+    "version": "20.5.487",
+    "value": 2.0,
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "frame": 38,
+    "metrics": {
+      "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+      "points": 112993,
+      "primitives": 112320,
+      "bbox_min": [
+        -6.5,
+        0.0,
+        -7.5
+      ],
+      "bbox_max": [
+        6.5,
+        0.0,
+        7.5
+      ],
+      "rms_point_delta": 0.0
+    }
+  },
+  "control": "seed",
+  "samples": [
+    {
+      "frame": 38,
+      "actual": 0.0,
+      "metrics": {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          0.0,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.0,
+          7.5
+        ],
+        "rms_point_delta": 0.0
+      },
+      "replay_check": null,
+      "point_evidence": "d82a0b890c7b4e30a4ea8017dffe2234"
+    },
+    {
+      "frame": 38,
+      "actual": 999.0,
+      "metrics": {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320,
+        "bbox_min": [
+          -6.5,
+          0.0,
+          -7.5
+        ],
+        "bbox_max": [
+          6.5,
+          0.0,
+          7.5
+        ],
+        "rms_point_delta": 0.0
+      },
+      "replay_check": null,
+      "difference_from_first": {
+        "matched": true,
+        "attributes": {
+          "P": {
+            "max_absolute_error": 0.0,
+            "tolerance": 1.5e-06,
+            "matched": true
+          }
+        }
+      },
+      "point_evidence": "855fb611bcde4ea692e779cab63767f5"
+    }
+  ],
+  "baseline_restored": true,
+  "request": {
+    "action": "sweep",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "seed",
+    "values": [
+      0,
+      999
+    ],
+    "frame": 38,
+    "renderer": "",
+    "topic": "water",
+    "query": "",
+    "offset": 0,
+    "limit": 8,
+    "prediction": "零波高时，种子不应改变这个节点的点坐标。",
+    "expect_change": false,
+    "hip": "sample:rain/Rain-zero.hip"
+  },
+  "hip_sha256": "f5e63de110596b5c04417e569b9466ad2b5375eb3c59c9d945efea87a9a48ad3",
+  "repeat_signature": {
+    "hip": "f5e63de110596b5c04417e569b9466ad2b5375eb3c59c9d945efea87a9a48ad3",
+    "node": "/obj/RAIN/Wave_1",
+    "control": "seed",
+    "frame": 38,
+    "version": "20.5.487",
+    "inputs": [
+      {
+        "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+        "points": 112993,
+        "primitives": 112320
+      }
+    ],
+    "result": [
+      [
+        0.0,
+        {
+          "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            0.0,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.0,
+            7.5
+          ],
+          "rms_point_delta": 0.0
+        }
+      ],
+      [
+        999.0,
+        {
+          "positions_sha256": "fa9573e05a0c5b78253f788e305a04472c2e3f80a6d2998dd43234cdf0d0b414",
+          "points": 112993,
+          "primitives": 112320,
+          "bbox_min": [
+            -6.5,
+            0.0,
+            -7.5
+          ],
+          "bbox_max": [
+            6.5,
+            0.0,
+            7.5
+          ],
+          "rms_point_delta": 0.0
+        }
+      ]
+    ]
+  }
+}

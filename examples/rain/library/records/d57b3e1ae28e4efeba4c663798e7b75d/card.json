@@ -1,0 +1,12 @@
+{
+  "id": "d57b3e1ae28e4efeba4c663798e7b75d",
+  "kind": "experiment",
+  "title": "Sop/ripple::2.0 / seed",
+  "topics": [
+    "water",
+    "ripple"
+  ],
+  "summary": "Frame 38; [0, 999]; measured point positions and bounds on /obj/RAIN/Wave_1.",
+  "status": "observed",
+  "parent": null
+}

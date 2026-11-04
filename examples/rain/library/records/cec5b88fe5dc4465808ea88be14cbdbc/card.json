@@ -1,0 +1,12 @@
+{
+  "id": "cec5b88fe5dc4465808ea88be14cbdbc",
+  "kind": "interaction",
+  "title": "雨滴落水 · 传播与交叠",
+  "topics": [
+    "water",
+    "ripple"
+  ],
+  "summary": "接触前没有水波。第20帧预测首个波包前沿半径约0.98 cm，在过渡带以外测得位移为零。第38帧有734个点同时受前两组波影响。",
+  "status": "observed",
+  "parent": null
+}
