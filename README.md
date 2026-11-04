@@ -2,7 +2,7 @@
 
 ## 给 Claude Code 接入
 
-在装有 Houdini 的 Windows 电脑上克隆本私有仓库。在仓库根目录的 PowerShell 执行以下命令。需要 Python 3.11 或更新版本，Houdini 的本机验证版本为 20.5.487。
+在装有 Houdini 的 Windows 电脑上克隆本仓库。在仓库根目录的 PowerShell 执行以下命令。需要 Python 3.11 或更新版本，Houdini 的本机验证版本为 20.5.487。
 
 ```powershell
 py -3.11 -m venv .venv
