@@ -19,3 +19,6 @@ packages = ["hlab"]
 
 [tool.setuptools.package-data]
 hlab = ["*.vfl"]
+
+[tool.setuptools.data-files]
+"share/houdini-research" = ["skills/houdini-research/references/topics.json"]

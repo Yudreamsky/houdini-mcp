@@ -3,6 +3,7 @@ import json
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -56,41 +57,33 @@ def sha(path):
         return hashlib.file_digest(data,"sha256").hexdigest()
 
 
+def created_now():
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def index_published(path):
+    from .knowledge_index import published
+    published(home(), path)
+
+
 def record(kind, title, topics, summary, details, parent=None, status="observed"):
     key = uid()
     path = home() / "records" / key
-    card = dict(id=key, kind=kind, title=title, topics=topics, summary=summary, status=status, parent=parent)
+    card = dict(id=key, kind=kind, title=title, topics=topics, summary=summary, status=status, parent=parent, created_at=created_now())
     write(path / "details.json", details)
     write(path / "card.json", card)
+    index_published(path / "card.json")
     return card
 
 
 def details(key):
-    folder = stored("records", ident(key))
-    card = read(folder / "card.json")
-    return {**card, "details": read(folder / "details.json")}
+    card = stored("records", ident(key), "card.json")
+    return {**read(card), "details": read(card.with_name("details.json"))}
 
 
 def search(topic="", kind="", limit=8, offset=0, status="", query=""):
     if not 1 <= limit <= 20 or offset < 0:
         raise ValueError("limit must be 1..20; offset must be nonnegative")
-    aliases = {"烟花":"fireworks","粒子":"particles","水":"water","火":"fire","散点":"scatter"}
-    word = aliases.get(topic.lower().strip(), topic.lower().strip())
-    cards = []
-    paths = {p.parent.name:p for root in bundled_libraries() for p in (root / "records").glob("*/card.json")}
-    paths.update({p.parent.name:p for p in (home() / "records").glob("*/card.json")})
-    for path in paths.values():
-        card = read(path)
-        if kind and card["kind"] != kind:
-            continue
-        if status and card["status"] != status:
-            continue
-        if query and query.casefold() not in (card["title"] + " " + card["summary"]).casefold():
-            continue
-        if word and word not in (s.lower() for s in card["topics"]) and word != card["id"]:
-            continue
-        cards.append((path.stat().st_mtime_ns, card))
-    cards.sort(key=lambda pair: (pair[0],pair[1]["id"]), reverse=True)
-    end = offset + limit
-    return {"total": len(cards), "next_offset":end if end < len(cards) else None,
-            "cards": [c for _, c in cards[offset:end]]}
+    from .knowledge_index import find
+    local = home()
+    return find(local, (local, *bundled_libraries()), topic, kind, limit, offset, status, query)

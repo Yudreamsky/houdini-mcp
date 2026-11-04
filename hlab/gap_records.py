@@ -5,7 +5,7 @@ import tempfile
 import unicodedata
 from pathlib import Path
 
-from .storage import details, home, ident, read, search, write
+from .storage import created_now, details, home, ident, index_published, read, search, write
 
 
 def fingerprint(*values):
@@ -17,7 +17,7 @@ def once(key, kind, title, topics, summary, data, parent, status):
     directory = home() / "records"
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / key
-    card = dict(id=key, kind=kind, title=title, topics=topics, summary=summary, parent=parent, status=status)
+    card = dict(id=key, kind=kind, title=title, topics=topics, summary=summary, parent=parent, status=status, created_at=created_now())
     if not target.exists():
         # Publish the pair together. Concurrent clients can both observe the same limitation.
         with tempfile.TemporaryDirectory(dir=directory.parent) as temp:
@@ -26,10 +26,12 @@ def once(key, kind, title, topics, summary, data, parent, status):
             write(staged / "card.json", card)
             try:
                 staged.rename(target)
-                return card, True
             except OSError:
                 if not (target / "card.json").is_file():
                     raise
+            else:
+                index_published(target / "card.json")
+                return card, True
     return read(target / "card.json"), False
 
 
