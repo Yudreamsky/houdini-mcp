@@ -82,7 +82,7 @@ def details(key):
 
 
 def search(topic="", kind="", limit=8, offset=0, status="", query=""):
-    if not 1 <= limit <= 20 or offset < 0:
+    if not 0 <= limit <= 20 or offset < 0:
         raise ValueError("limit must be 1..20; offset must be nonnegative")
     from .knowledge_index import find
     local = home()
