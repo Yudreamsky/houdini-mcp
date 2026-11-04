@@ -1,12 +1,13 @@
 ---
 name: houdini-research
-description: 在 Houdini 研发窗口比较节点参数、观察实际画面、保存手调配方或按效果检索实验经验。适用于使用 Houdini Research MCP 的节点实验和烟花选版。
+description: 使用 Houdini Research MCP 研究节点参数、根据运动规律诊断特效、比较烟花或雨滴涟漪的实际画面，以及保存和复现手调配方。
 ---
 
-先用 `knowledge(topic=目标)` 读卡片摘要，只展开本次用到的一两条 ID。检索支持 fireworks/烟花、particles/粒子、scatter/散点；water/水 和 fire/火 可保存经验，首版随附案例仅覆盖烟花。空结果保留未知。
+先按效果用 `knowledge(topic="水")` 或 `knowledge(topic="烟花")` 读摘要，再展开与当前问题相关的证据。空结果保留未知。
 
-- 研究节点、处理证据冲突、写数字简历时，读 [节点实验](references/node.md)。
+- 诊断火星减速、终端速度，或要把运动预期变成单参实验时，读 [力学推理与节点实验](references/node.md)。
+- 调雨滴落点、波纹传播或水环交叠，读 [水面案例索引](references/rain.md)。
 - 多版比较、手动调参和跨会话复用时，读 [选版与复现](references/recipe.md)。
 - 第二发照亮残烟、缩短余照或只回退某一部分时，读 [残烟镜头](references/afterglow.md)。
 
-只讨论迭代方法时直接讨论。做实验前用 `session` 确认独立窗口和实际起点。窗口未启动时，通过已注册的 houdini_research 命令找到 run_mcp.py，用同一 Python 单独运行它旁边的 launch.py；空窗口用 `session(initialize=true)` 搭建实验台。阶段画面用 `observe`，时间和节奏用 `motion`，旧证据用 `evidence`。默认只回传一张对照图。超出可观测范围时，用 `learn` 登记具体缺口。
+只讨论方法时直接讨论。已保存 HIP 的节点研究用 `node_lab`。操作原烟花实验台前用 `session` 确认窗口与起点；需要建台时单独运行注册服务旁的 launch.py，在空窗口用 `session(initialize=true)` 初始化。默认只回传当前判断需要的画面。
