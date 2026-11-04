@@ -165,7 +165,9 @@ def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[
     if kind=="gap" and status=="resolved":
         opened = [c for c in cards if c["kind"] == "gap" and c["status"] == "open"]
         original_evidence = {key for c in opened for key in c["details"].get("sources", [])}
+        unresolved = {c["details"]["capability"] for c in opened if "capability" in c["details"]}
         has_retest = any(c["id"] not in original_evidence and
+                         c["details"].get("gap_capability") not in unresolved and
                          c["kind"] not in {"gap", "preference", "gap_observation", "improvement"} for c in cards)
         if not opened or not has_retest:
             raise ValueError("Link the original open gap and separate retest evidence. A proposal is not a retest.")

@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .gap_records import experiment_capability, experiment_gap
 from .storage import details,example,home,read,record,sha,stored,uid,write
 
 
@@ -155,17 +156,17 @@ def run(action,hip,node,control,values,frame,renderer,topic,query,offset,limit,k
     title=f"{result['baseline']['node_type']} / {req['control']}"
     summary=f"Frame {req['frame']}; {req['values']}; measured point positions and bounds on {req['node']}."
     tags=[req["topic"].strip().lower(),result["baseline"]["node_type"].split("/")[-1].split("::")[0]]
-    card=record("experiment",title,tags,summary,result,old["id"] if old else None,status)
     first=result["samples"][0]["metrics"]
     identical_geometry=all(s["difference_from_first"]["matched"] and all(s["metrics"][k]==first[k] for k in ("points","primitives")) for s in result["samples"][1:])
     identical_images=len({s.get("pixel_sha256") for s in result["samples"]})==1
     changed=not (identical_geometry and identical_images)
     expected=req.get("expect_change")
     if (expected is None and not changed) or (expected is not None and expected!=changed):
-        gap=record("gap",title+" · check response",tags,
-                   "Observed change: "+str(changed)+". Check the prediction, activation conditions and selected output.",
-                   {"sources":[card["id"]]},status="open")
-        card["gap"]=gap["id"]
+        result["gap_capability"] = experiment_capability(result["baseline"]["node_type"], req["control"], expected)
+    card=record("experiment",title,tags,summary,result,old["id"] if old else None,status)
+    if "gap_capability" in result:
+        card.update(experiment_gap(card, result["gap_capability"], req["frame"], req["values"],
+                                   expected, changed, req.get("prediction", "")))
         card["review"] = "Check activation and the witness first. If a capability is missing, propose a change with improvement using this gap and experiment."
     return {**card,"samples":[{"actual":s["actual"],"metrics":s["metrics"]} for s in result["samples"]],
             "observed_change":changed,"verified_geometry_replay":match if old else None}

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import hou
 
+from .gap_records import experiment_capability, experiment_gap
 from .storage import details, home, ident, record, sha, stored, uid
 
 PRESETS = {
@@ -220,13 +221,13 @@ def sweep(control, samples, frame=36):
     title = f"{base['node_type'] if category == 'scatter' else 'TRAILS'} / {control}"
     points = [s["metrics"]["scatter_points"] for s in results]
     summary = f"Frame {frame}, tested {samples}, scatter point counts {points}."
-    card = record("experiment", title, [category,"particles","fireworks"], summary,
-                  {"baseline":base, "control":control, "samples":results, "baseline_restored":True})
+    evidence = {"baseline":base, "control":control, "samples":results, "baseline_restored":True}
     if len({s["metrics"]["output_sha256"] for s in results}) == 1:
-        gap = record("gap", "No observed output difference: " + control, [category,"fireworks"],
-                     f"Frame {frame} has identical geometry and color. Check activation conditions or sample another frame.",
-                     {"sources":[card["id"]]}, status="open")
-        card["gap"] = gap["id"]
+        node_type = parameter(control).node().type().nameWithCategory()
+        evidence["gap_capability"] = experiment_capability(node_type, control, expected=None)
+    card = record("experiment", title, [category,"particles","fireworks"], summary, evidence)
+    if "gap_capability" in evidence:
+        card.update(experiment_gap(card, evidence["gap_capability"], frame, samples, expected=None, changed=False))
         card["review"] = "Check the frame and control activation first. Use improvement if an experiment or tool change is justified."
     return card
 
