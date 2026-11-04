@@ -1,4 +1,0 @@
-interface:
-  display_name: "Houdini 资产工作流"
-  short_description: "通过 Houdini MCP 制作和核验程序化资产，复用实测建模经验"
-  default_prompt: "使用 $houdini-asset-workflow 制作一个可复用样段，并核验参数联动、多视图与保存重开。"
