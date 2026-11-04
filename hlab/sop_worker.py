@@ -174,4 +174,6 @@ if __name__=="__main__":
         result={"ok":work(json.loads((folder/"request.json").read_text(encoding="utf8")),folder)}
     except Exception as exc:
         result={"error":f"{type(exc).__name__}: {exc}"}
+        if hasattr(exc, "gap_hint"):
+            result["gap_hint"] = exc.gap_hint
     (folder/"reply.json").write_text(json.dumps(result,allow_nan=False),encoding="utf8")

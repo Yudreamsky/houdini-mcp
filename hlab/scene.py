@@ -227,6 +227,7 @@ def sweep(control, samples, frame=36):
                      f"Frame {frame} has identical geometry and color. Check activation conditions or sample another frame.",
                      {"sources":[card["id"]]}, status="open")
         card["gap"] = gap["id"]
+        card["review"] = "Check the frame and control activation first. Use improvement if an experiment or tool change is justified."
     return card
 
 

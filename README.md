@@ -23,6 +23,14 @@ claude mcp get houdini-research
 
 查机械案例用 `knowledge(topic="mechanical-animation", kind="mechanism_test")`，取回卡片后按 ID 展开证据。仓库附有[四个可编辑机械工程和演示](examples/mechanisms)、[实测数据](examples/mechanisms/verification.json)及[渐进式经验 Skill](skills/houdini-research/SKILL.md)。
 
+### 让 Claude 在施工中发现缺口
+
+遇到已有工具不能表达的操作、临时脚本绕行，或单参实验与预测矛盾，先检查相关工具及证据。已有父级的 OBJ 再次交给 `mechanical_rig` 时，MCP 会在错误中附上缺口 ID 和本次观察 ID，保存可重放的参数。节点实验也可返回缺口 ID。接点错位或尺寸超限等正常拒绝，应先修正场景。
+
+没有自动返回 ID 时，用 `knowledge(kind="gap", query=能力关键词)` 查重，再用 `improvement` 的 `request.action="report"` 记录稳定的能力键、主题、预期、实测和最短复现步骤。`signal` 可选 `missing_operation`、`workaround`、`unexplained_result`。同一能力键复用同一缺口 ID，不同复现场景分别保存观察。确认需要改进时，用 `request.action="propose"` 传 `gap`、最小改动 `change`、可判断成败的复测 `acceptance`，以及已有的证据 ID 列表 `sources`。
+
+建议保存在本机经验库。下次用 `knowledge(kind="improvement", status="proposed")` 查摘要，按 ID 展开验收条件。修复后用原例重测，拿到独立证据再用 `learn(kind="gap", status="resolved", ...)` 关联。向 GitHub 提交议题或补丁由使用者单独决定。
+
 ### 跟踪一项正在运行的解算或 XPU 渲染
 
 `fx_watch(action="register",manifest=清单绝对路径)` 登记本机作业并返回 job ID。用 `status` 查每阶段的实际帧数，用 `wait` 传入上次的 cursor 等待变化（单次最长 45 秒），重新连接后用相同 ID 继续。XPU 阶段需要日志中出现 Saved Image 且输出文件存在并非空；若有 receipt，会同时检查退出码。渲染剩余时间是该阶段最近已写帧间隔的估计。指定 events 后可按部件名查询真实断裂帧与相对于触顶的时间。

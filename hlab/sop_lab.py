@@ -36,6 +36,11 @@ def worker(req,job):
     subprocess.run([str(hython),str(Path(__file__).with_name("sop_worker.py")),str(job)],
                    stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,check=True,env=dict(os.environ,HOUDINI_MAXTHREADS="8"))
     reply=read(job/"reply.json")
+    if "gap_hint" in reply:
+        from .improvements import native_gap
+        receipt = native_gap(reply["gap_hint"], req, reply["error"])
+        raise ValueError(f"{reply['error']} | Capability gap {receipt['gap']}, observation {receipt['observation']}. "
+                         "Inspect with knowledge(key), then use improvement to propose a change and retest.")
     if "error" in reply: raise ValueError(reply["error"])
     return reply["ok"]
 
@@ -161,5 +166,6 @@ def run(action,hip,node,control,values,frame,renderer,topic,query,offset,limit,k
                    "Observed change: "+str(changed)+". Check the prediction, activation conditions and selected output.",
                    {"sources":[card["id"]]},status="open")
         card["gap"]=gap["id"]
+        card["review"] = "Check activation and the witness first. If a capability is missing, propose a change with improvement using this gap and experiment."
     return {**card,"samples":[{"actual":s["actual"],"metrics":s["metrics"]} for s in result["samples"]],
             "observed_change":changed,"verified_geometry_replay":match if old else None}

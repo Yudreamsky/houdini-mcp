@@ -5,11 +5,16 @@ from mcp.types import TextContent
 
 from .bridge import call
 from .media import png, sheet, viewport_image
+from .improvements import GapReport, Proposal
 from .mechanical_rig import Joint
 from .mechanisms import FourBar, Reeving, Transfer
 from .storage import details, home, ident, record, search, sha, uid
 
-mcp = FastMCP("Houdini Research", instructions="Start with session or knowledge. Execute scene operations in the dedicated research window. Evidence is opt-in.")
+mcp = FastMCP("Houdini Research", instructions=(
+    "Start with session or knowledge. Use the dedicated research window for live edits. For an unsupported operation, a manual workaround, or an unexplained "
+    "mismatch, inspect the relevant tools and evidence. Report a reproducible limitation using improvement, "
+    "reuse any gap ID already returned, and propose the smallest change with a pass/fail retest. "
+    "A correctly rejected scene is feedback on the scene. Show proposals to the user."))
 
 
 def illustrated(data, im):
@@ -121,6 +126,15 @@ def evidence(key: str, variant: str = "", index: int = 0):
 
 
 @mcp.tool()
+def improvement(request: GapReport | Proposal) -> dict:
+    """Report an observed gap or workaround with expected/observed behaviour and reproduction. Reuse a stable
+    capability key after searching knowledge. Propose a minimal improvement and pass/fail retest for a gap ID.
+    Proposals are local, searchable drafts. A proposal alone cannot resolve a gap."""
+    from .improvements import propose, report
+    return report(request) if isinstance(request, GapReport) else propose(request)
+
+
+@mcp.tool()
 def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[str],
           status: str = "observed") -> dict:
     """Attach a gap, project preference, node résumé or reuse outcome to existing evidence; preserve earlier records."""
@@ -148,8 +162,13 @@ def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[
                     tuple((s["actual"],s["frame"],s["metrics"]["output_sha256"]) for s in run["samples"])))
         if len(signatures)<2 or len(set(signatures))!=1:
             raise ValueError("Link repeated runs of the same control, baseline, samples and results")
-    if kind=="gap" and status=="resolved" and (not any(c["kind"]=="gap" for c in cards) or len(cards)<2):
-        raise ValueError("Link the original gap and the evidence that resolved it")
+    if kind=="gap" and status=="resolved":
+        opened = [c for c in cards if c["kind"] == "gap" and c["status"] == "open"]
+        original_evidence = {key for c in opened for key in c["details"].get("sources", [])}
+        has_retest = any(c["id"] not in original_evidence and
+                         c["kind"] not in {"gap", "preference", "gap_observation", "improvement"} for c in cards)
+        if not opened or not has_retest:
+            raise ValueError("Link the original open gap and separate retest evidence. A proposal is not a retest.")
     return record(kind,title[:120],[tag.strip().lower()[:48] for tag in topics],summary[:700],
                   {"sources":[c["id"] for c in cards]},status=status)
 

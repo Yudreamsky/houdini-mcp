@@ -44,7 +44,11 @@ def build(req):
         if joint["parent"] and part.parent() != parts[joint["parent"]].parent():
             raise ValueError(f"A parent and child must share an OBJ network: {path}")
         if part.input(0) is not None:
-            raise ValueError(f"Part already has a transform parent: {path}")
+            error = ValueError(f"Part already has a transform parent: {path} -> {part.input(0).path()}")
+            error.gap_hint = dict(capability="rig.extend-parented-obj", topic="mechanical-animation",
+                                  expected="Add a joint to a geometry OBJ while preserving its existing transform parent.",
+                                  reproduce="Call mechanical_rig on an already-parented geometry OBJ. Replay arguments are attached.")
+            raise error
         channels = [p for name in ("t", "r", "s", "p", "pr", "scale", "xOrd", "rOrd")
                     for p in (part.parmTuple(name) or ()) if p.keyframes()]
         if channels and not req["replace_motion"]:
