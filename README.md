@@ -1,5 +1,7 @@
 # Houdini Research MCP
 
+这个项目让创作者用自然语言和 AI 一起在 Houdini 里做镜头。Houdini 提供可观察的画面和可测量的工程，Skill 帮助 AI 按需找到相关经验。遇到拿不准的节点，做对照实验；遇到现有工具做不到的操作，留下能重做的案例，推动下一次改进。[设计理念](DESIGN.md)
+
 ## 给 Claude Code 接入
 
 在装有 Houdini 的 Windows 电脑上克隆本仓库。在仓库根目录的 PowerShell 执行以下命令。需要 Python 3.11 或更新版本，Houdini 的本机验证版本为 20.5.487。
