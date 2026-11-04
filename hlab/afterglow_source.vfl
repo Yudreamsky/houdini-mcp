@@ -1,0 +1,15 @@
+// Only the first burst emits soot. The second burst cannot change this cache.
+int i=@ptnum;
+vector d=normalize(@P);
+vector center=set(-1.35,.68,0);
+float t=(@Frame-11)/24.0;
+if (t<0 || t>.87 || i%3!=0) { removepoint(0,@ptnum); }
+else {
+    float r=4.2*(1-exp(-1.15*t))/1.15;
+    @P=center+d*r+set(0,-2.9*t*t*.5,0);
+    @P+=.06*curlnoise(d*4+set(t,t,0));
+    f@pscale=fit01(rand(i+4.2),.17,.32)+.10*(1-smooth(0,.32,t));
+    f@density=fit01(rand(i+2.7),4,11)*(1-.65*t);
+    f@temperature=.8+.4*rand(i+3);
+    v@v=.43*d*4.2*exp(-1.15*t)+set(.45,.24,0);
+}

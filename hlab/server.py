@@ -143,5 +143,23 @@ def main():
     mcp.run()
 
 
+@mcp.tool(structured_output=False)
+def afterglow(action: str = "state", key: str = "", changes: dict[str,float] | None = None,
+              smoke_from: str = "", flash_from: str = "", note: str = "", frame: int = 53,
+              start: int = 47, end: int = 62):
+    """Residual smoke shot: state reads live knobs; revise saves a candidate with optional smoke_from or flash_from; frame or clip renders in Mantra. Controls: smoke density scale, flash gain, duration in frames."""
+    from . import afterglow as shot
+    if action=="state":
+        result={"live":shot.live(),"current":shot.current(),"bounds":shot.LIMITS}
+    elif action=="revise":
+        result=shot.revise(changes or {},note,key,smoke_from,flash_from)
+    elif action in ("frame","clip"):
+        info,im=shot.take(key,frame,frame) if action=="frame" else shot.take(key,start,end,draft=True)
+        return illustrated(info,im)
+    else:
+        raise ValueError("Use state, revise, frame or clip")
+    return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
+
+
 if __name__ == "__main__":
     main()

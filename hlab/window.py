@@ -22,7 +22,7 @@ def active(directory):
     return None
 
 
-def ensure(directory=None, executable=None):
+def ensure(directory=None, executable=None, hip=None):
     directory = Path(directory or home()).resolve()
     directory.mkdir(parents=True,exist_ok=True)
     deadline = time.monotonic()+80
@@ -44,7 +44,8 @@ def ensure(directory=None, executable=None):
         env["HOUDINI_PATH"] = str(root/"houdini") + os.pathsep + (env.get("HOUDINI_PATH") or "&")
         executable = executable or env.get("HOUDINI_EXE", r"C:\Program Files\Side Effects Software\Houdini 20.5.487\bin\houdini.exe")
         # The visible GUI must not retain the MCP stdio pipes when the client disconnects.
-        process = subprocess.Popen([executable],env=env,cwd=root,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        command = [executable, str(hip)] if hip else [executable]
+        process = subprocess.Popen(command,env=env,cwd=root,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         while time.monotonic()<deadline:
             existing = active(directory)
             if existing and existing["pid"]==process.pid:

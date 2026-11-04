@@ -4,8 +4,12 @@ from .window import active
 
 
 def call(op, **args):
-    root = home() / "bridge"
-    session = active(home())
+    return call_in(home(), op, **args)
+
+
+def call_in(directory, op, **args):
+    root = directory / "bridge"
+    session = active(directory)
     if not session:
         raise RuntimeError("Start launch.py separately, then call session(initialize=true)")
     key = uid()

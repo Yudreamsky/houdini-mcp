@@ -56,3 +56,8 @@ def start():
                 busy = False
 
     hou.ui.addEventLoopCallback(step)
+    if hou.node("/obj/RESIDUAL_SMOKE/First_burst_cache"):
+        pane = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
+        if pane:
+            pane.curViewport().setCamera(hou.node("/obj/CAM"))
+        hou.node("/obj/DIRECTION").setCurrent(True, clear_all_selected=True)

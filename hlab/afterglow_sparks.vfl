@@ -1,0 +1,47 @@
+// Point wrangle on the master Scatter. All versions reuse the same spatial tracks.
+int i = @ptnum;
+vector d = normalize(@P);
+int seed = i + 173 * chi("burst");
+int second = chi("burst");
+float start = second ? 49 : 11;
+float age = (@Frame-start)/24.0;
+vector center = second ? set(.48, .95, .65) : set(-1.35, .68, 0);
+float speed = second ? fit01(rand(seed+1.4),2.9,4.7) : 4.2;
+float drag = second ? 1.6 : 1.15;
+float gravity = second ? 1.55 : 2.9;
+float tail = second ? .25 : .65;
+float life = second ? fit01(rand(seed+8.1),.63,1.22) : fit01(rand(seed+8.1),1.20,1.76);
+float hue = rand(seed+2.3);
+vector warm = second ? lerp(set(1,.28,.095),set(1,.72,.37),hue) : lerp(set(1,.44,.12),set(1,.82,.48),hue);
+if (age < 0 && age > -.45 && i==0) {
+    int prim = addprim(0,"polyline");
+    for (int j=0;j<7;j++) {
+        float w=j/6.0;
+        int p=addpoint(0,center+set(.02*sin(age*19),age*7-(1-w)*.52,0));
+        setpointattrib(0,"Cd",p,warm*(.15+3*w*w),"set");
+        setpointattrib(0,"width",p,.005+.008*w,"set");
+        addvertex(0,prim,p);
+    }
+}
+if (age>=0 && age<life) {
+    int prim = addprim(0,"polyline");
+    for (int j=0;j<16;j++) {
+        float w=j/15.0;
+        float t=max(.0001,age-tail*(1-w));
+        float r=speed*(1-exp(-drag*t))/drag;
+        vector loc=center+d*r+set(0,-gravity*t*t*.5,0);
+        float fade=1-smooth(life-.33,life,age);
+        float flicker=.75+.25*sin(i*3.4+age*(10+rand(seed)*12));
+        int samples[] = array(4,19,42,75);
+        int slot = find(samples,i);
+        if (second && slot>=0 && j==15) {
+            setdetailattrib(0,sprintf("tip%d",slot),loc,"set");
+            setdetailattrib(0,sprintf("power%d",slot),fade*flicker,"set");
+        }
+        int p=addpoint(0,loc);
+        setpointattrib(0,"Cd",p,warm*(.12+4.2*pow(w,2.4))*fade*flicker,"set");
+        setpointattrib(0,"width",p,fit01(rand(seed+4.3),.006,.019)*(.38+w*.9),"set");
+        addvertex(0,prim,p);
+    }
+}
+removepoint(0,@ptnum);

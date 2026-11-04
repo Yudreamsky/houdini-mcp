@@ -4,12 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "houdini-research-mcp"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.11"
 dependencies = ["mcp>=1.26,<2", "Pillow>=10"]
+
+[project.optional-dependencies]
+afterglow = ["numpy>=1.26", "opencv-python-headless>=4.10,<5"]
 
 [project.scripts]
 houdini-research = "hlab.server:main"
 
 [tool.setuptools]
 packages = ["hlab"]
+
+[tool.setuptools.package-data]
+hlab = ["*.vfl"]

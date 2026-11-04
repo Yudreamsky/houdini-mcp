@@ -320,5 +320,17 @@ def replay(key):
         raise
 
 
-ACTIONS = {"initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
+def afterglow_live(changes=None, frame=None):
+    ctrl = hou.node("/obj/DIRECTION")
+    if not ctrl or not hou.node("/obj/RESIDUAL_SMOKE/First_burst_cache"):
+        raise RuntimeError("Open the Afterglow shot window")
+    if changes:
+        ctrl.setParms(changes)
+    if frame is not None:
+        hou.setFrame(frame)
+    return {"controls":{p:ctrl.evalParm(p) for p in ("smoke","flash","duration")}, "frame":hou.frame(),
+            "hip":hou.hipFile.path(), "pid":os.getpid()}
+
+
+ACTIONS = {"afterglow_live":afterglow_live, "initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
            "sweep":sweep, "compare":compare, "motion":motion, "checkpoint":checkpoint, "replay":replay}

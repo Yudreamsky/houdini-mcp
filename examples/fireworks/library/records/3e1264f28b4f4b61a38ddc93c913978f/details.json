@@ -1,0 +1,14 @@
+{
+  "frames": [
+    48,
+    49,
+    53,
+    61,
+    74,
+    79
+  ],
+  "source": "examples/afterglow/verification.json",
+  "comparison": "examples/afterglow/illumination-ab.mp4",
+  "scope": "Houdini 20.5.487，当前缓存及机位，Mantra。",
+  "cache_sha256": "2723870d5ace0376a8fc8172fae2859119c18ea7670a5ea4bcbad916771e8ff2"
+}

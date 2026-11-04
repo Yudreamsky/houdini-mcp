@@ -1,0 +1,15 @@
+{
+  "id": "3e1264f28b4f4b61a38ddc93c913978f",
+  "kind": "interaction",
+  "title": "第二发烟花照亮第一发残烟",
+  "topics": [
+    "afterglow",
+    "fireworks",
+    "smoke",
+    "lighting",
+    "pyro"
+  ],
+  "summary": "同一份第一发烟缓存，第48帧开关二发照明像素一致。第49帧起，爆心和四个真实火星位置的采样光照亮残烟。局部可分别回退烟的渲染密度和二发余照。",
+  "status": "observed",
+  "parent": null
+}

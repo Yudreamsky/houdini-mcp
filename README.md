@@ -1,6 +1,16 @@
 # Houdini Research MCP
 
-从零实现的本地 Windows 研发工具。一个可见 Houdini 窗口负责执行与截图，独立 MCP 进程负责返回图像、比较和查询本地经验证据。已支持的实验台为 Houdini FX 20.5.487、Scatter 2.0 和程序化烟花轨迹。Pyro、FLIP、任意节点自动扫参与商业渲染尚待后续实验。
+本地 Windows 研发工具。独立 Houdini 窗口负责交互，MCP 返回图像并保存实验经验。支持 Houdini FX 20.5.487 的 Scatter 节点实验、程序化烟花轨迹，以及一组 Pyro 残烟与 Mantra 照明交互镜头。
+
+## 第二发照亮残烟
+
+安装 `pip install -e ".[afterglow]"`。在本机使用已烘焙的项目时执行 `python launch.py --shot afterglow`。全新机器可先在仓库根目录执行以下 PowerShell 命令生成 HIP 和逐帧烟缓存。
+
+```powershell
+& 'C:/Program Files/Side Effects Software/Houdini 20.5.487/bin/hython.exe' hlab/afterglow_build.py "$env:USERPROFILE/.houdini-research/shots/afterglow"
+```
+
+第 11 帧柳枝起爆，第 49 帧第二发点亮残烟。缓存只含第一发产生的烟，Mantra 通过爆心及四个随火星移动的点光源照亮体积。镜头目录中的 `Afterglow.hip` 通过 `$HIP/cache` 引用缓存，可整体复制。DIRECTION 节点提供烟密度、二发光强和余照衰减时间。工作方法见 [残烟镜头](skills/houdini-research/references/afterglow.md)。
 
 ## 启动
 
