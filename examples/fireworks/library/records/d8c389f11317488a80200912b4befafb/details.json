@@ -1,0 +1,348 @@
+{
+  "baseline": {
+    "path": "/obj/HoudiniResearch",
+    "version": "20.5.487",
+    "fixture": "fireworks-curves/1",
+    "pid": 268212,
+    "frame": 36.0,
+    "node_type": "Sop/scatter::2.0",
+    "parameters": {
+      "npts": 96,
+      "seed": 17.0,
+      "relaxiterations": 10,
+      "burst_frame": 18,
+      "speed": 4.2,
+      "drag": 1.15,
+      "gravity": 2.9,
+      "trail": 0.65,
+      "second_delay": 0.0,
+      "tint": 0.9
+    },
+    "metrics": {
+      "scatter_points": 96,
+      "output_primitives": 576,
+      "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+      "output_sha256": "9f609e5a29975403140b5e3705dc7b9803cc18be3fb9a87de110a9f7c7a7d57d"
+    }
+  },
+  "candidates": {
+    "A": {
+      "parameters": {
+        "npts": 96,
+        "seed": 17.0,
+        "relaxiterations": 10,
+        "burst_frame": 18,
+        "speed": 4.6,
+        "drag": 1.6,
+        "gravity": 1.0,
+        "trail": 0.24,
+        "second_delay": 0.0,
+        "tint": 0.28
+      },
+      "samples": [
+        {
+          "image_id": "182c129f433d488486e01d3fcc3722eb",
+          "sha256": "f0bc4d626f04bec0b52ea99a32d4c2aa2271c18357a058163b84cf5e122dcecf",
+          "frame": 24,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "10fc843a399466c05437c90d539d94407e5511a7871c75a8693b5c0a1e8e7c1d"
+          }
+        },
+        {
+          "image_id": "de67ac6bc74c4c6fb16c77e9a5e4ce41",
+          "sha256": "bfbec2d8e99a75a92026dad887fa7a81bed7556fcfd4d7ad226538fabf85deb1",
+          "frame": 36,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "a1dd2a0126564760b2a13f96937f7b475979ead1a2c980649bff3aa233833a37"
+          }
+        },
+        {
+          "image_id": "91e66a3420bb4bbd8f21f05bebfcbaa0",
+          "sha256": "74168fdec89b378db83eb907ba00941b68a4f3de9a9dfe175d759f11632ed09f",
+          "frame": 47,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "d56089a639390dbea6873a9821bba2fab7890bbac09ab5df92677261e3ee1e9d"
+          }
+        }
+      ]
+    },
+    "B": {
+      "parameters": {
+        "npts": 96,
+        "seed": 17.0,
+        "relaxiterations": 10,
+        "burst_frame": 18,
+        "speed": 4.2,
+        "drag": 1.15,
+        "gravity": 2.9,
+        "trail": 0.65,
+        "second_delay": 0.0,
+        "tint": 0.9
+      },
+      "samples": [
+        {
+          "image_id": "771bc44091234af0a0d5ca6ecb8dc87b",
+          "sha256": "c42791817942b46bbaf73acfbd8884dbe779217650ea3900c247439c6b363aad",
+          "frame": 24,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "c224dbf5c97e2eb0a179af3ae0735bc35ece901eb27f5aa181f3d1bde322b8c2"
+          }
+        },
+        {
+          "image_id": "429fe6de480542bf9e25746f6d3aa893",
+          "sha256": "c4df3103310f938a6dd7599e14e588fa20eecbf4279e936049ec67860b99a560",
+          "frame": 36,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "9f609e5a29975403140b5e3705dc7b9803cc18be3fb9a87de110a9f7c7a7d57d"
+          }
+        },
+        {
+          "image_id": "10734d704a29490695ed0d0616c78a23",
+          "sha256": "9a283fb3fe70480cd6779d54121496a71db9e75f3e15c0d66eb10ba0cc136e1b",
+          "frame": 47,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "1d1421c9eb76068dc4af11ee012e40afd2d058323c3d67d03da91b2919aca162"
+          }
+        }
+      ]
+    },
+    "C": {
+      "parameters": {
+        "npts": 96,
+        "seed": 17.0,
+        "relaxiterations": 10,
+        "burst_frame": 18,
+        "speed": 4.4,
+        "drag": 1.45,
+        "gravity": 1.7,
+        "trail": 0.37,
+        "second_delay": 0.52,
+        "tint": 0.45
+      },
+      "samples": [
+        {
+          "image_id": "e205336f9631491facc9f8fd0c00cfe9",
+          "sha256": "bb15f91f1a7c24e8783c5daf4e2ddfe28553e291e06d5eb474085188e9efb6ed",
+          "frame": 24,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 576,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "1cc80bc7c83ee7beb6e04fa9cabc121026959d77a8d556e3ce74c14d152453ea"
+          }
+        },
+        {
+          "image_id": "83a5fded56e34baf958e77141e2fb19f",
+          "sha256": "71ffa9276ea33828874a9625fc856ac14fc4c94aa7b165df608f539f67c2adc6",
+          "frame": 36,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 864,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "31509e7ebb89f0f6e1871c73912101c6aeb1ade435dbe943cc729e6565498e39"
+          }
+        },
+        {
+          "image_id": "c1b4d34086f6469f89596489907fa946",
+          "sha256": "8b1d6a4639ac5c9137b08840fa2493a4586c9650f00b4a611b29be3b55911c26",
+          "frame": 47,
+          "camera": "/obj/ResearchCamera",
+          "view_transform": [
+            1.0,
+            0.0,
+            -0.0,
+            0.0,
+            -0.0,
+            1.0,
+            -0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            -0.65,
+            17.0,
+            1.0
+          ],
+          "metrics": {
+            "scatter_points": 96,
+            "output_primitives": 864,
+            "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+            "output_sha256": "3fc3090e9693fc4fea925b37b4fa23b4b8bbd1121674a23ec1760e6ea7296932"
+          }
+        }
+      ]
+    }
+  }
+}

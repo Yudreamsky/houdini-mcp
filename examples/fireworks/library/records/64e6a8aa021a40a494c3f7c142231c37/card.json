@@ -1,0 +1,12 @@
+{
+  "id": "64e6a8aa021a40a494c3f7c142231c37",
+  "kind": "recipe",
+  "title": "QA · 柳枝与延迟分叉",
+  "topics": [
+    "particles",
+    "fireworks"
+  ],
+  "summary": "研发基线，参数由验收程序设置，尚待人工选版。",
+  "status": "test",
+  "parent": null
+}

@@ -1,0 +1,12 @@
+{
+  "id": "d8c389f11317488a80200912b4befafb",
+  "kind": "comparison",
+  "title": "Fireworks A/B/C",
+  "topics": [
+    "fireworks",
+    "particles"
+  ],
+  "summary": "Same camera and frames [24, 36, 47].",
+  "status": "observed",
+  "parent": null
+}

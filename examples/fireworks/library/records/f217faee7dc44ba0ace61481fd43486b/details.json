@@ -1,0 +1,125 @@
+{
+  "baseline": {
+    "path": "/obj/HoudiniResearch",
+    "version": "20.5.487",
+    "fixture": "fireworks-curves/1",
+    "pid": 268212,
+    "frame": 36.0,
+    "node_type": "Sop/scatter::2.0",
+    "parameters": {
+      "npts": 96,
+      "seed": 17.0,
+      "relaxiterations": 10,
+      "burst_frame": 18,
+      "speed": 4.2,
+      "drag": 1.15,
+      "gravity": 2.9,
+      "trail": 0.65,
+      "second_delay": 0.0,
+      "tint": 0.9
+    },
+    "metrics": {
+      "scatter_points": 96,
+      "output_primitives": 576,
+      "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+      "output_sha256": "9f609e5a29975403140b5e3705dc7b9803cc18be3fb9a87de110a9f7c7a7d57d"
+    }
+  },
+  "control": "seed",
+  "samples": [
+    {
+      "image_id": "aebd6541a42f4eeb8569d7957049cc75",
+      "sha256": "fa0737230cab2f52f2ef0d16c2de1735bab8bb6d057139a6dc216543a1d9d12c",
+      "frame": 36,
+      "camera": "/obj/ResearchCamera",
+      "view_transform": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -0.65,
+        17.0,
+        1.0
+      ],
+      "metrics": {
+        "scatter_points": 96,
+        "output_primitives": 576,
+        "scatter_sha256": "6138dda7594b2a3981c3c00821ff852cfe209154cc6a48cb38dfb3d516705bc0",
+        "output_sha256": "75545573d1b39f1d2fec71f79c96f291e88eeb1737fc6d2b1ce54fa846522889"
+      },
+      "actual": 1.0
+    },
+    {
+      "image_id": "731a51d94cd74251a4aa76e4523e010c",
+      "sha256": "f0e503d63f33752ecd0c36ae3c8d1d62755b0839531a8d961e3033e2bdef7f20",
+      "frame": 36,
+      "camera": "/obj/ResearchCamera",
+      "view_transform": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -0.65,
+        17.0,
+        1.0
+      ],
+      "metrics": {
+        "scatter_points": 96,
+        "output_primitives": 576,
+        "scatter_sha256": "0862e7e77598daafa9e6889d937cf97a4266019b4fb4c9c2ba807e23ebc3b7df",
+        "output_sha256": "00844cb8712e90a986d8d760e54e084516f287371769a9e2e582b122b9fcd46c"
+      },
+      "actual": 7.0
+    },
+    {
+      "image_id": "a802c6c78426412baa802272d6c84973",
+      "sha256": "c4df3103310f938a6dd7599e14e588fa20eecbf4279e936049ec67860b99a560",
+      "frame": 36,
+      "camera": "/obj/ResearchCamera",
+      "view_transform": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -0.65,
+        17.0,
+        1.0
+      ],
+      "metrics": {
+        "scatter_points": 96,
+        "output_primitives": 576,
+        "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+        "output_sha256": "9f609e5a29975403140b5e3705dc7b9803cc18be3fb9a87de110a9f7c7a7d57d"
+      },
+      "actual": 17.0
+    }
+  ],
+  "baseline_restored": true
+}

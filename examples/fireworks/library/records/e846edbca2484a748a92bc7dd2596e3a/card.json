@@ -1,0 +1,13 @@
+{
+  "id": "e846edbca2484a748a92bc7dd2596e3a",
+  "kind": "node",
+  "title": "Scatter 2.0 · npts",
+  "topics": [
+    "scatter",
+    "fireworks",
+    "particles"
+  ],
+  "summary": "Houdini 20.5.487，球面输入、固定种子、强制总数开启。两轮 npts=32/96/192 的实际点数分别为 32/96/192。仅限该输入。",
+  "status": "reproduced",
+  "parent": null
+}

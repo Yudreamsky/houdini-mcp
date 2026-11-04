@@ -1,0 +1,13 @@
+{
+  "id": "325a1f4652e340349cde69ec00b3c144",
+  "kind": "experiment",
+  "title": "TRAILS / second_delay",
+  "topics": [
+    "fireworks",
+    "particles",
+    "fireworks"
+  ],
+  "summary": "Frame 12, tested [0.5, 0.75], scatter point counts [96, 96].",
+  "status": "observed",
+  "parent": null
+}

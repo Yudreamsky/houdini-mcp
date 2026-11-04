@@ -1,0 +1,27 @@
+{
+  "npts_0": "f0a7eba282b74dce9aedf99a508c48df",
+  "npts_1": "6b71238eabc545028c40976017fbf435",
+  "seed": "f217faee7dc44ba0ace61481fd43486b",
+  "gap": "f0d43ffcc0ba478e9581cd500437f9e1",
+  "node": "e846edbca2484a748a92bc7dd2596e3a",
+  "seed_node": "51cb0a602402422f9c9ba3c00d2b1cb9",
+  "recipe": "64e6a8aa021a40a494c3f7c142231c37",
+  "child": "5fb39ac6ed9c4977a73fd9a31f2b4c50",
+  "replay": {
+    "verified": true,
+    "changed": [
+      "second_delay"
+    ],
+    "version": "20.5.487",
+    "baseline": {
+      "scatter_points": 96,
+      "output_primitives": 864,
+      "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+      "output_sha256": "6c3f41cd4ea0d7fbc377eabfdd894cf136489eeb5563d6b9a5c24db7131266b7"
+    }
+  },
+  "comparison_id": "d8c389f11317488a80200912b4befafb",
+  "clip_frames": 40,
+  "clip_fps": 24.0,
+  "clip_sha256": "8e708694e3599bc0a4b0ebb986f3a10a39bcd83a3b4f282feab61f66e4a620fb"
+}

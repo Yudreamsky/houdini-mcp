@@ -1,0 +1,13 @@
+{
+  "id": "f0a7eba282b74dce9aedf99a508c48df",
+  "kind": "experiment",
+  "title": "Sop/scatter::2.0 / npts",
+  "topics": [
+    "scatter",
+    "particles",
+    "fireworks"
+  ],
+  "summary": "Frame 36, tested [32.0, 96.0, 192.0], scatter point counts [32, 96, 192].",
+  "status": "observed",
+  "parent": null
+}

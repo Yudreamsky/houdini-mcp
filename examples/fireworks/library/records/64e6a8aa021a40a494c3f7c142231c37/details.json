@@ -1,0 +1,30 @@
+{
+  "state": {
+    "path": "/obj/HoudiniResearch",
+    "version": "20.5.487",
+    "fixture": "fireworks-curves/1",
+    "pid": 268212,
+    "frame": 36.0,
+    "node_type": "Sop/scatter::2.0",
+    "parameters": {
+      "npts": 96,
+      "seed": 17.0,
+      "relaxiterations": 10,
+      "burst_frame": 18,
+      "speed": 4.2,
+      "drag": 1.15,
+      "gravity": 2.9,
+      "trail": 0.73,
+      "second_delay": 0.63,
+      "tint": 0.9
+    },
+    "metrics": {
+      "scatter_points": 96,
+      "output_primitives": 864,
+      "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+      "output_sha256": "6c3f41cd4ea0d7fbc377eabfdd894cf136489eeb5563d6b9a5c24db7131266b7"
+    }
+  },
+  "bundle": "0a4fe1c100ac46b7acf37c3b01bc3b74",
+  "sha256": "5700760f288b3d5a49dd1170da5fa199a3636b8b8d1c3a73ae481e75acad5010"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "51cb0a602402422f9c9ba3c00d2b1cb9",
+  "kind": "node",
+  "title": "Scatter 2.0 · seed",
+  "topics": [
+    "scatter",
+    "particles"
+  ],
+  "summary": "球面、固定点数 96。实测 seed=1/7/17 的点坐标序列指纹各异，点数保持 96。此条件实测一轮。",
+  "status": "observed",
+  "parent": null
+}

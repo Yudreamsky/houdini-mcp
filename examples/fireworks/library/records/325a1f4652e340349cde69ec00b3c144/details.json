@@ -1,0 +1,94 @@
+{
+  "baseline": {
+    "path": "/obj/HoudiniResearch",
+    "version": "20.5.487",
+    "fixture": "fireworks-curves/1",
+    "pid": 268212,
+    "frame": 36.0,
+    "node_type": "Sop/scatter::2.0",
+    "parameters": {
+      "npts": 96,
+      "seed": 17.0,
+      "relaxiterations": 10,
+      "burst_frame": 18,
+      "speed": 4.2,
+      "drag": 1.15,
+      "gravity": 2.9,
+      "trail": 0.65,
+      "second_delay": 0.0,
+      "tint": 0.9
+    },
+    "metrics": {
+      "scatter_points": 96,
+      "output_primitives": 576,
+      "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+      "output_sha256": "9f609e5a29975403140b5e3705dc7b9803cc18be3fb9a87de110a9f7c7a7d57d"
+    }
+  },
+  "control": "second_delay",
+  "samples": [
+    {
+      "image_id": "b9353313592940ebb67b371c5d54aebf",
+      "sha256": "1a9da3f8c972cb0a8947a294287f22a00e3480557a07fd2b9ddc853ef661725f",
+      "frame": 12,
+      "camera": "/obj/ResearchCamera",
+      "view_transform": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -0.65,
+        17.0,
+        1.0
+      ],
+      "metrics": {
+        "scatter_points": 96,
+        "output_primitives": 1,
+        "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+        "output_sha256": "ec18d773d054e0520a6f5ab22fe33fa162e0114b44691acd5ab42e938ba47167"
+      },
+      "actual": 0.5
+    },
+    {
+      "image_id": "482c125b512741d2be57a6527ddfe51a",
+      "sha256": "1a9da3f8c972cb0a8947a294287f22a00e3480557a07fd2b9ddc853ef661725f",
+      "frame": 12,
+      "camera": "/obj/ResearchCamera",
+      "view_transform": [
+        1.0,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0,
+        1.0,
+        -0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        -0.65,
+        17.0,
+        1.0
+      ],
+      "metrics": {
+        "scatter_points": 96,
+        "output_primitives": 1,
+        "scatter_sha256": "0634f6051cf19a04be46bc7b78b716577571c4fe528d754824e3c60f818e9cfe",
+        "output_sha256": "ec18d773d054e0520a6f5ab22fe33fa162e0114b44691acd5ab42e938ba47167"
+      },
+      "actual": 0.75
+    }
+  ],
+  "baseline_restored": true
+}

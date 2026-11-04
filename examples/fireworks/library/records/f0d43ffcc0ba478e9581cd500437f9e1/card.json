@@ -1,0 +1,12 @@
+{
+  "id": "f0d43ffcc0ba478e9581cd500437f9e1",
+  "kind": "gap",
+  "title": "No observed output difference: second_delay",
+  "topics": [
+    "fireworks",
+    "fireworks"
+  ],
+  "summary": "Frame 12 has identical geometry and color. Check activation conditions or sample another frame.",
+  "status": "open",
+  "parent": null
+}

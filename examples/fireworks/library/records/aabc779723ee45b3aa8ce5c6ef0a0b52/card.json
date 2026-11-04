@@ -1,0 +1,12 @@
+{
+  "id": "aabc779723ee45b3aa8ce5c6ef0a0b52",
+  "kind": "reuse",
+  "title": "Replay: QA · 柳枝与延迟分叉",
+  "topics": [
+    "particles",
+    "fireworks"
+  ],
+  "summary": "Same Houdini version, controls and frame geometry verified.",
+  "status": "reproduced",
+  "parent": "64e6a8aa021a40a494c3f7c142231c37"
+}
