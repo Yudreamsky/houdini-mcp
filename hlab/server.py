@@ -184,5 +184,13 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave
     return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
 
 
+@mcp.tool()
+async def fx_watch(action: str = "status", job: str = "", manifest: str = "", query: str = "",
+                   offset: int = 0, limit: int = 12, cursor: str = "", seconds: int = 20) -> dict:
+    """Register a local Houdini job manifest, read real solve/XPU progress, wait for a change (up to 45 s), or page constraint failure events by part. Never submits a render."""
+    from .fx_watch import inspect
+    return await inspect(action,job,manifest,query,offset,limit,cursor,seconds)
+
+
 if __name__ == "__main__":
     main()

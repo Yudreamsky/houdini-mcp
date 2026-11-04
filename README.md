@@ -1,5 +1,15 @@
 # Houdini Research MCP
 
+### 跟踪一项正在运行的解算或 XPU 渲染
+
+`fx_watch(action="register",manifest=清单绝对路径)` 登记本机作业并返回 job ID。用 `status` 查每阶段的实际帧数，用 `wait` 传入上次的 cursor 等待变化（单次最长 45 秒），重新连接后用相同 ID 继续。XPU 阶段需要日志中出现 Saved Image 且输出文件存在并非空；若有 receipt，会同时检查退出码。渲染剩余时间是该阶段最近已写帧间隔的估计。指定 events 后可按部件名查询真实断裂帧与相对于触顶的时间。
+
+```json
+{"title":"Impact","stages":[{"name":"Bullet","kind":"solve","first":1,"count":409,"log":"solve.log","result":"motion.npz","receipt":"solve-exit.json"},{"name":"close","kind":"xpu","first":67,"count":99,"step":1,"log":"husk.log","receipt":"render-exit.json"}],"events":{"path":"events.json","fps":120,"origin":78}}
+```
+
+路径相对于清单。解算日志用 `F 78 ...` 或 `DUST 60 ...` 标记采样进度。作业包装器实际退出后原子写入形如 `{"exit_code":0}` 的 receipt。每次运行使用自己的日志、输出与回执。events 文件是包含 frame 和 pair（两个部件名）的记录数组。
+
 本地 Windows 研发工具。独立 Houdini 窗口负责交互，MCP 返回图像并按领域保存实验经验。在 Houdini FX 20.5.487 上已验证 Ripple、Scatter、火星轨迹和 Pyro 残烟照明。
 
 ## 雨滴击水与通用节点实验
