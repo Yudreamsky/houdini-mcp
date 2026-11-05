@@ -94,6 +94,8 @@ def summary(run):
     if s["engine"] == "xpu":
         share = sum(d["contribution_percent"] for d in run["devices"] if d["type"].lower() == "optix")
         text += f"，显卡贡献 {share:g}%"
+    if run.get("materials") and run["materials"]["converted"]:
+        text += f"，临时转换材质 {len(run['materials']['converted'])} 个"
     return text + ("，到时间上限" if run["status"] == "time_limit" else "")
 
 
@@ -202,6 +204,6 @@ def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, n
     output = home() / "records" / card["id"] / "comparison.png"
     sheet.save(output)
     brief = {n: {k: r[k] for k in ("preset", "status", "seconds", "resolution", "settings", "gpu_verified",
-                                    "notes", "image_id", "path", "summary")} for n, r in runs.items()}
+                                    "materials", "notes", "image_id", "path", "summary")} for n, r in runs.items()}
     return {**card, "hip": str(path), "hip_unchanged": unchanged, "camera": camera, "frame": frame,
             "sheet": str(output), "variants": brief}, sheet

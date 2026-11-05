@@ -37,12 +37,15 @@ LIMIT = """[08:52:49] Run time 2 exceeded file C:\\job\\render.png
 
 class SettingsTests(unittest.TestCase):
     def test_presets_merge_and_validate_controls(self):
-        chosen = settings("preview", {"samples": 64.0, "engine": "cpu", "motion_blur": True})
+        chosen = settings("preview", {"samples": 64.0, "engine": "cpu", "motion_blur": True, "convert_materials": False})
         self.assertEqual((chosen["samples"], chosen["engine"], chosen["max_edge"]), (64, "cpu", 960))
         self.assertIs(type(chosen["samples"]), int)
         self.assertTrue(chosen["motion_blur"])
+        self.assertIs(chosen["convert_materials"], False)
+        self.assertNotIn("convert_materials", settings("final"))
         for changes, message in [({"samples": 0}, "integer"), ({"samples": 2.5}, "integer"),
                                  ({"engine": "gpu"}, "xpu, cpu"), ({"motion_blur": 1}, "true or false"),
+                                 ({"convert_materials": "no"}, "true or false"),
                                  ({"denoiser": True}, "off, optix, oidn"), ({"time_limit": 3600}, "1..540"),
                                  ({"color_limit": float("nan")}, "number"), ({"exposure": 1}, "Supported")]:
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
@@ -100,7 +103,7 @@ def fake_run(job_requests, size=(64, 36)):
         chosen = req["settings"]
         return {"file": "render.png", "log": "husk.log", "frame": req["frame"] or 12, "camera": req["camera"] or "/obj/CAM",
                 "rop": "/out/HR_KARMA_PREVIEW", "temporary_rop": True, "resolution": list(size), "status": "completed",
-                "seconds": 3.5, "lights": 1, "notes": [],
+                "seconds": 3.5, "lights": 1, "notes": [], "materials": {"converted": [], "unconverted": []},
                 "settings": {"engine": chosen.get("engine", "xpu"), "samples": chosen.get("samples", 32),
                              "denoiser": chosen.get("denoiser", "off")}, **read_log(LOG)}
     return worker

@@ -4,22 +4,14 @@ import time
 
 import hou
 
+from hlab.karma_materials import convert, is_light, objects, plan, used
 from hlab.karma_spec import PARMS, excerpt, read_log, resolution
 
 TEMPORARY = "HR_KARMA_PREVIEW"
 
 
-def objects():
-    return [n for n in hou.node("/obj").allSubChildren() if isinstance(n, hou.ObjNode)]
-
-
 def cameras():
     return [n for n in objects() if n.type().name() == "cam"]
-
-
-def is_light(n):
-    base = n.type().name().split("::")[0]
-    return "light" in base and base != "indirectlight"
 
 
 def lights():
@@ -31,66 +23,45 @@ def whole(value):
     return int(value) if float(value).is_integer() else value
 
 
-def material_kind(node):
-    if node is None:
-        return "missing"
-    if node.type().category().name() == "Shop":
-        return "shop"
-    base = node.type().name().split("::")[0]
-    if base.startswith("principledshader"):
-        return "principled"
-    if base == "usdpreviewsurface":
-        return "preview_surface"
-    if base.startswith("mtlx") or node.isNetwork() and any(
-            c.type().name().startswith("mtlx") for c in node.allSubChildren()):
-        return "materialx"
-    return "vex"
-
-
 def materials():
-    found, bare = {}, []
-    for obj in objects():
-        sop = obj.displayNode()
-        if sop is None or not obj.isObjectDisplayed() or obj.type().name() == "cam" or is_light(obj):
-            continue
-        paths = set()
-        parm = obj.parm("shop_materialpath")
-        if parm is not None and parm.evalAsString():
-            paths.add(parm.evalAsString())
-        try:
-            attrib = sop.geometry().findPrimAttrib("shop_materialpath")
-        except Exception:
-            attrib = None
-        if attrib is not None:
-            paths.update(s for s in attrib.strings() if s)
-        if not paths:
-            bare.append(obj.path())
-        for path in paths:
-            node = obj.node(path)
-            found[node.path() if node else path] = material_kind(node)
+    found, bare = used()
     kinds = {}
-    for path, kind in sorted(found.items()):
-        kinds.setdefault(kind, []).append(path)
+    for path, entry in sorted(found.items()):
+        kinds.setdefault(entry["kind"], []).append(path)
     return {"by_kind": {k: v[:12] for k, v in kinds.items()}, "counts": {k: len(v) for k, v in kinds.items()},
             "unassigned_objects": bare[:12], "unassigned_count": len(bare)}
 
 
-def notes(engine, mats, light_count):
+def notes(engine, mats, light_count, report=None, planned=False):
+    """report: conversions done (or planned) for this engine; None when conversion is switched off."""
     rows = []
     if not light_count:
         rows.append("场景里没有开着的灯，Karma 会自动加一盏头灯；亮度和阴影不代表最终效果。")
     kinds = mats["by_kind"]
     if kinds.get("missing"):
         rows.append(f"有 {len(kinds['missing'])} 个材质路径找不到节点（如 {kinds['missing'][0]}），会按默认材质渲染。")
-    if kinds.get("shop"):
-        rows.append(f"有 {len(kinds['shop'])} 个旧式 /shop 材质（如 {kinds['shop'][0]}，Mantra 时代的写法），Karma 不读取，"
-                    "CPU 和 XPU 都按默认材质渲染；要在 /mat 里改用 Principled 或 MaterialX。")
-    if engine == "xpu" and kinds.get("vex"):
-        rows.append(f"有 {len(kinds['vex'])} 个 VEX 材质 XPU 不支持（如 {kinds['vex'][0]}），这部分会和 CPU 不同；"
-                    "要准确效果用 engine=cpu，或改成 MaterialX。")
+    if report is None:
+        if kinds.get("shop"):
+            rows.append(f"有 {len(kinds['shop'])} 个旧式 /shop 材质（如 {kinds['shop'][0]}），Karma 不读取，按默认材质渲染；"
+                        "材质转换已关闭。")
+        if engine == "xpu" and kinds.get("vex"):
+            rows.append(f"有 {len(kinds['vex'])} 个 VEX 材质 XPU 不支持（如 {kinds['vex'][0]}）；要准确效果用 engine=cpu。")
+    else:
+        if report["converted"]:
+            sources = "、".join(r["source"] for r in report["converted"][:4])
+            rows.append(f"{'渲染时会' if planned else '已'}把 {len(report['converted'])} 个材质临时转成 MaterialX"
+                        f"（{sources}），效果为近似，工程文件不变。")
+        for row in report["unconverted"][:6]:
+            rows.append(f"{row['source']}：{row['reason']}。")
     if engine == "xpu" and kinds.get("principled"):
-        rows.append("XPU 用简化的 USD Preview Surface 近似 Principled Shader，贴图和高级效果可能和 CPU 不同。")
+        rows.append("XPU 以 USD Preview Surface 近似 Principled Shader；实测玻璃、金属、发光和点颜色正常，带贴图的会先转成 MaterialX。")
     return rows
+
+
+def preview(engine):
+    rows = plan(engine)
+    return {"converted": [r for r in rows if r["action"] == "convert"],
+            "unconverted": [r for r in rows if r["action"] != "convert"]}
 
 
 def describe(rop):
@@ -107,7 +78,8 @@ def inspect(req):
              else other.append({"path": rop.path(), "type": rop.type().nameWithCategory()}))
     stage = hou.node("/stage")
     mats, lit = materials(), lights()
-    warnings = notes("xpu", mats, len(lit))
+    conversion = {engine: preview(engine) for engine in ("xpu", "cpu")}
+    warnings = notes("xpu", mats, len(lit), conversion["xpu"], planned=True)
     if not cameras():
         warnings.insert(0, "工程里没有 OBJ 相机，Karma 渲染需要一台相机。")
     if stage is not None and stage.children():
@@ -116,7 +88,8 @@ def inspect(req):
             "frame_range": [whole(hou.hscriptExpression("$FSTART")), whole(hou.hscriptExpression("$FEND"))],
             "cameras": [{"path": c.path(), "resolution": [c.evalParm("resx"), c.evalParm("resy")]} for c in cameras()][:20],
             "lights": [{"path": n.path(), "type": n.type().name()} for n in lit][:20],
-            "karma_rops": karma[:20], "other_rops": other[:20], "materials": mats, "warnings": warnings}
+            "karma_rops": karma[:20], "other_rops": other[:20], "materials": mats,
+            "material_conversion": conversion, "warnings": warnings}
 
 
 def karma_rop(path):
@@ -166,6 +139,7 @@ def render(req, folder):
         values["abortnogpudevice"] = 1
     for name, value in values.items():
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
+    report = convert(engine) if chosen.get("convert_materials", True) else None
     mats, lit = materials(), lights()
     # Without this, XPU's CPU device can finish small frames before the GPU contributes.
     previous = os.environ.get("KARMA_XPU_DISABLE_EMBREE_DEVICE")
@@ -193,11 +167,12 @@ def render(req, folder):
         raise RuntimeError("Karma finished without writing an image")
     effective = {name: rop.evalParm(parm) for name, parm in PARMS.items()}
     effective.update(motion_blur=bool(effective["motion_blur"]), depth_of_field=bool(effective["depth_of_field"]),
-                     time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None)
+                     time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
+                     convert_materials=report is not None)
     return {"file": picture.name, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "status": "time_limit" if info["time_limit_reached"] else "completed", "seconds": round(seconds, 2),
-            "lights": len(lit), "notes": notes(engine, mats, len(lit)), **info}
+            "lights": len(lit), "materials": report, "notes": notes(engine, mats, len(lit), report), **info}
 
 
 def build_sample(path):
