@@ -1,6 +1,6 @@
 # Karma 试渲与调参
 
-`domain_recipe(domain="render")` 展开 `karma`，按 `action="run"`、`name="karma"` 调用。它只读已保存的 HIP，在后台 hython 里临时设置 Karma，工程文件不会被保存，返回值里的 `hip_unchanged` 可核对。当前只渲染 /obj 场景的单帧；Solaris（/stage）里的渲染设置还不读取。
+`domain_recipe(domain="render")` 展开 `karma`，按 `action="run"`、`name="karma"` 调用。它只读已保存的 HIP，在后台 hython 里临时设置 Karma，工程文件不会被保存，返回值里的 `hip_unchanged` 可核对。窗口里用 `graph_edit` 搭的场景，先 `window_session(action="save",session_id=id)` 存盘再渲染。当前只渲染 /obj 场景的单帧；Solaris（/stage）里的渲染设置还不读取。
 
 先 `inspect` 看相机、灯、ROP 和材质。多台相机时，之后每次都传 `camera`。没有灯时 Karma 会自动加一盏头灯，先告诉用户这时的亮度和阴影不代表最终效果。
 

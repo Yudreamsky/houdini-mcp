@@ -103,9 +103,12 @@ async def domain_recipe(action: Literal["catalog", "run"] = "catalog", domain: s
 
 
 @mcp.tool()
-def window_session(action: str = "list", session_id: str = "", hip: str = "") -> dict:
-    """List managed Houdini windows; state/open target a returned session_id (the window's id).
-    Open a saved HIP in that existing GUI. Unsaved work is retained and reported."""
+def window_session(action: Literal["list", "state", "open", "save"] = "list", session_id: str = "",
+                   hip: str = "") -> dict:
+    """List managed Houdini windows; state/open/save target a returned session_id (the window's id).
+    Open a saved HIP in that existing GUI. Unsaved work is retained and reported. save writes the live
+    scene to its own HIP, or to hip, a new absolute .hip path (never over another file), and returns
+    its bytes and sha256, so karma and saved node_lab studies can read what graph_edit built."""
     from .window import manage
     return manage(home(), action, session_id, hip)
 

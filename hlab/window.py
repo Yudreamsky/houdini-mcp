@@ -39,13 +39,15 @@ def manage(root, action, session_id="", hip=""):
     sessions = list(registered(root))
     if action == "list":
         return {"windows": [s for _, s in sessions]}
-    if action not in ("state", "open"):
-        raise ValueError("Use list, state or open")
+    if action not in ("state", "open", "save"):
+        raise ValueError("Use list, state, open or save")
     if action == "open":
         from .sop_lab import hip_path
         hip = str(hip_path(hip))
     for directory, session in sessions:
         if session["id"] == session_id:
+            if action == "save":
+                return call_in(directory, "window_save", expected_session=session_id, hip=hip)
             return call_in(directory, "window_hip", expected_session=session_id,
                            hip=hip if action == "open" else "")
     raise ValueError("The selected session is not live; list windows again")
