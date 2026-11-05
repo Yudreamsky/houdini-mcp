@@ -11,6 +11,7 @@ DOMAINS = {
     "fireworks": ("session", "adjust", "observe", "experiment", "compare", "motion"),
     "afterglow": ("afterglow",),
     "mechanics": ("mechanical_rig", "mechanism", "animation_gap"),
+    "render": ("karma",),
 }
 DOMAIN_OF = {name: domain for domain, names in DOMAINS.items() for name in names}
 

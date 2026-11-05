@@ -15,6 +15,7 @@ description: 使用 Houdini Research MCP 搭建和检查节点网络，按层级
 - 调雨滴落点、波纹传播或水环交叠，读 [水面案例索引](references/rain.md)。
 - 多版比较、手动调参和跨会话复用时，读 [选版与复现](references/recipe.md)。
 - 第二发照亮残烟、缩短余照或只回退某一部分时，读 [残烟镜头](references/afterglow.md)。
+- 用 Karma 试渲、调采样和降噪或保存出图预设时，读 [Karma 试渲与调参](references/render.md)。
 - 操作被工具能力卡住、必须写临时脚本绕过，或单参实验与预测不符时，读[缺口评审](references/gap-review.md)。
 
 只讨论方法时直接讨论。建立原烟花实验台需要空的主研发窗口，确认该窗口后用 `fireworks` 域的 `session(initialize=true)` 初始化。默认只回传当前判断需要的画面。

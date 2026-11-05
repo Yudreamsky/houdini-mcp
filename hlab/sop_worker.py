@@ -97,6 +97,9 @@ def work(req,folder,load=True,process="fresh"):
         hou.session.hr_active_path = node.path()
         hou.setFrame(req["frame"])
         return state()
+    if req["action"] == "karma_sample":
+        from hlab.karma_render import build_sample
+        return build_sample(Path(req["target"]))
     if load:
         hou.hipFile.load(req["hip"],suppress_save_prompt=True)
     if req["action"] == "study":
@@ -115,6 +118,12 @@ def work(req,folder,load=True,process="fresh"):
     if req["action"] == "animation_gap":
         from animation_gap import measure_frames
         return measure_frames(req)
+    if req["action"] == "karma_inspect":
+        from hlab.karma_render import inspect
+        return inspect(req)
+    if req["action"] == "karma_render":
+        from hlab.karma_render import render
+        return render(req, folder)
     hou.setFrame(req["frame"])
     if req["action"]=="frame":
         rop=hou.node(req["renderer"])
@@ -199,7 +208,7 @@ def execute(folder, process, cached=None):
         result.update(process=process, process_pid=os.getpid(), houdini_version=hou.applicationVersionString())
         result = {"ok": result}
         # Sweeps and renders can leave edited parameters or a render ROP, even after a successful result.
-        cached = signature if request["action"] in {"nodes","inspect","animation_gap"} else None
+        cached = signature if request["action"] in {"nodes","inspect","animation_gap","karma_inspect"} else None
     except Exception as exc:
         cached = None
         result={"error":f"{type(exc).__name__}: {exc}"}
