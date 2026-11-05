@@ -51,6 +51,11 @@ def fixture(sample, copy):
     hou.hipFile.save(str(copy), save_to_recent_files=False)
 
 
+def husks():
+    listed = subprocess.run(["tasklist", "/FI", "IMAGENAME eq husk.exe", "/NH"], capture_output=True).stdout
+    return {row.split()[1] for row in listed.decode(errors="replace").splitlines() if row.lower().startswith("husk")}
+
+
 def refused(call, text):
     try:
         call()
@@ -68,6 +73,15 @@ def accept(directory):
     from hlab.storage import sha
     from hlab.worker_pool import pool
 
+    # Other GPU programs (e.g. local language models) can starve XPU into its time limits.
+    loads = []
+    for _ in range(5):
+        loads.append(karma.gpu_load() or {})
+        time.sleep(.4)
+    busiest = max(load.get("utilization_percent", 0) for load in loads)
+    if busiest >= 70:
+        print(f"SKIP the GPU is {busiest:g}% busy with other programs; rerun when it is idle")
+        return
     seconds = {}
 
     def timed(label, call, *args, **kwargs):
@@ -82,7 +96,7 @@ def accept(directory):
     assert scene["materials"]["counts"] == {"materialx": 1, "principled": 1}
     before = sha(sample)
     run, image = timed("preview xpu", karma.render, "karma-probe", topic="karma-native")
-    assert run["status"] == "completed" and run["resolution"] == [960, 540] and run["gpu_verified"]
+    assert run["status"] == "completed" and run["resolution"] == [960, 540] and run["gpu_verified"], run["notes"]
     assert run["hip_unchanged"] and sha(sample) == before and run["temporary_rop"]
     with Image.open(run["path"]) as picture:
         assert picture.size == (960, 540) and picture.getchannel("A").getextrema()[1] == 255
@@ -103,6 +117,22 @@ def accept(directory):
     own, _ = timed("scene rop", karma.render, str(copy), preset="scene", rop="/out/LOOKDEV")
     assert own["camera"] == "/obj/CAM" and not own["temporary_rop"] and own["status"] == "completed"
     assert own["settings"]["engine"] == "cpu" and own["settings"]["samples"] == 6 and sha(copy) == copied
+    assert own["render_threads"] >= 2
+    # The scene preset finds the HIP's only Karma ROP, and refuses when there is none.
+    found, _ = timed("scene rop found", karma.render, str(copy), preset="scene")
+    assert found["rop"] == "/out/LOOKDEV" and not found["temporary_rop"] and found["settings"]["samples"] == 6
+    refused(lambda: karma.render("karma-probe", preset="scene"), "has none")
+    # A worker that times out must take its renderer with it and report the timeout itself.
+    before_husks = husks()
+    with patch.dict(os.environ, {"HOUDINI_RESEARCH_WORKER_TIMEOUT": "15"}):
+        try:
+            karma.render("karma-probe", changes={"engine": "cpu", "samples": 16384, "denoiser": "off", "time_limit": 200})
+        except TimeoutError as exc:
+            assert "deadline" in str(exc), exc
+        else:
+            raise AssertionError("A 200-second render finished inside a 15-second worker deadline")
+    time.sleep(2)
+    assert not husks() - before_husks, "husk outlived its worker"
     side, _ = timed("side camera", karma.render, str(copy), camera="/obj/SIDE", changes={"max_edge": 320})
     assert side["resolution"] == [320, 320] and side["gpu_verified"]
     plan = karma.inspect(str(copy))["material_conversion"]
@@ -128,7 +158,8 @@ def accept(directory):
                         {"8": {"samples": 8, "denoiser": "off"}, "细节": {"preset": "细节"}}, zoom=[.5, .35, .85, .85])
     assert data["hip_unchanged"] and sheet.width == 1280 and Path(data["sheet"]).is_file()
     assert [v["resolution"] for v in data["variants"].values()] == [[960, 540], [640, 360]]
-    assert all(v["status"] == "completed" and v["gpu_verified"] for v in data["variants"].values())
+    assert all(v["status"] == "completed" and v["gpu_verified"] for v in data["variants"].values()), \
+        {name: v["notes"] for name, v in data["variants"].items()}
     assert [c.type for c in evidence(data["id"], variant="细节")] == ["text", "image"]
     pool.close()
     print("PASS Karma sample, inspect, XPU/CPU, time limit, own ROP, camera choice, legacy material conversion, "

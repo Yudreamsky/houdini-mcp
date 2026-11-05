@@ -1,7 +1,9 @@
 """Karma test renders of saved HIPs: named presets, bounded size and time, searchable evidence."""
 import math
 import shutil
+import subprocess
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -55,24 +57,73 @@ def scene(hip):
         return hip_path(hip)
     path = home() / "shots" / SAMPLE / "Karma-probe.hip"
     if not path.is_file():
-        with tempfile.TemporaryDirectory(prefix="houdini-karma-sample-") as job:
-            worker({"action": "karma_sample", "target": str(path)}, Path(job))
+        with job_folder("houdini-karma-sample-") as job:
+            worker({"action": "karma_sample", "target": str(path)}, job)
     return path
+
+
+@contextmanager
+def job_folder(prefix):
+    # A failed cleanup must not replace the render's own error.
+    with tempfile.TemporaryDirectory(prefix=prefix, ignore_cleanup_errors=True) as folder:
+        yield Path(folder)
 
 
 def inspect(hip):
     from .sop_lab import worker
     path = scene(hip)
-    with tempfile.TemporaryDirectory(prefix="houdini-karma-inspect-") as job:
-        return {"hip": str(path), **worker({"action": "karma_inspect", "hip": str(path)}, Path(job))}
+    with job_folder("houdini-karma-inspect-") as job:
+        return {"hip": str(path), **worker({"action": "karma_inspect", "hip": str(path)}, job)}
 
 
-def run_one(path, chosen, camera, frame, rop):
+def base_of(preset, saved):
+    return preset if preset in PRESETS else saved.get(preset, {}).get("base", preset)
+
+
+def gpu_load():
+    """NVIDIA utilisation and free memory when nvidia-smi is available, else None."""
+    try:
+        line = subprocess.run(["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
+                               "--format=csv,noheader,nounits"], capture_output=True, text=True,
+                              timeout=10, check=True).stdout.splitlines()[0]
+        busy, used, total = (float(v) for v in line.split(","))
+    except (OSError, subprocess.SubprocessError, IndexError, ValueError):
+        return None
+    return {"utilization_percent": busy, "free_mib": total - used}
+
+
+def load_notes(load):
+    """Warn when other programs hold the GPU before an XPU render."""
+    if not load:
+        return []
+    rows = []
+    if load["utilization_percent"] >= 70:
+        rows.append(f"开始渲染时显卡使用率已有 {load['utilization_percent']:g}%（其他程序在用，例如本地 AI 模型），"
+                    "XPU 可能变慢或到时间上限；急用时可改 engine=cpu。")
+    if load["free_mib"] < 4096:
+        rows.append(f"显存只剩约 {load['free_mib'] / 1024:.1f} GB，较大的场景可能放不下。")
+    return rows
+
+
+def progress_note(run):
+    share = run.get("progress_percent")
+    if run["status"] != "time_limit" or share is None:
+        return []
+    text = f"到时间上限时只完成了约 {share:g}%"
+    if run["settings"]["engine"] == "xpu" and share < 50:
+        return [text + "。XPU 第一次遇到新材质要编译着色器，或显卡被其他程序占用时会这样；再渲一次通常会快，也可加大 time_limit。"]
+    return [text + "；可加大 time_limit 或降低分辨率。"]
+
+
+def run_one(path, chosen, camera, frame, rop, base=""):
     from .sop_lab import worker
-    with tempfile.TemporaryDirectory(prefix="houdini-karma-") as job:
-        job = Path(job)
+    load = gpu_load() if chosen.get("engine", "xpu") == "xpu" else None
+    with job_folder("houdini-karma-") as job:
         info = worker({"action": "karma_render", "hip": str(path), "camera": camera, "frame": frame,
-                       "rop": rop, "settings": chosen}, job)
+                       "rop": rop, "preset": base, "settings": chosen}, job)
+        if info["settings"]["engine"] == "xpu":
+            info.update(gpu_load=load, notes=load_notes(load) + info["notes"])
+        info["notes"] = progress_note(info) + info["notes"]
         image_id = uid()
         target = home() / "images" / (image_id + ".png")
         log = home() / "karma" / "logs" / (image_id + ".log")
@@ -96,7 +147,10 @@ def summary(run):
         text += f"，显卡贡献 {share:g}%"
     if run.get("materials") and run["materials"]["converted"]:
         text += f"，临时转换材质 {len(run['materials']['converted'])} 个"
-    return text + ("，到时间上限" if run["status"] == "time_limit" else "")
+    if run["status"] == "time_limit":
+        share = run.get("progress_percent")
+        text += f"，到时间上限（约完成 {share:g}%）" if share is not None else "，到时间上限"
+    return text
 
 
 def flatten(path, edge=None, zoom=None):
@@ -113,10 +167,11 @@ def flatten(path, edge=None, zoom=None):
 
 
 def render(hip, camera="", frame=None, preset="preview", changes=None, rop="", topic="", note=""):
-    chosen = settings(preset, changes, saved_presets())
+    saved = saved_presets()
+    chosen = settings(preset, changes, saved)
     path = scene(hip)
     before = sha(path)
-    run = run_one(path, chosen, camera, frame, rop)
+    run = run_one(path, chosen, camera, frame, rop, base_of(preset, saved))
     run.update(hip=str(path), hip_unchanged=sha(path) == before, preset=preset, summary=summary(run))
     if topic.strip():
         card = record("render", f"Karma {preset} F{run['frame']}"[:120], list(dict.fromkeys([topic.strip().lower(), "render"])),
@@ -189,7 +244,7 @@ def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, n
     before = sha(path)
     runs = {}
     for name, (base, chosen) in plans.items():
-        run = run_one(path, chosen, camera, frame, rop)
+        run = run_one(path, chosen, camera, frame, rop, base_of(base, saved))
         # Later variants use the camera and frame the first one resolved, so every image shows the same shot.
         camera, frame = run["camera"], run["frame"]
         runs[name] = {**run, "preset": base, "summary": summary(run)}

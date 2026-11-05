@@ -1,6 +1,7 @@
 """Render one Karma frame from a loaded HIP without saving it. Imported inside hython only."""
 import os
 import time
+from contextlib import contextmanager
 
 import hou
 
@@ -93,13 +94,50 @@ def inspect(req):
             "material_conversion": conversion, "warnings": warnings}
 
 
-def karma_rop(path):
+def karma_rops():
+    return [r for r in hou.node("/out").allSubChildren() if isinstance(r, hou.RopNode) and r.type().name() == "karma"]
+
+
+def karma_rop(path, base=""):
     if path:
         rop = hou.node(path)
         if not isinstance(rop, hou.RopNode) or rop.type().name() != "karma":
             raise ValueError(f"Select a Karma ROP (Driver/karma) or leave rop empty: {path}")
         return rop, False
+    if base == "scene":
+        # The scene preset keeps a ROP's own settings, so it needs that ROP rather than a temporary one.
+        found = karma_rops()
+        if len(found) == 1:
+            return found[0], False
+        raise ValueError("Preset 'scene' keeps an existing Karma ROP's settings: " + (
+            "pass rop= one of " + ", ".join(r.path() for r in found[:12]) if found
+            else "this HIP has none, so use preview, standard or final"))
     return hou.node("/out").createNode("karma", TEMPORARY), True
+
+
+def render_threads():
+    configured = os.environ.get("HOUDINI_RESEARCH_RENDER_THREADS")
+    # Leave a few logical cores for the desktop; the worker itself runs with HOUDINI_MAXTHREADS=8.
+    return max(1, int(configured)) if configured else max(2, (os.cpu_count() or 8) - 4)
+
+
+@contextmanager
+def environment(values):
+    """Set (or with None, remove) variables that husk inherits, then restore them."""
+    previous = {name: os.environ.get(name) for name in values}
+    try:
+        for name, value in values.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def pick_camera(path, rop, temporary):
@@ -122,7 +160,7 @@ def render(req, folder):
     if req.get("frame") is not None:
         hou.setFrame(req["frame"])
     frame = whole(hou.frame())
-    rop, temporary = karma_rop(req.get("rop", ""))
+    rop, temporary = karma_rop(req.get("rop", ""), req.get("preset", ""))
     cam = pick_camera(req.get("camera", ""), rop, temporary)
     width, height = resolution((cam.evalParm("resx"), cam.evalParm("resy")), chosen)
     picture, out, err = folder / "render.png", folder / "husk.log", folder / "husk.err"
@@ -142,21 +180,16 @@ def render(req, folder):
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
     report = convert(engine) if chosen.get("convert_materials", True) else None
     mats, lit = materials(), lights()
-    # Without this, XPU's CPU device can finish small frames before the GPU contributes.
-    previous = os.environ.get("KARMA_XPU_DISABLE_EMBREE_DEVICE")
-    if engine == "xpu":
-        os.environ["KARMA_XPU_DISABLE_EMBREE_DEVICE"] = "1"
+    threads = render_threads()
     started = time.perf_counter()
     failure = None
-    try:
-        rop.render(frame_range=(frame, frame))
-    except hou.OperationFailed as exc:
-        failure = str(exc)
-    finally:
-        if previous is None:
-            os.environ.pop("KARMA_XPU_DISABLE_EMBREE_DEVICE", None)
-        else:
-            os.environ["KARMA_XPU_DISABLE_EMBREE_DEVICE"] = previous
+    # Without the Embree switch, XPU's CPU device can finish small frames before the GPU contributes.
+    with environment({"HOUDINI_MAXTHREADS": str(threads),
+                      "KARMA_XPU_DISABLE_EMBREE_DEVICE": "1" if engine == "xpu" else None}):
+        try:
+            rop.render(frame_range=(frame, frame))
+        except hou.OperationFailed as exc:
+            failure = str(exc)
     seconds = time.perf_counter() - started
     stdout = out.read_text(encoding="utf-8", errors="replace") if out.is_file() else ""
     stderr = err.read_text(encoding="utf-8", errors="replace") if err.is_file() else ""
@@ -173,7 +206,8 @@ def render(req, folder):
     return {"file": picture.name, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "status": "time_limit" if info["time_limit_reached"] else "completed", "seconds": round(seconds, 2),
-            "lights": len(lit), "materials": report, "notes": notes(engine, mats, len(lit), report), **info}
+            "render_threads": threads, "lights": len(lit), "materials": report,
+            "notes": notes(engine, mats, len(lit), report), **info}
 
 
 def build_sample(path):

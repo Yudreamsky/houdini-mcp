@@ -20,6 +20,16 @@ def seconds(name, default):
     return limit
 
 
+def kill_tree(proc):
+    """End hython and the renderers it started; Windows does not end child processes with their parent."""
+    if proc.poll() is None and os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if proc.poll() is None:
+        proc.kill()
+    proc.wait()
+
+
 class WorkerPool:
     def __init__(self):
         self.lock = threading.Lock()
@@ -30,9 +40,7 @@ class WorkerPool:
 
     def _stop(self):
         if self.proc is not None:
-            if self.proc.poll() is None:
-                self.proc.kill()
-            self.proc.wait()
+            kill_tree(self.proc)
             self.proc = None
         if self.mail is not None:
             self.mail.cleanup()
@@ -55,7 +63,14 @@ class WorkerPool:
             if fresh or mode == "spawn" or req["action"] not in WARM_ACTIONS:
                 # Release our interactive exploration licence before taking a fresh one.
                 self._stop()
-                subprocess.run([str(install.hython), str(SCRIPT), str(job)], timeout=timeout, check=True, **options)
+                fresh_proc = subprocess.Popen([str(install.hython), str(SCRIPT), str(job)], **options)
+                try:
+                    fresh_proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    kill_tree(fresh_proc)
+                    raise
+                if fresh_proc.returncode:
+                    raise subprocess.CalledProcessError(fresh_proc.returncode, fresh_proc.args)
             else:
                 idle = seconds("HOUDINI_RESEARCH_WORKER_IDLE", 300)
                 if (self.proc is None or self.proc.poll() is not None or self.hython != install.hython

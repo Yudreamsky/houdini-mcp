@@ -1,6 +1,9 @@
 import json
 import os
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -92,8 +95,55 @@ class LogTests(unittest.TestCase):
         self.assertIn("Fatal error: Segmentation fault", excerpt("", LIMIT))
         self.assertNotIn("+0x", excerpt("", LIMIT))
 
+    def test_progress_is_the_last_logged_percentage(self):
+        self.assertIsNone(read_log(LOG)["progress_percent"])
+        stalled = LOG.replace("[08:48:53] Warning", "[08:48:52]   0.0% Lap= 0:00:00.70 Left= 19:37:46\n"
+                                                    "[08:48:53]   6.2% Lap= 0:00:08.18 Left= 0:02:02\n[08:48:53] Warning")
+        self.assertEqual(read_log(stalled, LIMIT)["progress_percent"], 6.2)
 
-def fake_run(job_requests, size=(64, 36)):
+
+class GpuLoadTests(unittest.TestCase):
+    def test_reads_nvidia_smi_and_explains_a_busy_card(self):
+        reply = subprocess.CompletedProcess([], 0, stdout="97, 21371, 24564\n")
+        with patch("hlab.karma.subprocess.run", return_value=reply):
+            load = karma.gpu_load()
+        self.assertEqual(load, {"utilization_percent": 97.0, "free_mib": 3193.0})
+        self.assertEqual(len(karma.load_notes(load)), 2)
+        self.assertEqual(karma.load_notes({"utilization_percent": 12.0, "free_mib": 9000.0}), [])
+        with patch("hlab.karma.subprocess.run", side_effect=FileNotFoundError):
+            self.assertIsNone(karma.gpu_load())
+        self.assertEqual(karma.load_notes(None), [])
+
+
+class KillTreeTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows does not end a child process with its parent")
+    def test_ends_the_renderer_a_worker_started(self):
+        from hlab.worker_pool import kill_tree
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / "child.pid"
+            script = ("import pathlib, subprocess, sys, time\n"
+                      "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
+                      f"pathlib.Path({str(marker)!r}).with_suffix('.tmp').write_text(str(child.pid))\n"
+                      f"pathlib.Path({str(marker)!r}).with_suffix('.tmp').replace({str(marker)!r})\n"
+                      "time.sleep(120)\n")
+            parent = subprocess.Popen([sys.executable, "-c", script])
+            deadline = time.monotonic() + 30
+            while not marker.exists() and time.monotonic() < deadline:
+                time.sleep(.05)
+            child = marker.read_text()
+            kill_tree(parent)
+            for _ in range(50):
+                # The "no tasks" notice is localised, so decode leniently.
+                listed = subprocess.run(["tasklist", "/FI", f"PID eq {child}", "/NH"],
+                                        capture_output=True).stdout.decode(errors="replace")
+                if child not in listed.split():
+                    break
+                time.sleep(.1)
+            self.assertNotIn(child, listed.split())
+            self.assertIsNotNone(parent.poll())
+
+
+def fake_run(job_requests, size=(64, 36), status="completed", progress=None):
     def worker(req, job):
         job_requests.append(req)
         if req["action"] == "karma_inspect":
@@ -102,10 +152,11 @@ def fake_run(job_requests, size=(64, 36)):
         (job / "husk.log").write_text(LOG, encoding="utf-8")
         chosen = req["settings"]
         return {"file": "render.png", "log": "husk.log", "frame": req["frame"] or 12, "camera": req["camera"] or "/obj/CAM",
-                "rop": "/out/HR_KARMA_PREVIEW", "temporary_rop": True, "resolution": list(size), "status": "completed",
+                "rop": "/out/HR_KARMA_PREVIEW", "temporary_rop": True, "resolution": list(size),
                 "seconds": 3.5, "lights": 1, "notes": [], "materials": {"converted": [], "unconverted": []},
                 "settings": {"engine": chosen.get("engine", "xpu"), "samples": chosen.get("samples", 32),
-                             "denoiser": chosen.get("denoiser", "off")}, **read_log(LOG)}
+                             "denoiser": chosen.get("denoiser", "off")}, **read_log(LOG),
+                "status": status, "progress_percent": progress}
     return worker
 
 
@@ -114,12 +165,37 @@ class StudioTests(unittest.TestCase):
         self.home = tempfile.TemporaryDirectory()
         self.env = patch.dict(os.environ, {"HOUDINI_RESEARCH_HOME": self.home.name})
         self.env.start()
+        self.idle = patch("hlab.karma.gpu_load", return_value=None)
+        self.idle.start()
         self.hip = Path(self.home.name) / "shot.hip"
         self.hip.write_bytes(b"HIP")
 
     def tearDown(self):
+        self.idle.stop()
         self.env.stop()
         self.home.cleanup()
+
+    def test_busy_gpu_and_a_stalled_time_limit_are_explained(self):
+        requests = []
+        busy = {"utilization_percent": 97.0, "free_mib": 3193.0}
+        with patch("hlab.karma.gpu_load", return_value=busy), \
+                patch("hlab.sop_lab.worker", fake_run(requests, status="time_limit", progress=6.2)):
+            run, _ = karma.render(str(self.hip))
+        self.assertEqual(requests[0]["preset"], "preview")
+        self.assertEqual(run["gpu_load"], busy)
+        self.assertEqual(len(run["notes"]), 3)
+        self.assertIn("6.2%", run["notes"][0])
+        self.assertIn("编译着色器", run["notes"][0])
+        self.assertIn("97%", run["notes"][1])
+        self.assertIn("约完成 6.2%", run["summary"])
+
+    def test_scene_based_presets_ask_the_worker_for_the_project_rop(self):
+        requests = []
+        karma.save_preset("mine", "scene", {"samples": 64})
+        with patch("hlab.sop_lab.worker", fake_run(requests)):
+            karma.render(str(self.hip), preset="mine")
+            karma.compare(str(self.hip), {"A": {"preset": "mine"}, "B": {"preset": "scene"}})
+        self.assertEqual([r["preset"] for r in requests], ["scene", "scene", "scene"])
 
     def test_saved_presets_round_trip(self):
         result = karma.save_preset("夜景", "standard", {"samples": 256, "color_limit": 4}, "deep blue")
