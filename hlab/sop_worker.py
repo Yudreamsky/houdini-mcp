@@ -137,6 +137,9 @@ def work_loaded(req, folder, process):
     if req["action"] == "karma_render":
         from hlab.karma_render import render
         return render(req, folder)
+    if req["action"] == "vantage_export":
+        from hlab.vantage_export import export
+        return export(req, folder)
     hou.setFrame(req["frame"])
     if req["action"]=="frame":
         rop=hou.node(req["renderer"])

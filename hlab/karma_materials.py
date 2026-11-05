@@ -3,6 +3,8 @@ import json
 
 import hou
 
+from hlab import photoreal
+
 LEGACY = ("v_constant", "v_plastic", "v_metal", "v_glass", "v_decal", "v_supermat", "principledshader")
 WRAP = {"repeat": "periodic", "clamp": "clamp", "streak": "clamp", "mirror": "mirror", "decal": "constant", "black": "constant"}
 SPACES = {"linear": "lin_rec709", "raw": "Raw", "sRGB": "srgb_texture", "rec709": "rec709_display"}
@@ -329,11 +331,18 @@ def plan(engine):
     return rows
 
 
-def convert(engine):
+def convertible(entry):
+    node = entry["node"]
+    return node is not None and base_name(node) in BUILDERS
+
+
+def convert(engine, force=False):
+    """Swap what this engine cannot read for MaterialX; force swaps every material that has a builder (Vantage reads
+    only MaterialX, and rounded edges attach to a MaterialX normal)."""
     found, _ = used()
     converted, unconverted, targets = [], [], {}
     for path, entry in sorted(found.items()):
-        how = handling(entry, engine)
+        how = "convert" if force and convertible(entry) else handling(entry, engine)
         if how == "keep":
             continue
         node = entry["node"]
@@ -341,7 +350,7 @@ def convert(engine):
             unconverted.append({"source": path, "type": node.type().nameWithCategory() if node else None, "reason": how})
             continue
         surface, notes = BUILDERS[base_name(node)](node, Network(node))
-        if entry["kind"] == "principled":
+        if entry["kind"] == "principled" and xpu_gaps(node):
             notes.insert(0, "XPU 自带的近似会丢掉" + "、".join(xpu_gaps(node)))
         for obj, text, via in entry["uses"]:
             plan_ = targets.setdefault(obj, {"object": None, "primitive": {}})
@@ -386,3 +395,101 @@ def retarget(obj, plan_):
         swap.setRenderFlag(True)
         if shown:
             swap.setDisplayFlag(True)
+
+
+def surface_of(node):
+    """The Principled or MaterialX standard_surface node that shades with this material, or None."""
+    if node is None:
+        return None
+    if base_name(node).startswith("principledshader") or node.type().name() == "mtlxstandard_surface":
+        return node
+    if node.isNetwork():
+        inner = [c for c in node.allSubChildren() if c.type().name() == "mtlxstandard_surface"]
+        return inner[0] if len(inner) == 1 else None
+    return None
+
+
+def free(node, name):
+    index = node.inputIndex(name)
+    return index < 0 or node.input(index) is None
+
+
+def surface_values(node):
+    """The photoreal description of a Principled or standard_surface node; inputs driven by textures are left out."""
+    if base_name(node).startswith("principledshader"):
+        m = {"metalness": value(node, "metallic", 0.), "transmission": value(node, "transparency", 0.)}
+        if not value(node, "basecolor_useTexture", 0):
+            m["base_color"] = tuple(c * value(node, "albedomult", 1.) for c in color(node, "basecolor", (.2, .2, .2)))
+        if not value(node, "rough_useTexture", 0):
+            m["roughness"] = value(node, "rough", .3)
+        if not value(node, "reflect_useTexture", 0):
+            m["specular"] = min(1., value(node, "reflect", .5) * 2)
+        return m
+    m = {"metalness": value(node, "metalness", 0.) if free(node, "metalness") else 0.,
+         "transmission": value(node, "transmission", 0.) if free(node, "transmission") else 0.}
+    if free(node, "base_color"):
+        m["base_color"] = tuple(c * value(node, "base", 1.) for c in color(node, "base_color", (.8, .8, .8)))
+    if free(node, "specular_roughness"):
+        m["roughness"] = value(node, "specular_roughness", .2)
+    if free(node, "specular"):
+        m["specular"] = value(node, "specular", 1.)
+    return m
+
+
+def write_values(node, m):
+    principled = base_name(node).startswith("principledshader")
+    weight = value(node, "albedomult" if principled else "base", 1.) or 1.
+    if "base_color" in m:
+        node.parmTuple("basecolor" if principled else "base_color").set(tuple(c / weight for c in m["base_color"]))
+    if "roughness" in m:
+        node.parm("rough" if principled else "specular_roughness").set(m["roughness"])
+    if "specular" in m:
+        node.parm("reflect" if principled else "specular").set(m["specular"] / 2 if principled else m["specular"])
+
+
+def pbr_report():
+    """Each rendered material whose values a physically based renderer will show as unreal."""
+    found, _ = used()
+    rows = []
+    for path, entry in sorted(found.items()):
+        node = surface_of(entry["node"])
+        problems = photoreal.issues(surface_values(node)) if node is not None else []
+        if problems:
+            rows.append({"material": path, "issues": [{"code": c, "reason": r} for c, r in problems]})
+    return rows
+
+
+def pbr_fix():
+    """Apply the safe corrections to every rendered material in this unsaved copy; returns what changed."""
+    found, _ = used()
+    rows = []
+    for path, entry in sorted(found.items()):
+        node = surface_of(entry["node"])
+        if node is None:
+            continue
+        values = surface_values(node)
+        corrected, changes = photoreal.fixed(values)
+        if changes:
+            write_values(node, {k: v for k, v in corrected.items() if corrected.get(k) != values.get(k)})
+            rows.append({"material": path, "changes": changes})
+    return rows
+
+
+def round_edges(radius):
+    """Blend shading normals across edges within radius (scene units) on every MaterialX surface that renders."""
+    found, _ = used()
+    rounded, skipped = [], []
+    for path, entry in sorted(found.items()):
+        node = surface_of(entry["node"])
+        if node is None or node.type().name() != "mtlxstandard_surface":
+            skipped.append(path)
+            continue
+        blend = node.parent().createNode("kma_roundededge", node.name() + "_hr_round")
+        blend.parm("radius").set(radius)
+        index = node.inputIndex("normal")
+        for link in node.inputConnections():
+            if link.inputIndex() == index:  # keep a normal or bump map underneath the rounding
+                blend.setInput(blend.inputIndex("nN"), link.inputNode(), link.outputIndex())
+        node.setNamedInput("normal", blend, "roundN")
+        rounded.append(path)
+    return {"materials": rounded, "skipped": skipped}

@@ -261,3 +261,25 @@ def write_hdr(path, rows):
             scale = mantissa * 256. / m
             body += bytes((int(r * scale), int(g * scale), int(b * scale), exponent + 128))
     path.write_bytes(f"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y {len(rows)} +X {len(rows[0])}\n".encode() + bytes(body))
+
+
+def read_hdr(path):
+    """Rows of linear RGB, top first, from a flat RGBE file as write_hdr makes it."""
+    body = path.read_bytes().split(b"\n\n", 1)[1]
+    size, pixels = body.split(b"\n", 1)
+    _, height, _, width = size.split()
+    values = [tuple(c * 2. ** (e - 136) for c in pixels[i:i + 3]) if e else (0., 0., 0.)
+              for i, e in ((i, pixels[i + 3]) for i in range(0, len(pixels), 4))]
+    return [values[r * int(width):(r + 1) * int(width)] for r in range(int(height))]
+
+
+def lookup(rows, d):
+    """The sky's linear colour toward unit direction d, interpolated between pixels."""
+    height, width = len(rows), len(rows[0])
+    x = ((math.atan2(d[0], -d[2]) / (2. * math.pi) + .5) % 1.) * width - .5
+    y = min(max((.5 - math.asin(max(-1., min(1., d[1]))) / math.pi) * height - .5, 0.), height - 1.)
+    x0, y0 = math.floor(x), math.floor(y)
+    tx, ty = x - x0, y - y0
+    x0, x1, y1 = x0 % width, (x0 + 1) % width, min(y0 + 1, height - 1)
+    top = mix(rows[y0][x0], rows[y0][x1], tx)
+    return mix(top, mix(rows[y1][x0], rows[y1][x1], tx), ty)

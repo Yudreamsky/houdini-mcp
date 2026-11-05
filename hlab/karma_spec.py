@@ -26,17 +26,20 @@ LIGHTING = {
     "studio": {"label": "摄影棚", "angle": 30., "elevation": 45., "keep_scene_lights": False,
                "note": "产品摄影棚：大柔光箱做主光和辅光，后方灯条勾边，灰色背景在物体后面最亮；灯按画面里几何体的范围摆放。"},
 }
-CHOICES = {"engine": ("xpu", "cpu"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING)}
-SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights")
+CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING)}
+SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights", "pbr_fix")
 NUMBERS = {
     "samples": (int, 1, 16384), "time_limit": (int, 1, 540), "max_edge": (int, 64, 8192), "width": (int, 16, 8192),
     "resolution_scale": (float, .05, 1.), "diffuse_limit": (int, 0, 64), "reflection_limit": (int, 0, 64),
     "refraction_limit": (int, 0, 64), "volume_limit": (int, 0, 64), "sss_limit": (int, 0, 64),
     "color_limit": (float, .1, 1000.), "light_sampling_quality": (float, .01, 10.),
     "light_angle": (float, -180., 180.), "light_elevation": (float, 0., 90.), "light_exposure": (float, -6., 6.),
-    "light_fill": (float, -3., 3.),
+    "light_fill": (float, -3., 3.), "round_edges": (float, 0., 100.),
 }
 LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights")
+# Karma settings Chaos Vantage has no counterpart for: it renders every sample, always from MaterialX.
+KARMA_ONLY = ("time_limit", "diffuse_limit", "reflection_limit", "refraction_limit", "volume_limit", "sss_limit",
+              "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials")
 # Plain control name -> Karma ROP parameter. Resolution and the time limit are applied separately.
 PARMS = {
     "engine": "engine", "samples": "pathtracedsamples", "denoiser": "denoiser", "motion_blur": "enablemblur",
@@ -45,7 +48,7 @@ PARMS = {
     "color_limit": "colorlimit", "light_sampling_quality": "light_sampling_quality",
 }
 MEANING = {
-    "engine": "xpu 用显卡；cpu 用处理器，支持全部 VEX 材质",
+    "engine": "xpu 用显卡；cpu 用处理器，支持全部 VEX 材质；vantage 用本机的 Chaos Vantage 实时光追（导出 USD 后渲染，单帧约 1 秒）",
     "samples": "每像素采样数，越高越干净、越慢",
     "denoiser": "off 不降噪；optix 显卡降噪（首次使用需准备约 2 分钟）；oidn 处理器降噪",
     "time_limit": "单帧时间上限（秒），到时保存当时的画面",
@@ -64,6 +67,8 @@ MEANING = {
     "light_exposure": "灯光预设整体加减曝光（档），+1 亮一倍，-1 暗一半",
     "light_fill": "补光相对主光加减（档）：日景、夜景是天光，摄影棚是辅光；-1 影子更暗、反差更大，+1 影子更亮、更柔；阴天不用",
     "keep_scene_lights": "保留工程里的点光、聚光、面光等局部灯（夜景默认保留，其余默认关掉）；工程里的天空和太阳类灯总会被替换",
+    "round_edges": "圆角半径（毫米），让棱边像真实物体一样有一点圆角、能接住高光；Karma 在着色时混合法线，Vantage 导出时真的倒角；0 不加",
+    "pbr_fix": "把不符合真实材料的数值临时改正：底色太亮或太暗、非金属不反光、粗糙度为 0、金属颜色太暗（只改渲染副本）",
 }
 
 
@@ -101,6 +106,12 @@ def checked(changes):
     return out
 
 
+def root_preset(preset, saved):
+    while preset not in PRESETS and preset in saved:
+        preset = saved[preset]["base"]
+    return preset
+
+
 def settings(preset, changes=None, saved=None):
     saved = saved or {}
     if preset in PRESETS:
@@ -120,6 +131,14 @@ def settings(preset, changes=None, saved=None):
         raise ValueError(f"{', '.join(loose)} only apply with lighting = day, overcast, night or studio")
     if look == "overcast" and "light_fill" in chosen:
         raise ValueError("overcast light is all sky, with no key light to fill against; drop light_fill")
+    if chosen.get("engine") == "vantage":
+        if root_preset(preset, saved) == "scene":
+            raise ValueError("preset scene keeps a Karma ROP's own settings; with engine vantage use preview, standard or final")
+        karma_only = [name for name in KARMA_ONLY if name in changes]
+        if karma_only:
+            raise ValueError(f"{', '.join(karma_only)} only apply to Karma (engine xpu or cpu); Vantage renders every sample "
+                             "and always uses MaterialX")
+        chosen = {k: v for k, v in chosen.items() if k not in KARMA_ONLY}
     return chosen
 
 
@@ -134,6 +153,17 @@ def lighting(chosen):
            "angle": chosen.get("light_angle", spec["angle"]), "elevation": chosen.get("light_elevation", spec["elevation"])}
     if look != "overcast":
         out["fill"] = chosen.get("light_fill", 0.)
+    return out
+
+
+def look_settings(look):
+    """A look as the effective settings a render reports."""
+    if not look:
+        return {"lighting": "scene"}
+    out = {"lighting": look["look"], "light_exposure": look["exposure"], "keep_scene_lights": look["keep_scene_lights"],
+           "light_angle": look["angle"], "light_elevation": look["elevation"]}
+    if "fill" in look:
+        out["light_fill"] = look["fill"]
     return out
 
 
