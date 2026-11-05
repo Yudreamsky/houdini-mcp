@@ -10,7 +10,7 @@ from pathlib import Path
 from .storage import read, write
 
 SCRIPT = Path(__file__).with_name("sop_worker.py")
-WARM_ACTIONS = {"nodes", "inspect", "animation_gap", "sweep", "study", "afterglow_render"}
+WARM_ACTIONS = {"nodes", "inspect", "animation_gap", "sweep", "study", "afterglow_render", "karma_inspect", "karma_render"}
 
 
 def seconds(name, default):

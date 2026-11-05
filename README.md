@@ -33,6 +33,12 @@ claude mcp get houdini-research
 
 `domain_recipe(action="catalog",domain="mechanics")` 只列机械操作及摘要，`domain_recipe(name="animation_gap")` 才返回该操作的完整参数。调用时传 `action="run"`、`name`、`arguments`。水、火、机械等经验用 `knowledge` 筛选摘要，再取相应记录和画面。[双语检索和 Windows 测试](docs/knowledge-ci.md)
 
+### 用 Karma 试渲和调参
+
+`domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)
+
+`karma(action="render", hip="karma-probe")` 会先在数据目录生成一个小样例。本机 RTX 4090 上，预览一张约 3–6 秒，日志显示显卡贡献 100%。真实验收用 `python -m tests.karma_native`。
+
 ### 让 Claude 在施工中发现缺口
 
 遇到已有工具不能表达的操作、临时脚本绕行，或单参实验与预测矛盾，先检查相关工具及证据。已有父级的 OBJ 再次交给 `mechanical_rig` 时，MCP 会在错误中附上缺口 ID 和本次观察 ID，保存可重放的参数。节点实验也可返回缺口 ID。接点错位或尺寸超限等正常拒绝，应先修正场景。

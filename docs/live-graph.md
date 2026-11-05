@@ -61,6 +61,7 @@ $houdini = & $pythonExe -c "from hlab.runtime import discover; print(discover().
 & $hython -m tests.live_study_native
 & $pythonExe -m tests.saved_study_native
 & $pythonExe -m tests.runtime_native
+& $pythonExe -m tests.karma_native
 ```
 
 以下三项各自启动并关闭一个临时 GUI。依次执行可分别核对建网与选版、撤销历史、超时及并发顺序。无需打开个人工程。

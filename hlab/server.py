@@ -195,7 +195,7 @@ def evidence(key: str, variant: str = "", index: int = 0, session_id: str = ""):
     data = row["details"]
     if row["kind"]=="comparison" and variant in data["candidates"]:
         samples = data["candidates"][variant]["samples"]
-    elif row["kind"] in ("experiment","motion") and not variant:
+    elif row["kind"] in ("experiment","motion","render") and not variant:
         samples = data["samples"]
     else:
         raise ValueError("Choose an experiment or motion ID, or pass a comparison ID and one of its variant names")
@@ -348,6 +348,32 @@ def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
     Measures projected bounds, not mesh contact. Supply topic to save a searchable evidence record."""
     from .animation_gap import run
     return run(hip, upper, lower, start, end, axis, minimum, maximum, topic)
+
+
+@mcp.tool(structured_output=False)
+def karma(action: Literal["presets", "inspect", "render", "compare", "save_preset"] = "presets", hip: str = "",
+          camera: str = "", frame: int | None = None, preset: str = "preview",
+          changes: dict[str, bool | int | float | str] | None = None,
+          variants: dict[str, dict[str, bool | int | float | str]] | None = None,
+          zoom: list[float] | None = None, rop: str = "", topic: str = "", name: str = "", note: str = ""):
+    """Karma XPU/CPU test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe); the HIP is never
+    saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs and material
+    support. render returns one image limited in size and time, with effective settings, seconds and GPU evidence;
+    topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera and frame,
+    optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. save_preset names a base
+    preset plus changes for later use."""
+    from . import karma as studio
+    if action == "presets":
+        result = studio.presets()
+    elif action == "save_preset":
+        result = studio.save_preset(name, preset, changes, note)
+    elif action == "inspect":
+        result = studio.inspect(hip)
+    elif action == "render":
+        return illustrated(*studio.render(hip, camera, frame, preset, changes, rop, topic, note))
+    else:
+        return illustrated(*studio.compare(hip, variants, camera, frame, rop, topic, zoom, note))
+    return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
 
 @mcp.tool()

@@ -8,6 +8,7 @@
   "scatter": ["散点", "散布"],
   "seed": ["种子", "随机种子", "seeds"],
   "lighting": ["照明", "光照"],
+  "render": ["渲染", "出图", "试渲", "rendering", "karma", "xpu"],
   "afterglow": ["余照", "余辉"],
   "mechanical-animation": ["机械", "机械动画"],
   "procedural-modeling": ["程序化建模", "procedural modeling", "procedural modelling"]
