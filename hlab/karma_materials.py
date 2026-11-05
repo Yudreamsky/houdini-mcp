@@ -357,6 +357,17 @@ def convert(engine):
 
 
 def retarget(obj, plan_):
+    # Conversion runs only in the unsaved render worker's copy of the HIP.
+    # Unlock ancestors first so nested assets can be edited without changing
+    # their definitions or the source HIP on disk.
+    ancestry = [obj] if plan_["primitive"] else []
+    parent = obj.parent()
+    while parent is not None:
+        ancestry.append(parent)
+        parent = parent.parent()
+    for node in reversed(ancestry):
+        if node.isLockedHDA():
+            node.allowEditingOfContents()
     if plan_["object"]:
         parm = obj.parm("shop_materialpath")
         parm.deleteAllKeyframes()

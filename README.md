@@ -33,6 +33,12 @@ claude mcp get houdini-research
 
 `domain_recipe(action="catalog",domain="mechanics")` 只列机械操作及摘要，`domain_recipe(name="animation_gap")` 才返回该操作的完整参数。调用时传 `action="run"`、`name`、`arguments`。水、火、机械等经验用 `knowledge` 筛选摘要，再取相应记录和画面。[双语检索和 Windows 测试](docs/knowledge-ci.md)
 
+### 用 WFC 生成模块布局
+
+`domain_recipe(domain="procedural-modeling")` 按需发现 `wfc_layout`。这版是二维布局求解器：按模块四边的接口标签匹配邻居，支持权重、锁定局部、边界限制，以及迷宫所需的全连通、无环约束；返回布局和传播/回溯统计。它支持最多 256 格、64 种模块，几何由调用端构建。同一套有序规则、种子和求解器版本可复现结果。
+
+仓库提供[迷宫与立面规则、MCP 调用和重跑方法](examples/wfc/README.md)。可选的 Houdini 例子把迷宫结果生成带种子和尺寸参数的自包含 HIP，在独立 `hython` 中完成，不打开新窗口。基础版不包含通用三维模块库或自动节点网络装配。
+
 ### 用 Karma 试渲和调参
 
 `domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。Karma 不读的旧式 /shop 材质，以及 XPU 下用了凹凸或透明度贴图的 Principled，会在渲染前临时转成 MaterialX；雨滴示例转换后和 Mantra 原图一致。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)

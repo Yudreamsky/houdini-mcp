@@ -13,6 +13,7 @@ from .improvements import GapReport, Proposal
 from .mechanical_rig import Joint
 from .mechanisms import FourBar, Reeving, Transfer
 from .storage import details, home, ident, record, search, sha, uid
+from .wfc_api import Cell, Sockets, Tile
 
 mcp = ResearchMCP("Houdini Research", instructions=(
     "Start with window_session or knowledge. Discover specialist operations via domain_recipe(action='catalog'). "
@@ -327,6 +328,21 @@ def mechanical_rig(hip: str, joints: list[Joint], frame: int = 1, output: str = 
     existing animated transform channels at the bind pose before applying new joint keys. Read returned control paths to edit drive."""
     from .mechanical_rig import run
     return run(hip, joints, frame, output, replace_motion)
+
+
+@mcp.tool(annotations=READ)
+def wfc_layout(columns: int, rows: int, tiles: list[Tile], seed: int = 0,
+               cells: list[Cell] | None = None, edges: Sockets | None = None,
+               connected_socket: str | None = None, loop_free: bool = False) -> dict:
+    """Solve a 2D module layout with 1-256 cells and 1-64 tiles using weighted entropy and socket propagation.
+    Rows are bottom-up, x/y zero-based. Adjacent sockets must match; a one-tile cell allow-list locks it.
+    Optional edges constrain all four boundaries. connected_socket makes every cell reachable via that socket;
+    loop_free also requires a tree. Returns seed, tile-name layout and search statistics, or an explicit failure.
+    The same ordered rules, seed and solver version reproduce a layout. Geometry is built by the caller."""
+    from .wfc import solve
+    return solve(columns, rows, [t.model_dump() for t in tiles], seed,
+                 [c.model_dump() for c in cells or []], edges.model_dump() if edges else None,
+                 connected_socket, loop_free)
 
 
 @mcp.tool()
