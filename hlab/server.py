@@ -375,8 +375,10 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "save_prese
     """Karma XPU/CPU test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe); the HIP is never
     saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs, material support
     and the materials each engine converts: legacy /shop shaders, and Principled with bump or transparency maps on XPU,
-    become MaterialX in memory before rendering (convert_materials). render returns one image limited in size and time, with effective
-    settings, conversions, seconds and GPU evidence;
+    become MaterialX in memory before rendering (convert_materials). changes.lighting swaps the scene's lights for a
+    day, overcast, night or product studio look placed relative to the camera (light_angle, light_elevation,
+    light_exposure, light_fill, keep_scene_lights). render returns one image limited in size and time, with effective
+    settings, conversions, lighting, seconds and GPU evidence;
     topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera and frame,
     optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. save_preset names a base
     preset plus changes for later use."""
