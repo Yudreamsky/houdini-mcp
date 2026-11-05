@@ -94,7 +94,11 @@ def measure_frames(req):
             else:
                 yield frame, gap, None
 
-    return {"fps": hou.fps(), **summarize(samples(), req["minimum"], req["maximum"])}
+    entering_frame = hou.frame()
+    try:
+        return {"fps": hou.fps(), **summarize(samples(), req["minimum"], req["maximum"])}
+    finally:
+        hou.setFrame(entering_frame)
 
 
 def run(hip, upper, lower, start, end, axis, minimum, maximum, topic):

@@ -215,7 +215,7 @@ def principled(src, net):
     emitted = [point_color(net, "_emit_cd")] if value(src, "emitcolor_usePointColor", 0) else []
     feed(net, surface, "emission_color", color(src, "emitcolor"), emitted)
     surface.parm("emission").set(value(src, "emitint", 0.))
-    surface.parmTuple("opacity").set((value(src, "opac", 1.),) * 3)
+    surface.parmTuple("opacity").set(tuple(value(src, "opac", 1.) * c for c in color(src, "opaccolor")))
     notes = ["高光、次表面和光泽按 MaterialX 近似"]
     skipped = [p.name()[:-len("_useTexture")] for p in src.parms()
                if p.name().endswith("_useTexture") and p.eval() and p.name() != "basecolor_useTexture"]
@@ -267,6 +267,17 @@ def convert(engine):
 
 
 def retarget(obj, plan_):
+    # Conversion runs only in the unsaved render worker's copy of the HIP.
+    # Unlock ancestors first so nested assets can be edited without changing
+    # their definitions or the source HIP on disk.
+    ancestry = [obj] if plan_["primitive"] else []
+    parent = obj.parent()
+    while parent is not None:
+        ancestry.append(parent)
+        parent = parent.parent()
+    for node in reversed(ancestry):
+        if node.isLockedHDA():
+            node.allowEditingOfContents()
     if plan_["object"]:
         parm = obj.parm("shop_materialpath")
         parm.deleteAllKeyframes()
