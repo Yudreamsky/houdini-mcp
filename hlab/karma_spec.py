@@ -15,7 +15,7 @@ PRESETS = {
 }
 
 CHOICES = {"engine": ("xpu", "cpu"), "denoiser": ("off", "optix", "oidn")}
-SWITCHES = ("motion_blur", "depth_of_field")
+SWITCHES = ("motion_blur", "depth_of_field", "convert_materials")
 NUMBERS = {
     "samples": (int, 1, 16384), "time_limit": (int, 1, 540), "max_edge": (int, 64, 8192), "width": (int, 16, 8192),
     "resolution_scale": (float, .05, 1.), "diffuse_limit": (int, 0, 64), "reflection_limit": (int, 0, 64),
@@ -38,6 +38,7 @@ MEANING = {
     "width": "直接指定宽度，高度按相机比例；会取代预设的长边上限",
     "resolution_scale": "相机分辨率的比例",
     "motion_blur": "运动模糊", "depth_of_field": "景深",
+    "convert_materials": "渲染前把 Karma 读不了的旧材质临时转成 MaterialX（默认开）",
     "diffuse_limit": "漫反射反弹次数", "reflection_limit": "反射反弹次数", "refraction_limit": "折射反弹次数",
     "volume_limit": "体积反弹次数", "sss_limit": "次表面散射反弹次数",
     "color_limit": "单次采样亮度上限，压低飞白噪点", "light_sampling_quality": "灯光采样质量",

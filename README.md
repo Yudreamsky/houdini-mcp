@@ -35,7 +35,7 @@ claude mcp get houdini-research
 
 ### 用 Karma 试渲和调参
 
-`domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)
+`domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。Karma 不读的旧式 /shop 材质，以及 XPU 下带贴图的 Principled，会在渲染前临时转成 MaterialX；雨滴示例转换后和 Mantra 原图一致。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)
 
 `karma(action="render", hip="karma-probe")` 会先在数据目录生成一个小样例。本机 RTX 4090 上，预览一张约 3–6 秒，日志显示显卡贡献 100%。真实验收用 `python -m tests.karma_native`。
 

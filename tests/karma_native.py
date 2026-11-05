@@ -21,6 +21,19 @@ def fixture(sample, copy):
     side.parmTuple("r").set((-10, 90, 0))
     side.parm("resx").set(640)
     side.parm("resy").set(640)
+    # A legacy constant shader on a backdrop: Karma ignores /shop, so only a conversion shows the flat Cd colour.
+    backdrop = hou.node("/obj").createNode("geo", "BACKDROP")
+    grid = backdrop.createNode("grid")
+    grid.parmTuple("size").set((16, 10))
+    grid.parm("orient").set(0)
+    grid.parmTuple("t").set((0, 3, -4.5))
+    paint = backdrop.createNode("attribwrangle")
+    paint.setInput(0, grid)
+    paint.parm("snippet").set("@Cd = set(0.1, 0.4, 0.9);")
+    paint.setDisplayFlag(True)
+    paint.setRenderFlag(True)
+    hou.node("/shop").createNode("v_constant", "flat")
+    backdrop.parm("shop_materialpath").set("/shop/flat")
     hou.hipFile.save(str(copy), save_to_recent_files=False)
 
 
@@ -78,6 +91,22 @@ def accept(directory):
     assert own["settings"]["engine"] == "cpu" and own["settings"]["samples"] == 6 and sha(copy) == copied
     side, _ = timed("side camera", karma.render, str(copy), camera="/obj/SIDE", changes={"max_edge": 320})
     assert side["resolution"] == [320, 320] and side["gpu_verified"]
+    plan = karma.inspect(str(copy))["material_conversion"]
+    assert [r["source"] for r in plan["xpu"]["converted"]] == ["/shop/flat"] == [r["source"] for r in plan["cpu"]["converted"]]
+    corner = {}
+    for engine in ("xpu", "cpu"):
+        for convert in (True, False):
+            shot, _ = timed(f"backdrop {engine} {'converted' if convert else 'as authored'}", karma.render, str(copy),
+                            camera="/obj/CAM", changes={"engine": engine, "max_edge": 320, "convert_materials": convert})
+            assert bool(shot["materials"]) == convert and shot["settings"]["convert_materials"] == convert
+            assert not convert or [r["source"] for r in shot["materials"]["converted"]] == ["/shop/flat"]
+            with Image.open(shot["path"]) as picture:
+                corner[engine, convert] = picture.convert("RGB").getpixel((6, 6))
+    # Linear Cd (0.1, 0.4, 0.9) written through the sRGB transfer is about (89, 170, 244).
+    for engine in ("xpu", "cpu"):
+        assert all(abs(a - b) <= 6 for a, b in zip(corner[engine, True], (89, 170, 244))), corner
+        assert max(abs(a - b) for a, b in zip(corner[engine, False], (89, 170, 244))) > 30, corner
+    assert sha(copy) == copied
     karma.save_preset("细节", "preview", {"samples": 96, "max_edge": 640})
     data, sheet = timed("compare", karma.compare, "karma-probe",
                         {"8": {"samples": 8, "denoiser": "off"}, "细节": {"preset": "细节"}}, zoom=[.5, .35, .85, .85])
@@ -86,7 +115,8 @@ def accept(directory):
     assert all(v["status"] == "completed" and v["gpu_verified"] for v in data["variants"].values())
     assert [c.type for c in evidence(data["id"], variant="细节")] == ["text", "image"]
     pool.close()
-    print("PASS Karma sample, inspect, XPU/CPU, time limit, own ROP, camera choice, compare and evidence:", seconds)
+    print("PASS Karma sample, inspect, XPU/CPU, time limit, own ROP, camera choice, legacy material conversion, "
+          "compare and evidence:", seconds)
 
 
 if __name__ == "__main__":
