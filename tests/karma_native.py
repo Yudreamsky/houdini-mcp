@@ -34,6 +34,20 @@ def fixture(sample, copy):
     paint.setRenderFlag(True)
     hou.node("/shop").createNode("v_constant", "flat")
     backdrop.parm("shop_materialpath").set("/shop/flat")
+    # Out of shot: XPU's own Principled fallback keeps colour textures but drops bump maps.
+    pictures = hou.text.expandString("$HFS/houdini/pic/")
+    for i, (name, parms) in enumerate((("textured", dict(basecolor_useTexture=1, basecolor_texture=pictures + "Mandril.pic")),
+                                       ("bumpy", dict(baseBumpAndNormal_enable=1, baseBumpAndNormal_type="bump",
+                                                      baseBump_bumpTexture=pictures + "MandrilBump.pic")))):
+        material = hou.node("/mat").createNode("principledshader::2.0", name)
+        for key, value in parms.items():
+            material.parm(key).set(value)
+        holder = hou.node("/obj").createNode("geo", name.upper())
+        ball = holder.createNode("sphere")
+        ball.parmTuple("t").set((i * 2, 0, 12))
+        ball.setDisplayFlag(True)
+        ball.setRenderFlag(True)
+        holder.parm("shop_materialpath").set(material.path())
     hou.hipFile.save(str(copy), save_to_recent_files=False)
 
 
@@ -92,14 +106,16 @@ def accept(directory):
     side, _ = timed("side camera", karma.render, str(copy), camera="/obj/SIDE", changes={"max_edge": 320})
     assert side["resolution"] == [320, 320] and side["gpu_verified"]
     plan = karma.inspect(str(copy))["material_conversion"]
-    assert [r["source"] for r in plan["xpu"]["converted"]] == ["/shop/flat"] == [r["source"] for r in plan["cpu"]["converted"]]
+    assert [r["source"] for r in plan["xpu"]["converted"]] == ["/mat/bumpy", "/shop/flat"], plan
+    assert [r["source"] for r in plan["cpu"]["converted"]] == ["/shop/flat"], plan
     corner = {}
     for engine in ("xpu", "cpu"):
         for convert in (True, False):
             shot, _ = timed(f"backdrop {engine} {'converted' if convert else 'as authored'}", karma.render, str(copy),
                             camera="/obj/CAM", changes={"engine": engine, "max_edge": 320, "convert_materials": convert})
             assert bool(shot["materials"]) == convert and shot["settings"]["convert_materials"] == convert
-            assert not convert or [r["source"] for r in shot["materials"]["converted"]] == ["/shop/flat"]
+            assert not convert or [r["source"] for r in shot["materials"]["converted"]] == (
+                ["/mat/bumpy", "/shop/flat"] if engine == "xpu" else ["/shop/flat"])
             with Image.open(shot["path"]) as picture:
                 corner[engine, convert] = picture.convert("RGB").getpixel((6, 6))
     # Linear Cd (0.1, 0.4, 0.9) written through the sRGB transfer is about (89, 170, 244).

@@ -52,6 +52,10 @@ def native(directory):
         tinted.parmTuple("opacity").eval()
     material.parm("opac").set(1)
     material.parmTuple("opaccolor").set((0, 0, 0))
+    # XPU converts a Principled only for features its own fallback drops; a flat bump map is one of them.
+    material.parm("baseBumpAndNormal_enable").set(1)
+    material.parm("baseBumpAndNormal_type").set("bump")
+    material.parm("baseBump_bumpTexture").set(str(directory / "white.png"))
     geo = hou.node("/obj").createNode("geo", "BOX")
     box = geo.createNode("box")
     box.setDisplayFlag(True)

@@ -4,7 +4,17 @@ import json
 import hou
 
 LEGACY = ("v_constant", "v_plastic", "v_metal", "v_glass", "v_decal", "v_supermat", "principledshader")
-WRAP = {"repeat": "periodic", "clamp": "clamp", "mirror": "mirror", "decal": "constant", "black": "constant"}
+WRAP = {"repeat": "periodic", "clamp": "clamp", "streak": "clamp", "mirror": "mirror", "decal": "constant", "black": "constant"}
+SPACES = {"linear": "lin_rec709", "raw": "Raw", "sRGB": "srgb_texture", "rec709": "rec709_display"}
+# Principled colour inputs: texture prefix, standard_surface input, constant parameter and its default.
+COLORS = (("basecolor", "base_color", "basecolor", (.2, .2, .2)), ("transcolor", "transmission_color", "transcolor", (1., 1., 1.)),
+          ("ssscolor", "subsurface_color", "ssscolor", (1., 1., 1.)), ("emitcolor", "emission_color", "emitcolor", (1., 1., 1.)),
+          ("opaccolor", "opacity", "opaccolor", (1., 1., 1.)))
+# Scalar inputs: prefix, input, default and factor. A texture multiplies the value, as Karma CPU renders it.
+SCALARS = (("rough", "specular_roughness", .3, 1.), ("metallic", "metalness", 0., 1.), ("reflect", "specular", .5, 2.),
+           ("coat", "coat", 0., 1.), ("coatrough", "coat_roughness", 0., 1.), ("transparency", "transmission", 0., 1.),
+           ("sss", "subsurface", 0., 1.), ("sheen", "sheen", 0., 1.))
+UNMAPPED = ("aniso", "anisodir", "dispersion", "ior", "occlusion", "reflecttint", "sheentint", "sssdist", "transdist")
 
 
 def objects():
@@ -62,8 +72,16 @@ def base_name(node):
     return node.type().name().split("::")[0]
 
 
-def textured(node):
-    return any(p.name().endswith("_useTexture") and p.eval() for p in node.parms())
+def xpu_gaps(node):
+    """Principled features XPU's own fallback drops and a MaterialX conversion restores, found by rendering against
+    Karma CPU. Its colour, roughness, metal, normal, emission and opacity textures, glass, coat, sheen and point
+    colour render correctly. Subsurface is also dropped, but the converted look was further from CPU."""
+    gaps = []
+    if value(node, "baseBumpAndNormal_enable", 0) and value(node, "baseBumpAndNormal_type", "") == "bump":
+        gaps.append("凹凸贴图")
+    if value(node, "transparency_useTexture", 0) and value(node, "transparency_texture", ""):
+        gaps.append("透明度贴图")
+    return gaps
 
 
 def handling(entry, engine):
@@ -71,8 +89,10 @@ def handling(entry, engine):
     node, kind = entry["node"], entry["kind"]
     if kind == "shop":
         return "convert" if base_name(node) in LEGACY else "Karma 不读这种旧式 /shop 材质，也无法自动转换"
-    if kind == "principled" and engine == "xpu" and textured(node):
+    if kind == "principled" and engine == "xpu" and xpu_gaps(node):
         return "convert"
+    if kind == "principled" and engine == "xpu" and value(node, "sss", 0.) > 0:
+        return "XPU 会忽略次表面散射，这部分会和 CPU 不同；要准确效果用 engine=cpu"
     if kind == "vex" and engine == "xpu":
         return "XPU 不支持这个 VEX 材质，也无法自动转换；改用 engine=cpu"
     return "keep"
@@ -105,13 +125,47 @@ def point_color(net, suffix="_cd"):
     return cd
 
 
-def texture(net, path, suffix, wrap="repeat"):
+def texture(net, path, suffix, wrap="repeat", signature="color3", space="auto"):
     image = net.node("mtlximage", suffix)
-    image.parm("signature").set("color3")
+    image.parm("signature").set(signature)
     image.parm("file").set(path)
+    # Principled's automatic space is left to the image reader, as Karma CPU does.
+    if space != "auto":
+        image.parm("filecolorspace").set(SPACES.get(space, space))
     for axis in ("uaddressmode", "vaddressmode"):
         image.parm(axis).set(WRAP.get(wrap, "periodic"))
     return image
+
+
+def channel(net, src, prefix, signature="color3"):
+    """The mtlximage for an enabled <prefix>_texture, or None."""
+    if not value(src, prefix + "_useTexture", 0) or not value(src, prefix + "_texture", ""):
+        return None
+    return texture(net, value(src, prefix + "_texture", ""), "_" + prefix, value(src, prefix + "_textureWrap", "repeat"),
+                   signature, value(src, prefix + "_textureColorSpace", "auto"))
+
+
+def mono(net, image, pick, suffix):
+    """Principled mono channel: 0 luminance, 1 red, 2 green, 3 blue."""
+    source = image
+    if pick == 0:
+        source = net.node("mtlxluminance", suffix + "_luma")
+        source.parm("signature").set("color3")
+        source.setNamedInput("in", image, 0)
+    single = net.node("mtlxextract", suffix + "_mono")
+    single.parm("signature").set("color3")
+    single.setNamedInput("in", source, 0)
+    single.parm("index").set(max(0, pick - 1))
+    return single
+
+
+def scaled(net, source, amount, suffix):
+    if amount == 1:
+        return source
+    product = net.node("mtlxmultiply", suffix)
+    product.setNamedInput("in1", source, 0)
+    product.parm("in2").set(amount)
+    return product
 
 
 def feed(net, surface, name, tint, sources):
@@ -193,36 +247,70 @@ def supermat(src, net):
     return surface, ["只转了漫反射、粗糙度、发光和漫反射贴图；透明、反射和其他贴图未转换"]
 
 
+def relief(net, src):
+    """standard_surface normal from Principled's base bump or normal map."""
+    if not value(src, "baseBumpAndNormal_enable", 0):
+        return None, []
+    if value(src, "baseBumpAndNormal_type", "bump") == "normal":
+        if not value(src, "baseNormal_texture", ""):
+            return None, []
+        image = texture(net, value(src, "baseNormal_texture", ""), "_normal_image", value(src, "baseNormal_wrap", "repeat"),
+                        "vector3", "raw")
+        mapped = net.node("mtlxnormalmap", "_normal")
+        mapped.setNamedInput("in", image, 0)
+        mapped.parm("scale").set(value(src, "baseNormal_scale", 1.))
+        notes = []
+        if value(src, "baseNormal_flipX", 0) or value(src, "baseNormal_flipY", 0):
+            notes.append("法线贴图的 X/Y 翻转未转换")
+        if value(src, "baseNormal_vectorSpace", "uvtangent") != "uvtangent":
+            notes.append("法线贴图只按切线空间转换")
+        return mapped, notes
+    if not value(src, "baseBump_bumpTexture", ""):
+        return None, []
+    image = texture(net, value(src, "baseBump_bumpTexture", ""), "_bump_image", value(src, "baseBump_wrap", "repeat"),
+                    "default", "raw")
+    bump = net.node("mtlxbump", "_bump")
+    bump.setNamedInput("height", image, 0)
+    bump.parm("scale").set(value(src, "baseBump_bumpScale", .05))
+    return bump, ["凹凸强度沿用原数值"]
+
+
 def principled(src, net):
     surface = net.node("mtlxstandard_surface")
-    sources = [point_color(net)] if value(src, "basecolor_usePointColor", 0) else []
-    if value(src, "basecolor_useTexture", 0) and value(src, "basecolor_texture", ""):
-        sources.append(texture(net, value(src, "basecolor_texture", ""), "_basecolor",
-                               value(src, "basecolor_textureWrap", "repeat")))
-    feed(net, surface, "base_color", color(src, "basecolor", (.2, .2, .2)), sources)
+    for prefix, name, parm, default in COLORS:
+        tint = color(src, parm, default)
+        if prefix == "opaccolor":
+            tint = tuple(c * value(src, "opac", 1.) for c in tint)
+        sources = [point_color(net, f"_{prefix}_cd")] if value(src, prefix + "_usePointColor", 0) else []
+        image = channel(net, src, prefix)
+        if image is not None:
+            sources.append(image)
+            tint = tuple(c * value(src, prefix + "_textureIntensity", 1.) for c in tint)
+        feed(net, surface, name, tint, sources)
+    for prefix, name, default, factor in SCALARS:
+        amount = value(src, prefix, default) * factor
+        image = channel(net, src, prefix)
+        if image is None:
+            surface.parm(name).set(min(1., amount) if prefix == "reflect" else amount)
+        else:
+            single = mono(net, image, int(value(src, prefix + "_monoChannel", 0)), "_" + prefix)
+            surface.setNamedInput(name, scaled(net, single, amount, f"_{prefix}_amount"), 0)
     surface.parm("base").set(value(src, "albedomult", 1.))
-    surface.parm("metalness").set(value(src, "metallic", 0.))
-    surface.parm("specular").set(min(1., 2 * value(src, "reflect", .5)))
-    surface.parm("specular_roughness").set(value(src, "rough", .3))
     surface.parm("specular_IOR").set(value(src, "ior", 1.5))
-    surface.parm("transmission").set(value(src, "transparency", 0.))
-    surface.parmTuple("transmission_color").set(color(src, "transcolor"))
-    surface.parm("coat").set(value(src, "coat", 0.))
-    surface.parm("coat_roughness").set(value(src, "coatrough", 0.))
-    surface.parm("sheen").set(value(src, "sheen", 0.))
-    surface.parm("subsurface").set(value(src, "sss", 0.))
-    surface.parmTuple("subsurface_color").set(color(src, "ssscolor"))
-    emitted = [point_color(net, "_emit_cd")] if value(src, "emitcolor_usePointColor", 0) else []
-    feed(net, surface, "emission_color", color(src, "emitcolor"), emitted)
     surface.parm("emission").set(value(src, "emitint", 0.))
-    surface.parmTuple("opacity").set(tuple(value(src, "opac", 1.) * c for c in color(src, "opaccolor")))
-    notes = ["高光、次表面和光泽按 MaterialX 近似"]
-    skipped = [p.name()[:-len("_useTexture")] for p in src.parms()
-               if p.name().endswith("_useTexture") and p.eval() and p.name() != "basecolor_useTexture"]
+    normal, notes = relief(net, src)
+    if value(src, "sss", 0.) > 0:
+        notes.append("次表面散射比 CPU 偏均匀")
+    if value(src, "sheen", 0.) > 0:
+        notes.append("光泽（sheen）比 CPU 偏强")
+    if normal is not None:
+        surface.setNamedInput("normal", normal, 0)
+    notes.insert(0, "按 MaterialX standard_surface 近似")
+    skipped = [prefix for prefix in UNMAPPED if value(src, prefix + "_useTexture", 0)]
     if skipped:
         notes.append("未转换的贴图：" + "、".join(skipped))
-    if value(src, "baseBumpAndNormal_enable", 0):
-        notes.append("凹凸和法线贴图未转换")
+    if value(src, "coat", 0.) > 0 and value(src, "separateCoatNormals", 0) and value(src, "coatBumpAndNormal_enable", 0):
+        notes.append("清漆层自己的凹凸和法线未转换")
     return surface, notes
 
 
@@ -253,6 +341,8 @@ def convert(engine):
             unconverted.append({"source": path, "type": node.type().nameWithCategory() if node else None, "reason": how})
             continue
         surface, notes = BUILDERS[base_name(node)](node, Network(node))
+        if entry["kind"] == "principled":
+            notes.insert(0, "XPU 自带的近似会丢掉" + "、".join(xpu_gaps(node)))
         for obj, text, via in entry["uses"]:
             plan_ = targets.setdefault(obj, {"object": None, "primitive": {}})
             if via == "object":
