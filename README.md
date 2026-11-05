@@ -25,6 +25,8 @@ claude mcp get houdini-research
 
 查机械案例用 `knowledge(topic="mechanical-animation", kind="mechanism_test")`，取回卡片后按 ID 展开证据。仓库附有[四个可编辑机械工程和演示](examples/mechanisms)、[实测数据](examples/mechanisms/verification.json)及[渐进式经验 Skill](skills/houdini-research/SKILL.md)。
 
+建立可复用资产或管理复杂场景时，按[场景组织总则](skills/houdini-research/references/scene-organization.md)逐层读取项目、资产、部件和接口。建模、机械、特效和镜头各有按需参考。已有工程先建带来源版本的旁车索引，记录实际节点路径、共享源和待核查范围，再验证局部修改的影响。
+
 ### 在现有窗口建模
 
 先用 `window_session(action="list")` 找到目标窗口。将它的 `id` 传给 `graph_read` 浏览网络，用 `node_types` 查安装的节点类型，再用 `graph_edit` 一次建节点、连线和设参。`cook` 给出几何读数，`capture` 返回当前场景的视口截图，`diff` 比较改动前后的连线、参数和标志。默认工具列表共 15 项。烟花、残烟和机械的专用操作按领域展开，旧工具名仍可直接调用。[建模示例、准入与验收](docs/live-graph.md)
