@@ -14,14 +14,29 @@ PRESETS = {
               "settings": {"time_limit": 120}},
 }
 
-CHOICES = {"engine": ("xpu", "cpu"), "denoiser": ("off", "optix", "oidn")}
-SWITCHES = ("motion_blur", "depth_of_field", "convert_materials")
+# Lighting looks replace the scene's sky and sun with temporary lights; "scene" keeps the HIP's own lights.
+LIGHTING = {
+    "scene": {"label": "工程原灯光", "note": "用工程自己的灯，不加不关。"},
+    "day": {"label": "日景", "angle": 30., "elevation": 35., "keep_scene_lights": False,
+            "note": "晴天：暖白色太阳从右前方照来，加蓝天，影子清楚。太阳越低越暖、影子越长，接近地平线时是日落。"},
+    "overcast": {"label": "阴天", "angle": 30., "elevation": 40., "keep_scene_lights": False,
+                 "note": "阴天：整片天空发光，头顶最亮，云后太阳那一侧略亮，几乎没有影子，适合看形体和材质。"},
+    "night": {"label": "夜景", "angle": -135., "elevation": 30., "keep_scene_lights": True,
+              "note": "夜晚：淡蓝色月光从左后方勾出轮廓，夜空比建筑亮一点；保留工程里的点光、聚光、面光等局部灯。"},
+    "studio": {"label": "摄影棚", "angle": 30., "elevation": 45., "keep_scene_lights": False,
+               "note": "产品摄影棚：大柔光箱做主光和辅光，后方灯条勾边，灰色背景在物体后面最亮；灯按画面里几何体的范围摆放。"},
+}
+CHOICES = {"engine": ("xpu", "cpu"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING)}
+SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights")
 NUMBERS = {
     "samples": (int, 1, 16384), "time_limit": (int, 1, 540), "max_edge": (int, 64, 8192), "width": (int, 16, 8192),
     "resolution_scale": (float, .05, 1.), "diffuse_limit": (int, 0, 64), "reflection_limit": (int, 0, 64),
     "refraction_limit": (int, 0, 64), "volume_limit": (int, 0, 64), "sss_limit": (int, 0, 64),
     "color_limit": (float, .1, 1000.), "light_sampling_quality": (float, .01, 10.),
+    "light_angle": (float, -180., 180.), "light_elevation": (float, 0., 90.), "light_exposure": (float, -6., 6.),
+    "light_fill": (float, -3., 3.),
 }
+LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights")
 # Plain control name -> Karma ROP parameter. Resolution and the time limit are applied separately.
 PARMS = {
     "engine": "engine", "samples": "pathtracedsamples", "denoiser": "denoiser", "motion_blur": "enablemblur",
@@ -42,6 +57,13 @@ MEANING = {
     "diffuse_limit": "漫反射反弹次数", "reflection_limit": "反射反弹次数", "refraction_limit": "折射反弹次数",
     "volume_limit": "体积反弹次数", "sss_limit": "次表面散射反弹次数",
     "color_limit": "单次采样亮度上限，压低飞白噪点", "light_sampling_quality": "灯光采样质量",
+    "lighting": "灯光预设：scene 用工程自己的灯；day 日景；overcast 阴天；night 夜景；studio 产品摄影棚",
+    "light_angle": "太阳、月亮或主光的水平方向（度），以相机为准：0 从相机背后照向物体，90 从画面右侧，-90 从左侧，180 逆光；"
+                   "阴天是云后太阳的方向，那一侧天空略亮",
+    "light_elevation": "太阳、月亮或主光的高度角（度）；日景时越低越暖、影子越长",
+    "light_exposure": "灯光预设整体加减曝光（档），+1 亮一倍，-1 暗一半",
+    "light_fill": "补光相对主光加减（档）：日景、夜景是天光，摄影棚是辅光；-1 影子更暗、反差更大，+1 影子更亮、更柔；阴天不用",
+    "keep_scene_lights": "保留工程里的点光、聚光、面光等局部灯（夜景默认保留，其余默认关掉）；工程里的天空和太阳类灯总会被替换",
 }
 
 
@@ -91,7 +113,28 @@ def settings(preset, changes=None, saved=None):
     changes = checked(changes)
     if "width" in changes and "max_edge" not in changes:
         base.pop("max_edge", None)
-    return {**base, **changes}
+    chosen = {**base, **changes}
+    look = chosen.get("lighting", "scene")
+    loose = [name for name in LIGHT_CONTROLS if name in chosen]
+    if look == "scene" and loose:
+        raise ValueError(f"{', '.join(loose)} only apply with lighting = day, overcast, night or studio")
+    if look == "overcast" and "light_fill" in chosen:
+        raise ValueError("overcast light is all sky, with no key light to fill against; drop light_fill")
+    return chosen
+
+
+def lighting(chosen):
+    """The look a render uses, with each default filled in; None keeps the scene's own lights."""
+    look = chosen.get("lighting", "scene")
+    if look == "scene":
+        return None
+    spec = LIGHTING[look]
+    out = {"look": look, "label": spec["label"], "exposure": chosen.get("light_exposure", 0.),
+           "keep_scene_lights": chosen.get("keep_scene_lights", spec["keep_scene_lights"]),
+           "angle": chosen.get("light_angle", spec["angle"]), "elevation": chosen.get("light_elevation", spec["elevation"])}
+    if look != "overcast":
+        out["fill"] = chosen.get("light_fill", 0.)
+    return out
 
 
 def resolution(camera, chosen):

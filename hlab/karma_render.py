@@ -5,8 +5,9 @@ from contextlib import contextmanager
 
 import hou
 
+from hlab import karma_lighting
 from hlab.karma_materials import convert, is_light, objects, plan, used
-from hlab.karma_spec import PARMS, excerpt, read_log, resolution
+from hlab.karma_spec import PARMS, excerpt, lighting, read_log, resolution
 
 TEMPORARY = "HR_KARMA_PREVIEW"
 
@@ -37,7 +38,8 @@ def notes(engine, mats, light_count, report=None, planned=False):
     """report: conversions done (or planned) for this engine; None when conversion is switched off."""
     rows = []
     if not light_count:
-        rows.append("场景里没有开着的灯，Karma 会自动加一盏头灯；亮度和阴影不代表最终效果。")
+        rows.append("场景里没有开着的灯，Karma 会自动加一盏头灯；亮度和阴影不代表最终效果。"
+                    "可用 changes 里的 lighting（day、overcast、night、studio）临时布光。")
     kinds = mats["by_kind"]
     if kinds.get("missing"):
         rows.append(f"有 {len(kinds['missing'])} 个材质路径找不到节点（如 {kinds['missing'][0]}），会按默认材质渲染。")
@@ -179,7 +181,10 @@ def render(req, folder):
     for name, value in values.items():
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
     report = convert(engine) if chosen.get("convert_materials", True) else None
-    mats, lit = materials(), lights()
+    look = lighting(chosen)
+    lit_by = karma_lighting.apply(look, cam, rop, folder) if look else None
+    mats = materials()
+    lit = [n for n in lights() if not lit_by or n.path() not in lit_by["turned_off"]]
     threads = render_threads()
     started = time.perf_counter()
     failure = None
@@ -202,12 +207,17 @@ def render(req, folder):
     effective = {name: rop.evalParm(parm) for name, parm in PARMS.items()}
     effective.update(motion_blur=bool(effective["motion_blur"]), depth_of_field=bool(effective["depth_of_field"]),
                      time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
-                     convert_materials=report is not None)
+                     convert_materials=report is not None, lighting=look["look"] if look else "scene")
+    if look:
+        effective.update(light_exposure=look["exposure"], keep_scene_lights=look["keep_scene_lights"],
+                         light_angle=look["angle"], light_elevation=look["elevation"])
+        if "fill" in look:
+            effective["light_fill"] = look["fill"]
     return {"file": picture.name, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "status": "time_limit" if info["time_limit_reached"] else "completed", "seconds": round(seconds, 2),
-            "render_threads": threads, "lights": len(lit), "materials": report,
-            "notes": notes(engine, mats, len(lit), report), **info}
+            "render_threads": threads, "lights": len(lit), "materials": report, "lighting": lit_by,
+            "notes": (karma_lighting.notes(lit_by) if lit_by else []) + notes(engine, mats, len(lit), report), **info}
 
 
 def build_sample(path):
