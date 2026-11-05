@@ -60,17 +60,20 @@ def code_type(nt):
     return any(re.search(r"(?:python|shell|command|hscript|scriptserver|hdaevent|^unix$)", part) for part in name)
 
 
+def built_in(nt):
+    """Houdini's own type: no asset definition, or one from a library under $HFS."""
+    definition = nt.definition()
+    return definition is None or Path(definition.libraryFilePath()).resolve().is_relative_to(
+        Path(hou.expandString("$HFS")).resolve())
+
+
 def check_type(nt, path, template):
     if template:
         if template != "fireworks.trails" or nt.nameWithCategory() != "Sop/python":
             raise ValueError("The bundled fireworks.trails template requires Sop/python")
         return
-    if code_type(nt):
+    if code_type(nt) or not built_in(nt):
         exception_gate(path, nt.nameWithCategory())
-    elif nt.definition():
-        lib = Path(nt.definition().libraryFilePath()).resolve()
-        if not lib.is_relative_to(Path(hou.expandString("$HFS")).resolve()):
-            exception_gate(path, nt.nameWithCategory())
 
 
 def check_value(p, op):
@@ -199,8 +202,11 @@ def create(batch, op, label):
     check_type(nt, path, template)
     pp = parent.path()
     flags = flags_of(parent)
+    # Houdini's own creation scripts add parameters such as a camera's resx and focal or a geo
+    # object's vm_ render properties. Other assets' scripts stay off.
+    init = built_in(nt)
     def forward():
-        n = hou.node(pp).createNode(nt.name(), name, run_init_scripts=False, exact_type_name=True)
+        n = hou.node(pp).createNode(nt.name(), name, run_init_scripts=init, exact_type_name=True)
         if template:
             from .scene import configure_trails
             configure_trails(n)
@@ -320,6 +326,7 @@ def edit(ops, label="graph_edit", allow_delete=(), require_clean=True):
                 path=edit_one(batch,op,label,set(allow_delete))
                 n=hou.node(path)
                 result=dict(step=step,op=op["op"],path=path)
+                if op["op"]=="create":result["init_scripts"]=built_in(n.type())
                 if op["op"]=="set":result["value"]=n.parm(op["parm"]).eval()
                 if op["op"]=="flags":
                     result["display"]=n.isDisplayFlagSet() if hasattr(n,"isDisplayFlagSet") else None

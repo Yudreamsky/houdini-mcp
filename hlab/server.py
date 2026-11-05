@@ -64,7 +64,9 @@ def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int =
 def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
                require_clean: bool = True, session_id: str = "") -> dict:
     """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
-    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in."""
+    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in.
+    Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_ render
+    parameters; each create step reports init_scripts."""
     return live_call("graph_edit", session_id, ops=[op.model_dump(exclude_unset=True) for op in ops],
                      label=label, allow_delete=allow_delete or [], require_clean=require_clean)
 

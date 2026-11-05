@@ -35,6 +35,8 @@
 
 一批最多 128 项操作。成功后在 Houdini 的 Undo History 里出现 `MCP:` 加批次名称，按一次 Ctrl+Z 撤销该批次。失败会返回出错步骤并回滚。默认检查结果节点的 cook 错误。多人协作或人机轮流调参时，可在 `set` 中传 `expect`，由 MCP 核对预期旧值。改写有动画或引用的参数须显式传 `replace_expression=true`。删除已有节点时用 `allow_delete` 列出准确路径，本会话新建的节点可直接删除。
 
+Houdini 自带的类型（没有资产定义，或定义库在 `$HFS` 下）建节点时运行它的创建脚本，参数和手动新建的一样：相机有 `resx`、`resy`、`focal`、`aperture`、`projection`、`orthowidth`、`near`、`far`，几何物体有 `vm_` 渲染参数，可以在建它的同一批里直接设置。每个 `create` 步骤的 `init_scripts` 说明是否运行了创建脚本。外部 HDA 仍不运行自己的脚本。
+
 内置 `fireworks.trails` 模板可为 `Sop/python` 创建固定的烟花轨迹节点。自定义 Python、脚本回调和外部 HDA 等代码写入默认关闭。确需启用时，须由操作者在启动**目标 Houdini 进程**时设置 `HOUDINI_RESEARCH_ALLOW_CODE=1`。此类操作将目标路径和内容哈希登记到该窗口数据目录下的 `audit/graph-code.jsonl`。
 
 客户端的等待时间按操作和取样数调整。超时若显示可能已执行，先回读窗口网络、参数或结果再决定是否重试。桥接的 `bridge/orphans.log` 保留迟到请求的处理记录。
