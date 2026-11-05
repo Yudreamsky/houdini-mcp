@@ -12,6 +12,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from hlab.storage import read, sha, write
 
+READ_ONLY_ACTIONS = {"nodes", "inspect", "animation_gap", "karma_inspect"}
+
 
 def signature(node):
     geo=node.geometry()
@@ -102,6 +104,17 @@ def work(req,folder,load=True,process="fresh"):
         return build_sample(Path(req["target"]))
     if load:
         hou.hipFile.load(req["hip"],suppress_save_prompt=True)
+    if req["action"] in READ_ONLY_ACTIONS:
+        # A cached HIP must retain its entering frame, including when inspection fails.
+        entering_frame = hou.frame()
+        try:
+            return work_loaded(req, folder, process)
+        finally:
+            hou.setFrame(entering_frame)
+    return work_loaded(req, folder, process)
+
+
+def work_loaded(req, folder, process):
     if req["action"] == "study":
         from hlab.live_study import study_file
         return study_file(req, process)
@@ -208,7 +221,7 @@ def execute(folder, process, cached=None):
         result.update(process=process, process_pid=os.getpid(), houdini_version=hou.applicationVersionString())
         result = {"ok": result}
         # Sweeps and renders can leave edited parameters or a render ROP, even after a successful result.
-        cached = signature if request["action"] in {"nodes","inspect","animation_gap","karma_inspect"} else None
+        cached = signature if request["action"] in READ_ONLY_ACTIONS else None
     except Exception as exc:
         cached = None
         result={"error":f"{type(exc).__name__}: {exc}"}

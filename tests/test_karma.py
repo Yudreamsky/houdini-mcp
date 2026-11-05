@@ -135,6 +135,25 @@ class StudioTests(unittest.TestCase):
             with self.subTest(args=args), self.assertRaisesRegex(ValueError, message):
                 karma.save_preset(*args)
 
+    def test_saved_width_presets_match_inline_overrides(self):
+        camera = (1280, 720)
+        cases = [({"width": 2000}, None, (2000, 1125)),
+                 ({"width": 2000, "max_edge": 1000}, None, (1000, 562)),
+                 ({"width": 2000}, {"samples": 64}, (2000, 1125)),
+                 ({"width": 2000}, {"max_edge": 800}, (800, 450)),
+                 ({"width": 2000, "max_edge": 1000}, {"width": 1600}, (1600, 900))]
+        for saved_changes, temporary_changes, expected in cases:
+            with self.subTest(saved=saved_changes, temporary=temporary_changes):
+                stored = karma.save_preset("wide", "preview", saved_changes)
+                inline = settings("preview", saved_changes)
+                self.assertEqual(stored["settings"], inline)
+                restored = settings("wide", temporary_changes, karma.saved_presets())
+                if not temporary_changes:
+                    self.assertEqual(restored, inline)
+                self.assertEqual(resolution(camera, restored), expected)
+                listed = next(p for p in karma.presets()["saved"] if p["name"] == "wide")
+                self.assertEqual(listed["settings"], inline)
+
     def test_render_stores_image_record_and_evidence(self):
         from hlab.server import evidence
         requests = []

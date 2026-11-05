@@ -85,7 +85,7 @@ def settings(preset, changes=None, saved=None):
         base = dict(PRESETS[preset]["settings"])
     elif preset in saved:
         entry = saved[preset]
-        base = {**PRESETS[entry["base"]]["settings"], **entry["changes"]}
+        base = settings(entry["base"], entry["changes"])
     else:
         raise ValueError(f"Unknown preset {preset!r}. Choose one of: {', '.join([*PRESETS, *saved])}")
     changes = checked(changes)
