@@ -117,6 +117,9 @@ def read_log(stdout, stderr=""):
     peak = re.findall(r"Peak Memory Usage: ([\d.]+ \w+)", stdout)
     if peak:
         info["peak_memory"] = peak[-1]
+    # Progress lines are periodic, so a quick frame may log only 0%; this matters when a time limit stops it.
+    progress = re.findall(r"^\[[\d:]+\]\s+([\d.]+)% Lap=", stdout, re.M)
+    info["progress_percent"] = float(progress[-1]) if progress else None
     devices = []
     for block in re.split(r"\nDevice \d+\s*\n", stdout)[1:]:
         kind = re.search(r"^Type\s*:\s*(.+)$", block, re.M)
