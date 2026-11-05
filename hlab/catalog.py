@@ -12,6 +12,7 @@ DOMAINS = {
     "afterglow": ("afterglow",),
     "mechanics": ("mechanical_rig", "mechanism", "animation_gap"),
     "render": ("karma",),
+    "procedural-modeling": ("wfc_layout",),
 }
 DOMAIN_OF = {name: domain for domain, names in DOMAINS.items() for name in names}
 
