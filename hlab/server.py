@@ -66,7 +66,8 @@ def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[st
     """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
     old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in.
     Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_ render
-    parameters; each create step reports init_scripts."""
+    parameters; each create step reports init_scripts. A set step returns the value, or for text over 200
+    characters a preview, length and sha256 of the stored text."""
     return live_call("graph_edit", session_id, ops=[op.model_dump(exclude_unset=True) for op in ops],
                      label=label, allow_delete=allow_delete or [], require_clean=require_clean)
 

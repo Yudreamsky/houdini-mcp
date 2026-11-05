@@ -120,8 +120,24 @@ def check_creation(directory):
     print(f"PASS camera lens and {len(added)} vm_ parameters set in their creating batch; external asset scripts stay off")
 
 
+def check_long_text():
+    code="f@total = 0;\n"+"".join(f"f@total += {i}.0;  // padding so the snippet passes 20 KB\n" for i in range(400))
+    code+='s@scene = "$HIP";\n'
+    assert len(code)>20000
+    out="/obj/LONG/code"
+    result=graph.edit([dict(op="create",path="/obj/LONG",type="geo"),dict(op="create",path=out,type="attribwrangle"),
+                       dict(op="set",path=out,parm="class",value=0),dict(op="set",path=out,parm="snippet",value=code)])
+    sent=dict(preview=code[:120],length=len(code),sha256=hashlib.sha256(code.encode()).hexdigest())
+    assert result["steps"][-1]["value"]==sent, result["steps"][-1]
+    assert len(json.dumps(result))<2048 and hou.node(out).geometry().attribValue("total")==sum(range(400))
+    short=graph.edit([dict(op="set",path=out,parm="snippet",value="f@total = 1;")])["steps"][0]
+    assert short["value"]=="f@total = 1;" and "init_scripts" not in short
+    print(f"PASS {len(code)}-character snippet returned as a {len(json.dumps(result))}-byte batch result with its sha256")
+
+
 if __name__=="__main__":
     assert not hou.isUIAvailable()
     with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{"HOUDINI_RESEARCH_ALLOW_CODE":"0","HOUDINI_RESEARCH_HOME":tmp}):
         check(tmp)
         check_creation(tmp)
+        check_long_text()

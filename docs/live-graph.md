@@ -37,6 +37,8 @@
 
 Houdini 自带的类型（没有资产定义，或定义库在 `$HFS` 下）建节点时运行它的创建脚本，参数和手动新建的一样：相机有 `resx`、`resy`、`focal`、`aperture`、`projection`、`orthowidth`、`near`、`far`，几何物体有 `vm_` 渲染参数，可以在建它的同一批里直接设置。每个 `create` 步骤的 `init_scripts` 说明是否运行了创建脚本。外部 HDA 仍不运行自己的脚本。
 
+`set` 步骤回传写入后的值。超过 200 个字符的文本只回传前 120 个字符、长度和 `sha256`，按存入的原文计算，与发送文本的 `sha256` 相同即写入无误。出错信息保持完整。
+
 内置 `fireworks.trails` 模板可为 `Sop/python` 创建固定的烟花轨迹节点。自定义 Python、脚本回调和外部 HDA 等代码写入默认关闭。确需启用时，须由操作者在启动**目标 Houdini 进程**时设置 `HOUDINI_RESEARCH_ALLOW_CODE=1`。此类操作将目标路径和内容哈希登记到该窗口数据目录下的 `audit/graph-code.jsonl`。
 
 客户端的等待时间按操作和取样数调整。超时若显示可能已执行，先回读窗口网络、参数或结果再决定是否重试。桥接的 `bridge/orphans.log` 保留迟到请求的处理记录。

@@ -114,6 +114,16 @@ def get_literal(p):
     return p.unexpandedString() if isinstance(p.parmTemplate(), hou.StringParmTemplate) and not p.keyframes() else p.eval()
 
 
+def brief(p):
+    """A set step's value. Text over 200 characters returns a preview, length and sha256 of the stored
+    text, which a plain set leaves equal to the text sent; evaluation would expand $HIP in VEX strings."""
+    value = p.eval()
+    if not isinstance(value, str) or len(value) <= 200:
+        return value
+    text = get_literal(p)
+    return {"preview": text[:120], "length": len(text), "sha256": hashlib.sha256(text.encode()).hexdigest()}
+
+
 def flags_of(network):
     return [(n.name(), n.isDisplayFlagSet() if hasattr(n,"isDisplayFlagSet") else None,
              n.isRenderFlagSet() if hasattr(n,"isRenderFlagSet") else None) for n in network.children()]
@@ -327,7 +337,7 @@ def edit(ops, label="graph_edit", allow_delete=(), require_clean=True):
                 n=hou.node(path)
                 result=dict(step=step,op=op["op"],path=path)
                 if op["op"]=="create":result["init_scripts"]=built_in(n.type())
-                if op["op"]=="set":result["value"]=n.parm(op["parm"]).eval()
+                if op["op"]=="set":result["value"]=brief(n.parm(op["parm"]))
                 if op["op"]=="flags":
                     result["display"]=n.isDisplayFlagSet() if hasattr(n,"isDisplayFlagSet") else None
                     result["render"]=n.isRenderFlagSet() if hasattr(n,"isRenderFlagSet") else None
