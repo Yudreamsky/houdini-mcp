@@ -123,14 +123,7 @@ class LogTests(unittest.TestCase):
         self.assertEqual(read_log(stalled, LIMIT)["progress_percent"], 6.2)
 
 
-def read_hdr(path):
-    """Decode the flat RGBE files karma_sky writes."""
-    head, body = path.read_bytes().split(b"\n\n", 1)
-    size, pixels = body.split(b"\n", 1)
-    _, height, _, width = size.split()
-    values = [tuple(c * 2. ** (e - 136) for c in pixels[i:i + 3]) if e else (0., 0., 0.)
-              for i, e in ((i, pixels[i + 3]) for i in range(0, len(pixels), 4))]
-    return [values[r * int(width):(r + 1) * int(width)] for r in range(int(height))]
+read_hdr = karma_sky.read_hdr
 
 
 class SkyTests(unittest.TestCase):

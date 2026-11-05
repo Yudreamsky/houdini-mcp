@@ -120,10 +120,11 @@ def apply(look, cam, rop, folder):
     env.parm("light_exposure").set(look["exposure"])
     env.parm("light_contribprimary").set(1)  # the sky is also the background
     added.append(env.path())
-    extend(rop, "excludelights", turned_off)
-    extend(rop, "lights", added)
-    if rop.evalParm("sololights").strip():
-        extend(rop, "sololights", added)
+    if rop is not None:  # an export for another renderer has no Karma ROP to update
+        extend(rop, "excludelights", turned_off)
+        extend(rop, "lights", added)
+        if rop.evalParm("sololights").strip():
+            extend(rop, "sololights", added)
     report = {**look, "added": added, "turned_off": turned_off, "kept": kept}
     if look["look"] == "studio":
         report["subject"] = {"centre": [round(c, 4) for c in centre], "radius": round(radius, 4)}
