@@ -50,6 +50,27 @@ def fixture(target):
     hou.hipFile.save(str(target), save_to_recent_files=False)
 
 
+def subsets():
+    """default_grey leaves a mesh alone when bound subsets (per-face materials) cover every face."""
+    from pxr import Sdf, Usd, UsdGeom, UsdShade
+    from hlab.vantage_export import default_grey
+    stage = Usd.Stage.CreateInMemory()
+    paint = UsdShade.Material.Define(stage, "/mat/paint")
+    for name, faces in (("covered", [0, 1]), ("partial", [0])):
+        mesh = UsdGeom.Mesh.Define(stage, f"/geo/{name}")
+        mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0), (2, 0, 0), (2, 1, 0)])
+        mesh.CreateFaceVertexCountsAttr([4, 4])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2, 3, 1, 4, 5, 2])
+        subset = UsdGeom.Subset.Define(stage, f"/geo/{name}/painted")
+        subset.CreateElementTypeAttr("face")
+        subset.CreateFamilyNameAttr("materialBind")
+        subset.CreateIndicesAttr(faces)
+        UsdShade.MaterialBindingAPI.Apply(subset.GetPrim()).Bind(paint)
+    bare = default_grey(stage)
+    grey = lambda name: UsdShade.MaterialBindingAPI(stage.GetPrimAtPath(f"/geo/{name}")).GetDirectBinding().GetMaterialPath()
+    assert bare == 1 and grey("covered") == Sdf.Path() and grey("partial") != Sdf.Path(), (bare, grey("covered"), grey("partial"))
+
+
 def ball_top(picture):
     """The first row from the top where the dark ball shows in its columns."""
     w, h = picture.size
@@ -122,6 +143,10 @@ def accept(directory):
     assert b > r + 10, (r, g, b)
     assert no_dark_seam(vantage_picture, 20) and no_dark_seam(vantage_picture, 620), "dark line along the horizon"
 
+    # meshes whose faces all carry their own materials are not "without a material"
+    subprocess.run([str(discover().hython), str(Path(__file__).resolve()), "--subsets"], check=True, timeout=180,
+                   cwd=str(Path(__file__).resolve().parents[1]))
+
     hip = directory / "unreal.hip"
     subprocess.run([str(discover().hython), str(Path(__file__).resolve()), str(hip)], check=True, timeout=180)
     unreal = sha(hip)
@@ -160,7 +185,10 @@ def accept(directory):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    if sys.argv[1:] == ["--subsets"]:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        subsets()
+    elif len(sys.argv) > 1:
         fixture(Path(sys.argv[1]))
     else:
         with tempfile.TemporaryDirectory(prefix="vantage-acceptance-") as tmp:

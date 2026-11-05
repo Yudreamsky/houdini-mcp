@@ -223,6 +223,13 @@ def default_grey(stage):
     for prim in stage.Traverse():
         if prim.GetTypeName() != "Mesh" or UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()[0]:
             continue
+        # Per-face materials (shop_materialpath on primitives) arrive as bound subsets; a mesh they cover is not bare.
+        covered = set()
+        for subset in UsdGeom.Subset.GetAllGeomSubsets(UsdGeom.Imageable(prim)):
+            if UsdShade.MaterialBindingAPI(subset.GetPrim()).ComputeBoundMaterial()[0]:
+                covered.update(subset.GetIndicesAttr().Get() or [])
+        if covered and len(covered) >= len(UsdGeom.Mesh(prim).GetFaceVertexCountsAttr().Get() or []):
+            continue
         colour = UsdGeom.PrimvarsAPI(prim).GetPrimvar("displayColor")
         if not (colour and colour.HasValue()):
             bare.append(prim)
