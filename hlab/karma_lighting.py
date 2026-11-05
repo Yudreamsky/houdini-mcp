@@ -106,7 +106,7 @@ def apply(look, cam, rop, folder):
         node.parm("light_intensity").set(spec["intensity"])
         node.parm("light_exposure").set(look["exposure"])
         if spec["type"] == "sun":
-            node.parm("vm_envangle").set(DISC)
+            node.parm("vm_envangle").set(DISC / 2.)  # Houdini's sun angle is the half angle; USD gets twice it
             aim(node, target + hou.Vector3(spec["toward"]) * radius, target)
         else:
             node.parmTuple("areasize").set(tuple(s * radius for s in spec["size"]))

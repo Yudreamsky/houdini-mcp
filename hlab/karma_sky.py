@@ -47,7 +47,7 @@ RIG = (("KEY", 0., None, (4., 4.), 4.5), ("FILL", -90., 20., (4., 4.), 4.5), ("R
 # Studio backdrop: the darkest part (far from the view) relative to the brightest, just behind the subject, and how
 # many stops darker the picture's corners are. 2 ** -stops must stay above the darkest part.
 BACKDROP = (.18, 2.)
-DISC = .53  # degrees across the sun or moon
+DISC = .53  # degrees across the sun or moon: crisp shadows that still soften with distance, as in a photograph
 HAZE = .35  # below the horizon the sky fades into the ground over about 20 degrees, so no wall shows behind a scene
 
 
