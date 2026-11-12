@@ -345,6 +345,9 @@ def fake_run(job_requests, size=(64, 36), status="completed", progress=None, sto
                              "denoiser": chosen.get("denoiser", "off"),
                              **{k: chosen[k] for k in ("lighting", "light_angle", "light_elevation", "light_fill") if k in chosen}},
                 **read_log(LOG),
+                **({"scene": {"overrides": [{"parm": p, "from": 0, "to": v, "was_animated": False}
+                                            for p, v in req["scene"]["overrides"].items()],
+                              "hidden": list(req["scene"]["hide"])}} if req.get("scene") else {}),
                 "status": status, "progress_percent": progress}
     return worker
 

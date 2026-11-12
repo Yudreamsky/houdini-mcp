@@ -192,6 +192,53 @@ def photoreal_notes(real):
     return rows
 
 
+def apply_scene(scene):
+    """Temporary edits to the loaded copy for this render: parameter overrides and hidden objects. Code-capable
+    parameters follow graph_edit's rule and need the host opt-in. Returns what changed."""
+    report = {"overrides": [], "hidden": []}
+    if not scene:
+        return report
+    from hlab.live_graph import check_value, get_literal
+    for path, value in scene.get("overrides", {}).items():
+        parm = hou.parm(path)
+        if parm is None:
+            raise ValueError(f"overrides: no parameter {path}")
+        check_value(parm, {"value": value, "replace_expression": True})
+        template = parm.parmTemplate()
+        takes_text = isinstance(template, hou.StringParmTemplate)
+        if not isinstance(template, hou.MenuParmTemplate) and takes_text != isinstance(value, str):
+            raise ValueError(f"overrides: cannot set {path} to {value!r}: it takes {'text' if takes_text else 'a number'}")
+        animated, before = bool(parm.keyframes()), get_literal(parm)
+        try:
+            parm.deleteAllKeyframes()
+            parm.set(value, follow_parm_reference=False)
+        except (hou.Error, TypeError) as exc:
+            raise ValueError(f"overrides: cannot set {path} to {value!r}: {exc}") from exc
+        report["overrides"].append({"parm": path, "from": before, "to": get_literal(parm), "was_animated": animated})
+    for path in scene.get("hide", []):
+        node = hou.node(path)
+        if not isinstance(node, hou.ObjNode):
+            raise ValueError(f"hide: not an object: {path}")
+        node.setDisplayFlag(False)
+        report["hidden"].append(path)
+    return report
+
+
+def scene_notes(report):
+    rows = []
+    changed, hidden = report["overrides"], report["hidden"]
+    if changed:
+        first = changed[0]
+        text = f"临时改了 {len(changed)} 个场景参数（如 {first['parm']}：{first['from']} → {first['to']}）"
+        frozen = sum(1 for row in changed if row["was_animated"])
+        if frozen:
+            text += f"，其中 {frozen} 个原来有动画或表达式，这次渲染按固定值"
+        rows.append(text + "，工程文件不变。")
+    if hidden:
+        rows.append(f"临时隐藏了 {len(hidden)} 个物体（如 {hidden[0]}），工程文件不变。")
+    return rows
+
+
 def render(req, folder):
     """One frame (req frame, or the HIP's own) as render.png, or with req frames = [first, last] the whole range as
     render.<frame>.png from a single husk run, so the scene is translated and the shaders compile once."""
@@ -203,6 +250,7 @@ def render(req, folder):
         hou.setFrame(req["frame"])
     frame = whole(hou.frame())
     last = whole(span[1]) if span else frame
+    edits = apply_scene(req.get("scene"))
     rop, temporary = karma_rop(req.get("rop", ""), req.get("preset", ""))
     cam = pick_camera(req.get("camera", ""), rop, temporary)
     width, height = resolution((cam.evalParm("resx"), cam.evalParm("resy")), chosen)
@@ -276,7 +324,9 @@ def render(req, folder):
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "seconds": round(seconds, 2),
             "render_threads": threads, "lights": len(lit), "materials": report, "lighting": lit_by, "photoreal": real,
-            "notes": (karma_lighting.notes(lit_by) if lit_by else []) + photoreal_notes(real) + notes(engine, mats, len(lit), report),
+            "scene": edits,
+            "notes": scene_notes(edits) + (karma_lighting.notes(lit_by) if lit_by else []) + photoreal_notes(real)
+            + notes(engine, mats, len(lit), report),
             **info}
 
 

@@ -13,8 +13,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdRender, UsdShade
 
 from hlab import karma_lighting
 from hlab.karma_materials import convert, objects
-from hlab.karma_render import (fix_materials, lights, materials, notes as material_notes, photoreal_notes,
-                               pick_camera, whole)
+from hlab.karma_render import (apply_scene, fix_materials, lights, materials, notes as material_notes,
+                               photoreal_notes, pick_camera, scene_notes, whole)
 from hlab.karma_spec import lighting, resolution
 
 PREFIX = "HR_VANTAGE_"
@@ -305,6 +305,7 @@ def export(req, folder):
     chosen = req["settings"]
     first, last = (whole(f) for f in (req.get("frames") or (hou.frame(), hou.frame())))
     hou.setFrame(first)
+    scene = apply_scene(req.get("scene"))
     cam = pick_camera(req.get("camera", ""), None, True)
     if last > first and cam.evalParm("projection") == 1:
         raise ValueError("Vantage cannot animate an orthographic camera from USD (it misreads its width in sequences); "
@@ -324,7 +325,7 @@ def export(req, folder):
     usd = folder / "scene.usd"
     write_usd(usd, first, last)
     edits = finish(usd, cam, first, last, width, height)
-    rows = (karma_lighting.notes(lit_by) if lit_by else []) + vantage_notes(real, smoothed, edits, look) \
+    rows = scene_notes(scene) + (karma_lighting.notes(lit_by) if lit_by else []) + vantage_notes(real, smoothed, edits, look) \
         + [r for r in material_notes("vantage", mats, len(lit), report) if not r.startswith("场景里没有开着的灯")]
     if not lit:
         rows.insert(0, "场景里没有开着的灯，Vantage 不会自动加灯，画面会是黑的；可用 changes 里的 lighting"
@@ -334,7 +335,7 @@ def export(req, folder):
     return {"usd": usd.name, "camera": cam.path(), "camera_name": cam.name(), "frames": [first, last],
             "resolution": [width, height], "view": view(cam, first, last, width, height),
             "sky": "sky.hdr" if look else None, "lighting": lit_by, "materials": report, "photoreal": real,
-            "lights": len(lit), "normals_added": smoothed, "usd_edits": edits,
+            "lights": len(lit), "normals_added": smoothed, "usd_edits": edits, "scene": scene,
             "export_seconds": round(time.perf_counter() - started, 2), "notes": rows}
 
 

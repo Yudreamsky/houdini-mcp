@@ -404,8 +404,9 @@ def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
 def karma(action: Literal["presets", "inspect", "render", "compare", "animate", "save_preset"] = "presets",
           hip: str = "", camera: str = "", frame: int | None = None, frames: list[int] | None = None, fps: int = 24,
           preset: str = "preview", changes: dict[str, bool | int | float | str] | None = None,
-          variants: dict[str, dict[str, bool | int | float | str]] | None = None,
-          zoom: list[float] | None = None, rop: str = "", topic: str = "", name: str = "", note: str = ""):
+          variants: dict[str, dict[str, bool | int | float | str | dict[str, bool | int | float | str] | list[str]]] | None = None,
+          zoom: list[float] | None = None, rop: str = "", topic: str = "", name: str = "", note: str = "",
+          overrides: dict[str, bool | int | float | str] | None = None, hide: list[str] | None = None):
     """Test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe) with Karma XPU/CPU or, where it is
     installed, Chaos Vantage (changes.engine = vantage: exported to USD, about 1 s a frame plus 10-25 s to start); the
     HIP is never saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs,
@@ -418,7 +419,10 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera
     and frame, optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. animate renders
     frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run; Karma up to 240, in
-    husk runs of 48 frames that each load the scene once). save_preset names a base preset plus changes for later use."""
+    husk runs of 48 frames that each load the scene once). overrides sets scene parameters for this render only
+    ({"/obj/node/parm": value}; animation on them is replaced; code-capable parameters need the host opt-in) and hide
+    lists objects to leave out; in compare a variant may carry its own overrides and hide. save_preset names a base
+    preset plus changes for later use."""
     from . import karma as studio
     if action == "presets":
         result = studio.presets()
@@ -427,11 +431,11 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     elif action == "inspect":
         result = studio.inspect(hip)
     elif action == "render":
-        return illustrated(*studio.render(hip, camera, frame, preset, changes, rop, topic, note))
+        return illustrated(*studio.render(hip, camera, frame, preset, changes, rop, topic, note, overrides, hide))
     elif action == "animate":
-        return illustrated(*studio.animate(hip, camera, frames, preset, changes, fps, rop, topic, note))
+        return illustrated(*studio.animate(hip, camera, frames, preset, changes, fps, rop, topic, note, overrides, hide))
     else:
-        return illustrated(*studio.compare(hip, variants, camera, frame, rop, topic, zoom, note))
+        return illustrated(*studio.compare(hip, variants, camera, frame, rop, topic, zoom, note, overrides, hide))
     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
 

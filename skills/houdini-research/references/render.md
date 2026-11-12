@@ -36,6 +36,18 @@ Karma 读不了的材质，渲染前会临时转成 MaterialX，只在后台的�
 - `render` 传 `topic` 时保存为经验卡，`compare` 总会保存对照卡。用 `knowledge(topic="渲染")` 找回，用 `evidence(key)` 或 `evidence(key, variant=方案名)` 取原图。
 - 用户选定一个方案后，用 `save_preset(name=..., preset=底板预设, changes=..., note=选择理由)` 保存，以后传 `preset=该名字` 即可。只在用户明确选择后保存。
 
+## 临时改场景（只对这次渲染）
+
+`overrides` 和 `hide` 在后台的副本上改场景，工程文件不变。`render`、`compare`、`animate` 都能用，Karma 和 Vantage 都支持。
+
+- `overrides={"/obj/节点/参数": 数值}` 临时改参数，例如风力 `{"/obj/WIND/STATE/strength": 1}`。键是参数的完整路径，值是数字、true/false 或文字。
+- 参数原来有关键帧或表达式时，这次渲染按固定值，原来的动画不再起作用。结果的 `scene.overrides` 写明每个参数从什么改成什么，`was_animated` 标出原来有动画的。
+- `hide=["/obj/BACKDROP"]` 把物体从这次渲染里拿掉。只能填 /obj 里的物体。
+- `compare` 里每个方案可以带自己的 `overrides` 和 `hide`，例如 `{"无风": {"overrides": {路径: 0}}, "有风": {"overrides": {路径: 1}}}`。顶层的 `overrides`、`hide` 对所有方案生效；同一个参数两边都写时，以方案自己的为准。
+- 能执行代码的参数（Python、脚本、回调一类）和 `graph_edit` 一样受限：主机没有设 `HOUDINI_RESEARCH_ALLOW_CODE=1` 时拒绝。锁定或禁用的参数也拒绝。
+- 路径不存在、数值类型不对时直接报错，不会悄悄忽略。
+- 传了 `topic` 时，记录里保存这些改动（`scene`），以后能照原样重渲。
+
 ## 灯光预设
 
 `changes={"lighting": ...}` 在后台临时换灯，工程文件不变。`scene`（默认）用工程自己的灯。其余四套按灯光师和摄影师的做法定，数值在校准场景上实测过；规则、来源和按意见改灯的对照表见 [布光经验](lighting.md)。
