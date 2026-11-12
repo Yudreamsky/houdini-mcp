@@ -24,10 +24,20 @@ def notable(row, op):
     return False
 
 
+def listed_row(row, op):
+    """A notable step as returned: with its parameter name, and without the fields that say nothing."""
+    out = {k: v for k, v in row.items() if k not in ("type", "errors", "warnings")}
+    if "parm" in op:
+        out["parm"] = op["parm"]
+    if row.get("errors") or row.get("warnings"):
+        out.update(type=row.get("type"), errors=row.get("errors", []), warnings=row.get("warnings", []))
+    return out
+
+
 def summary(rows, ops, label, verbose=False):
     """Step totals per op, plus every step (verbose) or only the notable ones."""
     kinds = {}
     for row in rows:
         kinds[row["op"]] = kinds.get(row["op"], 0) + 1
-    listed = list(rows) if verbose else [row for row, op in zip(rows, ops) if notable(row, op)]
+    listed = list(rows) if verbose else [listed_row(row, op) for row, op in zip(rows, ops) if notable(row, op)]
     return {"label": label, "count": len(rows), "ops": kinds, "omitted": len(rows) - len(listed), "steps": listed}

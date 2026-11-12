@@ -5,7 +5,7 @@ import unittest
 from pydantic import TypeAdapter, ValidationError
 
 from hlab.graph_report import notable, same, summary
-from hlab.graph_schema import Copy, Edit
+from hlab.graph_schema import Copy, Edit, Patch
 
 CLEAN = {"errors": [], "warnings": []}
 
@@ -54,8 +54,25 @@ class ReportTests(unittest.TestCase):
         ops, rows = placement(1)
         rows[2]["warnings"] = ["Invalid source /obj/PARTS/foot/OUT"]
         result = summary(rows, ops, "MCP: one warning")
-        self.assertEqual(result["steps"], [rows[2]])
+        self.assertEqual(result["steps"], [{**rows[2], "parm": "objpath1"}])
         self.assertEqual((result["count"], result["omitted"]), (5, 4))
+
+    def test_a_step_listed_for_its_value_is_one_short_row(self):
+        ops, rows = [], []
+        for i in range(49):
+            path = f"/obj/ASM/part_{i:02d}"
+            if i < 20:
+                ops.append(dict(op="set", path=path, parm="tx", value='detail("/obj/DIMS/OUT", "C0", 0)', expression="hscript"))
+                rows.append(dict(step=i + 1, op="set", path=path, value=0.45, type="Object/geo", **CLEAN))
+            else:
+                ops.append(dict(op="set", path=path, parm="tz", value=0.725))
+                rows.append(dict(step=i + 1, op="set", path=path, value=0.725, type="Object/geo", **CLEAN))
+        result = summary(rows, ops, "MCP: placements")
+        self.assertEqual((result["count"], result["omitted"], len(result["steps"])), (49, 29, 20))
+        self.assertEqual(result["steps"][0], {"step": 1, "op": "set", "path": "/obj/ASM/part_00", "parm": "tx", "value": 0.45})
+        self.assertLess(len(json.dumps(result, indent=2).splitlines()), 160)
+        # verbose keeps the full rows
+        self.assertEqual(summary(rows, ops, "MCP: placements", verbose=True)["steps"][0], rows[0])
 
     def test_steps_that_say_something_new_are_listed(self):
         long_text = {"preview": "x" * 120, "length": 900, "sha256": "0"}
@@ -75,6 +92,8 @@ class ReportTests(unittest.TestCase):
             (dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": 1.3}), dict(op="copy", values={"tx": 1.3}), False),
             (dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": 1.3}), dict(op="copy", values={"tx": 0.0}), True),
             (dict(op="copy", source="/obj/A", path="/obj/B"), dict(op="copy", values={}), False),
+            (dict(op="patch", path="/obj/A/w", parm="snippet", find="0.18", replace="0.10"),
+             dict(op="patch", value=long_text), False),
         ]
         for op, row, expected in cases:
             with self.subTest(op=op):
@@ -95,6 +114,19 @@ class CopySchemaTests(unittest.TestCase):
                     dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": [1, 2]}),
                     dict(op="copy", source="/obj/A", path="/obj/B", set={f"p{i}": i for i in range(33)}),
                     dict(op="copy", source="/obj/A", path="/obj/B", expression="python")):
+            with self.subTest(bad=bad), self.assertRaises(ValidationError):
+                TypeAdapter(Edit).validate_python(bad)
+
+
+class PatchSchemaTests(unittest.TestCase):
+    def test_patch_names_a_fragment_and_how_often_it_occurs(self):
+        sent = dict(op="patch", path="/obj/A/w", parm="snippet", find="pitch*0.18", replace="pitch*0.10")
+        step = TypeAdapter(Edit).validate_python(sent)
+        self.assertIsInstance(step, Patch)
+        self.assertEqual((step.count, step.model_dump(exclude_unset=True)), (1, sent))
+        self.assertEqual(TypeAdapter(Edit).validate_python({**sent, "replace": "", "count": 3}).count, 3)
+        for bad in ({**sent, "find": ""}, {**sent, "count": 0}, {**sent, "count": 65},
+                    {k: v for k, v in sent.items() if k != "replace"}, {**sent, "value": "x"}):
             with self.subTest(bad=bad), self.assertRaises(ValidationError):
                 TypeAdapter(Edit).validate_python(bad)
 

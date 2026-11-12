@@ -141,7 +141,7 @@ async def exercise(client, directory, session, report):
     qa("undo")
     assert qa("history")["objects"] == before["objects"]
     created = await graph("graph_edit", ops=build_network(), label="rebuild fireworks")
-    assert created["count"] == len(build_network()) and all(not row["errors"] for row in created["steps"])
+    assert created["count"] == len(build_network()) and all(not row.get("errors") for row in created["steps"])
     assert qa("history")["undo"] == ["MCP: rebuild fireworks", *before["undo"]]
     rows = await graph("graph_read", path=ROOT, snapshot=True)
     rebuilt = network(rows)

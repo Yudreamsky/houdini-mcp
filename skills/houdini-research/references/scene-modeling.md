@@ -12,6 +12,8 @@
 
 复用经验时区分生成方法、资产版本和项目偏好，引用相关实验卡。模型达到画面精度与模型满足尺寸约束分别留证据。
 
+对着参考图迭代时，每轮先整体后细部：对齐机位，列出差异，只改最要紧的几条，重新出图再比。零件之间共用的尺寸集中写在一个节点里（例如一个只输出 detail 属性的 wrangle），零件用 `detail("op:/obj/PARTS/DIMS/OUT", 名称)` 读，摆放位置用表达式 `detail("/obj/PARTS/DIMS/OUT", 名称, 分量)` 读，改比例只动这一处。改零件代码里的一个数用 `patch`，形状检查用素模截图，材质和光照才用渲染。
+
 用 VEX wrangle 生成几何时，Houdini 20.5 实测有两处容易出错：
 
 - 返回数组的函数要带 `function` 关键字：`function float[] heights() { return array(2.5, 6.4); }`。写成 `float[] heights()` 会报语法错误（unexpected identifier）。

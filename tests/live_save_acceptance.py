@@ -223,6 +223,46 @@ async def exercise(client, home, hip, window, houdini, report):
     assert refused.isError and "Another file exists" in message and hip.read_bytes() == first, message
     report["save_as"] = {"hip": moved["hip"], "refused_overwrite": message[-160:]}
 
+    # One line of the long snippet changes without resending it.
+    before = len(code)
+    patched, chars = await invoke("graph_edit", session_id=window["id"], label="one line", ops=[
+        dict(op="patch", path=CODE + "/points", parm="snippet", find="array(0.0, 4.0)", replace="array(0.0, 5.0)")])
+    assert patched == {"label": "MCP: one line", "count": 1, "ops": {"patch": 1}, "omitted": 1, "steps": []}, patched
+    stored = await graph("graph_read", path=CODE, depth=1, limit=5)
+    snippet_now = next(n for n in stored["nodes"] if n["path"] == CODE + "/points")["parameters"]["snippet"]["value"]
+    assert "array(0.0, 5.0)" in snippet_now["preview"] and snippet_now["length"] == before, snippet_now
+    assert snippet_now["sha256"] == hashlib.sha256(code.replace("4.0); }", "5.0); }").encode()).hexdigest(), snippet_now
+    assert (await graph("cook", node=CODE + "/points", frame=1))["points"] == rows + 2
+    report["patch"] = {"result_characters": chars, "snippet_characters": snippet_now["length"]}
+
+    # A metal has nothing to reflect in the viewport and comes out dark; look="clay" shows its shape for that
+    # capture only, and the next plain capture is the scene's own look again.
+    await graph("graph_edit", label="metal block", ops=[
+        dict(op="create", path="/mat/steel", type="principledshader::2.0"),
+        dict(op="set", path="/mat/steel", parm="metallic", value=1),
+        *[dict(op="set", path="/mat/steel", parm="basecolor" + c, value=0.8) for c in "rgb"],
+        dict(op="create", path="/obj/METAL", type="geo"), dict(op="create", path="/obj/METAL/box", type="box"),
+        *[dict(op="set", path="/obj/METAL/box", parm=p, value=120) for p in ("sizex", "sizey", "sizez")],
+        dict(op="set", path="/obj/METAL", parm="shop_materialpath", value="/mat/steel"),
+        dict(op="flags", path=TARGET, display=False), dict(op="flags", path=CODE, display=False)])
+
+    async def grey(look):
+        args = {"frame": 1, "camera": CAM, "session_id": window["id"]} | ({"look": look} if look else {})
+        result = await client.call_tool("capture", args)
+        assert not result.isError, result.content[0]
+        info = json.loads(next(s.text for s in result.content if s.type == "text"))
+        picture = Image.open(folder / "images" / (info["image_id"] + ".png")).convert("L")
+        w, h = picture.size
+        middle = list(picture.crop((w // 2 - 15, h // 2 - 15, w // 2 + 15, h // 2 + 15)).getdata())
+        return sum(middle) / len(middle), info
+
+    plain, plain_info = await grey("")
+    matte, matte_info = await grey("clay")
+    again, _ = await grey("")
+    assert matte_info["look"] == "clay" and "look" not in plain_info, (matte_info, plain_info)
+    assert matte > 90 and matte > plain + 40 and abs(again - plain) < 4, (plain, matte, again)
+    report["clay"] = {"metal_grey": round(plain, 1), "clay_grey": round(matte, 1), "metal_again": round(again, 1)}
+
 
 async def check(houdini):
     (REPO / ".research").mkdir(exist_ok=True)

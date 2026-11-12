@@ -190,6 +190,51 @@ def check_copy():
     print("PASS 11 placements copied in 11 steps with a totals-only result; SOP copy unwired; rollback, guards, code opt-in, undo/redo")
 
 
+def check_patch():
+    code="/obj/PATCH/code"
+    lines=["// slots","float half = pitch*0.18;","float gap = 0.18;","f@half = half;"]+[f"// padding line {i}" for i in range(40)]
+    text=chr(10).join(["float pitch = 1;"]+lines)+chr(10)
+    graph.edit([dict(op="create",path="/obj/PATCH",type="geo"),dict(op="create",path=code,type="attribwrangle"),
+                dict(op="set",path=code,parm="class",value=0),dict(op="set",path=code,parm="snippet",value=text)])
+    stored=hou.node(code).parm("snippet").unexpandedString()
+    # One fragment changes; the request does not carry the rest, and a clean patch is not listed.
+    done=graph.edit([dict(op="patch",path=code,parm="snippet",find="pitch*0.18",replace="pitch*0.10")],label="shorter slots")
+    assert done=={"label":"MCP: shorter slots","count":1,"ops":{"patch":1},"omitted":1,"steps":[]}, done
+    now=hou.node(code).parm("snippet").unexpandedString()
+    assert now==stored.replace("pitch*0.18","pitch*0.10") and now!=stored
+    assert abs(hou.node(code).geometry().attribValue("half")-0.10)<1e-6
+    # verbose returns the summary of the new text.
+    row=graph.edit([dict(op="patch",path=code,parm="snippet",find="pitch*0.10",replace="pitch*0.12")],verbose=True)["steps"][0]
+    new=hou.node(code).parm("snippet").unexpandedString()
+    assert row["value"]==dict(preview=new[:120],length=len(new),sha256=hashlib.sha256(new.encode()).hexdigest()), row
+    # find must occur exactly count times; nothing changes otherwise.
+    denied(lambda:graph.edit([dict(op="patch",path=code,parm="snippet",find="0.18",replace="0.2",count=2)]),"occurs 1 times")
+    denied(lambda:graph.edit([dict(op="patch",path=code,parm="snippet",find="no such text",replace="x")]),"occurs 0 times")
+    denied(lambda:graph.edit([dict(op="patch",path=code,parm="snippet",find="padding line",replace="x")]),"occurs 40 times")
+    assert hou.node(code).parm("snippet").unexpandedString()==new
+    graph.edit([dict(op="patch",path=code,parm="snippet",find="// padding line 1",replace="// pad 1",count=11)])
+    assert hou.node(code).parm("snippet").unexpandedString().count("// pad 1")==11
+    # Only plain text: numbers and parameters with an expression are refused.
+    denied(lambda:graph.edit([dict(op="patch",path=code,parm="class",find="0",replace="1")]),"not a text parameter")
+    denied(lambda:graph.edit([dict(op="patch",path=code,parm="nope",find="0",replace="1")]),"No local parameter nope")
+    hou.node("/obj/PATCH").createNode("font","label")
+    graph.edit([dict(op="set",path="/obj/PATCH/label",parm="text",value="Tank A")])
+    graph.edit([dict(op="patch",path="/obj/PATCH/label",parm="text",find="A",replace="B")])
+    assert hou.node("/obj/PATCH/label").parm("text").unexpandedString()=="Tank B"
+    # The new text passes the same checks as a set: a command in backticks needs the host opt-in.
+    denied(lambda:graph.edit([dict(op="patch",path="/obj/PATCH/label",parm="text",find="B",replace='`system("x")`')]),"Code-capable")
+    assert hou.node("/obj/PATCH/label").parm("text").unexpandedString()=="Tank B"
+    hou.node("/obj/PATCH/label").parm("text").setExpression('chs("../code/group")')
+    denied(lambda:graph.edit([dict(op="patch",path="/obj/PATCH/label",parm="text",find="chs",replace="ch")]),"carries an expression")
+    # Undo puts the old text back.
+    batch=graph.Batch()
+    graph.edit_one(batch,dict(op="patch",path=code,parm="snippet",find="gap = 0.18",replace="gap = 0.5"),"undo",set())
+    assert "gap = 0.5" in hou.node(code).parm("snippet").unexpandedString()
+    batch.undo()
+    assert "gap = 0.18" in hou.node(code).parm("snippet").unexpandedString()
+    print(f"PASS a {len(stored)}-character snippet patched by fragment; count, type and code checks; undo")
+
+
 if __name__=="__main__":
     assert not hou.isUIAvailable()
     with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{"HOUDINI_RESEARCH_ALLOW_CODE":"0","HOUDINI_RESEARCH_HOME":tmp}):
@@ -197,3 +242,4 @@ if __name__=="__main__":
         check_creation(tmp)
         check_long_text()
         check_copy()
+        check_patch()

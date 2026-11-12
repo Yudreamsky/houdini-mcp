@@ -273,12 +273,31 @@ def copy(batch, op, label, allow_delete):
     return path
 
 
+def patch(batch, op, label, allow_delete):
+    """Replace an exact fragment of a text parameter. The new text is written as an ordinary set,
+    so it passes the same checks as sending the whole text."""
+    path = checked_path(op["path"])
+    p = node(path).parm(op["parm"])
+    if not p or p.node() != node(path):
+        raise ValueError(f"No local parameter {op['parm']} on {path}")
+    if not isinstance(p.parmTemplate(), hou.StringParmTemplate) or p.keyframes():
+        raise ValueError(f"patch edits plain text; {p.path()} is not a text parameter or carries an expression")
+    text = p.unexpandedString()
+    found, wanted = text.count(op["find"]), op.get("count", 1)
+    if found != wanted:
+        raise ValueError(f"find occurs {found} times in {p.path()}, expected {wanted}")
+    edit_one(batch,dict(op="set",path=path,parm=op["parm"],value=text.replace(op["find"],op["replace"])),label,allow_delete)
+    return path
+
+
 def edit_one(batch, op, label, allow_delete):
     path = checked_path(op["path"])
     if op["op"] == "create":
         return create(batch,op,label)
     if op["op"] == "copy":
         return copy(batch,op,label,allow_delete)
+    if op["op"] == "patch":
+        return patch(batch,op,label,allow_delete)
     n = node(path)
     parent = n.parent()
     if not parent.isEditable():
@@ -379,7 +398,7 @@ def edit(ops, label="graph_edit", allow_delete=(), require_clean=True, verbose=F
                 n=hou.node(path)
                 result=dict(step=step,op=op["op"],path=path)
                 if op["op"]=="create":result["init_scripts"]=built_in(n.type())
-                if op["op"]=="set":result["value"]=brief(n.parm(op["parm"]))
+                if op["op"] in ("set","patch"):result["value"]=brief(n.parm(op["parm"]))
                 if op["op"]=="copy":
                     result["source"]=op["source"]
                     result["values"]={k:brief(n.parm(k)) for k in op.get("set") or {}}
