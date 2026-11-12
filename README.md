@@ -39,11 +39,11 @@ claude mcp get houdini-research
 
 仓库提供[迷宫与立面规则、MCP 调用和重跑方法](examples/wfc/README.md)。可选的 Houdini 例子把迷宫结果生成带种子和尺寸参数的自包含 HIP，在独立 `hython` 中完成，不打开新窗口。基础版不包含通用三维模块库或自动节点网络装配。
 
-### 用 Karma 试渲和调参
+### 用 Karma 或 Vantage 试渲和调参
 
-`domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。Karma 不读的旧式 /shop 材质，以及 XPU 下用了凹凸或透明度贴图的 Principled，会在渲染前临时转成 MaterialX；雨滴示例转换后和 Mantra 原图一致。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)
+`domain_recipe(domain="render")` 展开 `karma`。先用 `inspect` 看相机、灯，以及材质能否被 Karma 读取；再用 `render` 按预设出一张图。预设有四套：`preview`（长边 960、32 采样、显卡降噪、30 秒封顶）、`standard`、`final`，以及沿用工程 Karma 节点设置的 `scene`。`changes` 只接受列出的控制项，例如 `{"samples":128,"denoiser":"off"}`。`compare` 在同一相机和帧并排 2–4 个方案，可用 `zoom` 放大局部看噪点，结果存为经验库的对照卡。选定后用 `save_preset` 起名保存。`changes` 里的 `lighting` 可临时换成日景（`day`）、阴天（`overcast`）、夜景（`night`）或产品摄影棚（`studio`）灯光，方向以相机为准，用 `light_angle`、`light_elevation`、`light_exposure`、`light_fill` 微调；布光规则和实测数值见 [布光经验](skills/houdini-research/references/lighting.md)。Karma 不读的旧式 /shop 材质，以及 XPU 下用了凹凸或透明度贴图的 Principled，会在渲染前临时转成 MaterialX；雨滴示例转换后和 Mantra 原图一致。要照片级效果时，`round_edges`（毫米）给硬边加圆角，`pbr_fix` 把不符合真实材料的数值临时改正，`inspect` 的 `pbr` 列出这些材质（[照片级真实感](skills/houdini-research/references/photoreal.md)）。本机装了 Chaos Vantage 时，`changes` 里写 `engine: vantage` 就改用 Vantage：场景导出成 USD 后渲染，单帧约 0.1–1 秒，另加 10–25 秒启动；灯的亮度、默认材质和天空背景都已按 Karma 校准。`animate` 加 `frames=[起始帧, 结束帧]` 渲一段动画，得到逐帧 PNG 和 MP4（Vantage 一次最多 480 帧，Karma 逐帧最多 48 帧）。工程文件不会被保存或修改。[使用方法](skills/houdini-research/references/render.md)
 
-`karma(action="render", hip="karma-probe")` 会先在数据目录生成一个小样例。本机 RTX 4090 上，预览一张约 3–6 秒，日志显示显卡贡献 100%。真实验收用 `python -m tests.karma_native`。
+`karma(action="render", hip="karma-probe")` 会先在数据目录生成一个小样例。本机 RTX 4090 上，预览一张约 3–6 秒，日志显示显卡贡献 100%。真实验收用 `python -m tests.karma_native`，灯光预设用 `python -m tests.karma_lighting_native`，Vantage、照片级选项和动画用 `python -m tests.vantage_native`（本机没有 Vantage 时跳过）。
 
 ### 让 Claude 在施工中发现缺口
 

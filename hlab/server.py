@@ -373,19 +373,24 @@ def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
 
 
 @mcp.tool(structured_output=False)
-def karma(action: Literal["presets", "inspect", "render", "compare", "save_preset"] = "presets", hip: str = "",
-          camera: str = "", frame: int | None = None, preset: str = "preview",
-          changes: dict[str, bool | int | float | str] | None = None,
+def karma(action: Literal["presets", "inspect", "render", "compare", "animate", "save_preset"] = "presets",
+          hip: str = "", camera: str = "", frame: int | None = None, frames: list[int] | None = None, fps: int = 24,
+          preset: str = "preview", changes: dict[str, bool | int | float | str] | None = None,
           variants: dict[str, dict[str, bool | int | float | str]] | None = None,
           zoom: list[float] | None = None, rop: str = "", topic: str = "", name: str = "", note: str = ""):
-    """Karma XPU/CPU test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe); the HIP is never
-    saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs, material support
-    and the materials each engine converts: legacy /shop shaders, and Principled with bump or transparency maps on XPU,
-    become MaterialX in memory before rendering (convert_materials). render returns one image limited in size and time, with effective
-    settings, conversions, seconds and GPU evidence;
-    topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera and frame,
-    optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. save_preset names a base
-    preset plus changes for later use."""
+    """Test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe) with Karma XPU/CPU or, where it is
+    installed, Chaos Vantage (changes.engine = vantage: exported to USD, about 1 s a frame plus 10-25 s to start); the
+    HIP is never saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs,
+    material support, the materials each engine converts (legacy /shop shaders, and Principled with bump or
+    transparency maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
+    changes.lighting swaps the scene's lights for a day, overcast, night or product studio look placed relative to
+    the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights). For photoreal results,
+    round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.
+    render returns one image limited in size and time, with effective settings, conversions, lighting, seconds and
+    GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera
+    and frame, optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. animate renders
+    frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run, Karma up to 48 frame
+    by frame). save_preset names a base preset plus changes for later use."""
     from . import karma as studio
     if action == "presets":
         result = studio.presets()
@@ -395,6 +400,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "save_prese
         result = studio.inspect(hip)
     elif action == "render":
         return illustrated(*studio.render(hip, camera, frame, preset, changes, rop, topic, note))
+    elif action == "animate":
+        return illustrated(*studio.animate(hip, camera, frames, preset, changes, fps, rop, topic, note))
     else:
         return illustrated(*studio.compare(hip, variants, camera, frame, rop, topic, zoom, note))
     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]

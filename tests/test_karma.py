@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import subprocess
 import sys
@@ -10,8 +11,8 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from hlab import karma
-from hlab.karma_spec import excerpt, read_log, resolution, settings
+from hlab import karma, karma_sky
+from hlab.karma_spec import excerpt, lighting, read_log, resolution, settings
 
 LOG = """[08:48:51] >>> Render C:\\job\\render.png (1 of 1) - 640x360 C:/job/usd/__render__.usd frame: 1
 [08:48:52] KarmaXPU: Device 0  Status: active  Info: NVidia GPU CUDA/Optix device
@@ -64,6 +65,26 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual((night["samples"], night["denoiser"], night["engine"], night["max_edge"]),
                          (256, "oidn", "cpu", 1920))
 
+    def test_lighting_looks_fill_defaults_and_refuse_controls_they_ignore(self):
+        self.assertIsNone(lighting(settings("preview")))
+        day = lighting(settings("preview", {"lighting": "day", "light_angle": -90}))
+        self.assertEqual((day["angle"], day["elevation"], day["exposure"], day["fill"], day["keep_scene_lights"]),
+                         (-90., 35., 0., 0., False))
+        night = lighting(settings("final", {"lighting": "night"}))
+        self.assertEqual((night["angle"], night["keep_scene_lights"]), (-135., True))  # a three-quarter backlight
+        overcast = lighting(settings("preview", {"lighting": "overcast", "light_angle": 120, "light_exposure": 1}))
+        self.assertEqual(overcast["angle"], 120.)  # the hidden sun: that side of the sky is brighter
+        self.assertNotIn("fill", overcast)
+        for changes, message in [({"lighting": "sunset"}, "scene, day, overcast, night, studio"),
+                                 ({"light_angle": 30}, "only apply with lighting"),
+                                 ({"lighting": "scene", "keep_scene_lights": True}, "only apply with lighting"),
+                                 ({"lighting": "overcast", "light_fill": -1}, "no key light"),
+                                 ({"lighting": "day", "light_elevation": 95}, "0..90"),
+                                 ({"lighting": "studio", "light_fill": 4}, "-3..3"),
+                                 ({"lighting": "studio", "light_exposure": 7}, "-6..6")]:
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                settings("preview", changes)
+
     def test_resolution_follows_camera_aspect_and_limits(self):
         self.assertEqual(resolution((1280, 720), {"max_edge": 960}), (960, 540))
         self.assertEqual(resolution((720, 1280), {"max_edge": 960}), (540, 960))
@@ -100,6 +121,133 @@ class LogTests(unittest.TestCase):
         stalled = LOG.replace("[08:48:53] Warning", "[08:48:52]   0.0% Lap= 0:00:00.70 Left= 19:37:46\n"
                                                     "[08:48:53]   6.2% Lap= 0:00:08.18 Left= 0:02:02\n[08:48:53] Warning")
         self.assertEqual(read_log(stalled, LIMIT)["progress_percent"], 6.2)
+
+
+read_hdr = karma_sky.read_hdr
+
+
+class SkyTests(unittest.TestCase):
+    LOOKING_NEG_Z = karma_sky.camera_frame((0., -.2, -1.), (0., 1., 0.))
+
+    def close(self, a, b, places=6):
+        for x, y in zip(a, b):
+            self.assertAlmostEqual(x, y, places)
+
+    def test_directions_follow_the_camera(self):
+        frame = self.LOOKING_NEG_Z
+        self.close(karma_sky.toward(frame, 0, 0), (0, 0, 1))  # from behind the camera
+        self.close(karma_sky.toward(frame, 90, 0), (1, 0, 0))  # from the picture's right
+        self.close(karma_sky.toward(frame, 180, 0), (0, 0, -1))  # backlight
+        self.close(karma_sky.toward(frame, 30, 90), (0, 1, 0))
+        down = karma_sky.camera_frame((0., -1., 0.), (0., 0., -1.))
+        self.close(karma_sky.toward(down, 90, 0), (1, 0, 0))
+        # Environment pixels: top is up, the middle column faces -Z and three quarters across faces +X.
+        self.close(karma_sky.direction(.5, .5), (0, 0, -1))
+        self.close(karma_sky.direction(.75, .5), (1, 0, 0))
+        self.close(karma_sky.direction(.3, 0.), (0, 1, 0))
+
+    def test_colour_temperatures_and_sunlight(self):
+        self.close(karma_sky.kelvin(6500.), (1, 1, 1))
+        self.assertAlmostEqual(karma_sky.luminance(karma_sky.kelvin(3000.)), 1.)
+        moon = karma_sky.kelvin(karma_sky.MOON_KELVIN)
+        self.assertAlmostEqual(moon[2] / moon[0], 1.3, 1)  # pale blue, not saturated
+        suns = [karma_sky.sunlight(e) for e in (60, 35, 10, 3)]
+        warmth = [c[2] / c[0] for c, _ in suns]
+        self.assertEqual(warmth, sorted(warmth, reverse=True))  # warmer as the sun sinks
+        self.assertAlmostEqual(warmth[1], .75, 2)  # about 5400 K at the default 35 degrees
+        self.assertEqual([b for _, b in suns], sorted((b for _, b in suns), reverse=True))  # and dimmer
+        self.assertAlmostEqual(karma_sky.sunlight(90)[1], 1., 3)
+        self.assertAlmostEqual(karma_sky.form_factor(2, 2, 3), .1233, 4)
+        self.assertGreater(karma_sky.form_factor(200, 200, 1), .99)
+
+    def test_cie_skies_follow_the_standard(self):
+        sun = karma_sky.toward(self.LOOKING_NEG_Z, 0, 40)  # toward +Z
+
+        def toward(azimuth, elevation):  # azimuth from the sun's side
+            a, e = math.radians(azimuth), math.radians(elevation)
+            return math.sin(a) * math.cos(e), math.sin(e), math.cos(a) * math.cos(e)
+        zenith = karma_sky.cie("day", (0., 1., 0.), sun)
+        # Clear sky (CIE 12): the horizon is about 2.3 times the zenith opposite the sun and 5 times beneath it,
+        # and the darkest patch, about 0.65 of the zenith, lies some 80-90 degrees from the sun.
+        self.assertAlmostEqual(karma_sky.cie("day", toward(180, 0), sun) / zenith, 2.35, delta=.1)
+        self.assertAlmostEqual(karma_sky.cie("day", toward(0, 0), sun) / zenith, 4.8, delta=.3)
+        darkest = min((karma_sky.cie("day", toward(a, e), sun), toward(a, e)) for a in range(0, 181, 5) for e in range(0, 90, 2))
+        self.assertAlmostEqual(darkest[0] / zenith, .65, delta=.05)
+        self.assertTrue(75 < math.degrees(karma_sky.gap(darkest[1], sun)) < 95)
+        # Overcast (CIE 2): the zenith three times the horizon, and the horizon under the hidden sun brighter.
+        side = (1., 0., 0.)
+        self.assertAlmostEqual(karma_sky.cie("overcast", (0., 1., 0.), side) / karma_sky.cie("overcast", (0., 0., 1.), side), 3., delta=.05)
+        self.assertTrue(1.5 < karma_sky.cie("overcast", toward(0, 0), sun) / karma_sky.cie("overcast", toward(180, 0), sun) < 1.9)
+
+    def test_sky_images_match_their_levels(self):
+        frame = self.LOOKING_NEG_Z
+        step = 2 * math.pi / 64 * math.pi / 32
+        for look, fill in (("day", 0.), ("day", -1.), ("overcast", 0.), ("night", 0.), ("night", 1.)):
+            with self.subTest(look=look, fill=fill):
+                lights = karma_sky.plan(look, frame, 30, 40, fill)
+                sun = lights[0] if lights else {"toward": karma_sky.toward(frame, 30, 40), "elevation": 40}
+                rows = karma_sky.sky_image(look, sun, fill=fill, width=64, height=32)
+                seen = sum(karma_sky.luminance(c) * d[1] * math.sqrt(1 - d[1] ** 2) * step
+                           for j, row in enumerate(rows) for i, c in enumerate(row)
+                           for d in [karma_sky.direction((i + .5) / 64, (j + .5) / 32)] if d[1] > 0) / math.pi
+                level = karma_sky.LEVELS[look]["sky"] * (karma_sky.sky_scale(40) if look == "day" else 1)
+                self.assertAlmostEqual(seen, level * 2 ** fill, 6)
+                self.assertEqual(len(set(rows[-1])), 1)  # plain ground looking straight down
+                # Just below the horizon the sky hazes into the ground instead of a hard wall.
+                self.assertGreater(karma_sky.luminance(rows[16][0]), karma_sky.luminance(rows[-1][0]))
+        sun = karma_sky.plan("day", frame, 30, 40)[0]
+        day = karma_sky.sky_image("day", sun, width=64, height=32)
+        self.assertGreater(day[2][0][2] / day[2][0][0], day[15][0][2] / day[15][0][0])  # bluer overhead
+        # The light it sheds into shadows stays a pale blue, not cyan.
+        shade = [sum(c[k] * d[1] * math.sqrt(1 - d[1] ** 2) for j, row in enumerate(day) for i, c in enumerate(row)
+                     for d in [karma_sky.direction((i + .5) / 64, (j + .5) / 32)] if d[1] > 0) for k in range(3)]
+        self.assertTrue(1.3 < shade[2] / shade[0] < 2., shade)
+        # Studio backdrop: neutral grey, brightest straight behind the subject, two stops darker at the corner.
+        view = ((0., 0., -1.), math.radians(25.))
+        self.close(karma_sky.sky_shape("studio", view[0], view=view), (1, 1, 1))
+        corner = karma_sky.sky_shape("studio", (math.sin(math.radians(25.)), 0., -math.cos(math.radians(25.))), view=view)
+        self.close(corner, (.25, .25, .25))
+        studio = karma_sky.sky_image("studio", view=view, width=64, height=32)
+        self.assertTrue(all(c[0] == c[1] == c[2] for row in studio for c in row))
+        self.assertAlmostEqual(max(c[0] for row in studio for c in row), karma_sky.LEVELS["studio"]["backdrop"], delta=.015)
+
+    def test_hdr_round_trip(self):
+        rows = [[(1., .5, .25), (0., 0., 0.)], [(.003, .004, .01), (12., 3., 0.)]]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sky.hdr"
+            karma_sky.write_hdr(path, rows)
+            for row, back in zip(rows, read_hdr(path)):
+                for c, b in zip(row, back):
+                    for x, y in zip(c, b):
+                        self.assertAlmostEqual(x, y, delta=max(x, y, 1e-6) * .01)
+
+    def test_lights_turn_with_the_angle_and_follow_the_levels(self):
+        frame = self.LOOKING_NEG_Z
+        sun, = karma_sky.plan("day", frame, 90, 40)
+        self.assertEqual(sun["name"], "SUN")
+        self.assertGreater(sun["toward"][0], .7)  # camera-right
+        self.assertEqual(karma_sky.plan("overcast", frame), [])
+        moon, = karma_sky.plan("night", frame, -135, 30)
+        self.assertAlmostEqual(2 * moon["intensity"] * karma_sky.luminance(moon["color"]), karma_sky.LEVELS["night"]["moon"])
+        self.assertLess(moon["toward"][2], 0)  # behind the subject
+        rig = {l["name"]: l for l in karma_sky.plan("studio", frame, 30, 45)}
+        self.assertEqual(list(rig), ["KEY", "FILL", "RIM"])
+        self.assertGreater(rig["KEY"]["toward"][0], 0)
+        self.assertLess(rig["FILL"]["toward"][0], 0)  # the other side of the camera
+        self.assertLess(rig["RIM"]["toward"][2], 0)  # behind the subject
+        self.assertLess(rig["RIM"]["toward"][0], 0)  # on the shadow side
+        key = rig["KEY"]
+        self.assertAlmostEqual(key["intensity"] * karma_sky.AREA_GAIN * karma_sky.form_factor(*key["size"], key["distance"]),
+                               karma_sky.LEVELS["studio"]["key"])
+        brighter = {l["name"]: l for l in karma_sky.plan("studio", frame, 30, 45, fill=1)}
+        self.assertAlmostEqual(brighter["FILL"]["intensity"], 2 * rig["FILL"]["intensity"])
+        self.assertEqual(brighter["KEY"]["intensity"], rig["KEY"]["intensity"])
+        turned = {l["name"]: l for l in karma_sky.plan("studio", frame, 75, 45)}
+        for name in rig:
+            # Turning the key turns the whole rig: every light keeps its angle to the others.
+            self.assertAlmostEqual(karma_sky.dot(rig["KEY"]["toward"], rig[name]["toward"]),
+                                   karma_sky.dot(turned["KEY"]["toward"], turned[name]["toward"]))
+        self.assertGreater(rig["KEY"]["intensity"], rig["FILL"]["intensity"])
 
 
 class GpuLoadTests(unittest.TestCase):
@@ -155,7 +303,9 @@ def fake_run(job_requests, size=(64, 36), status="completed", progress=None):
                 "rop": "/out/HR_KARMA_PREVIEW", "temporary_rop": True, "resolution": list(size),
                 "seconds": 3.5, "lights": 1, "notes": [], "materials": {"converted": [], "unconverted": []},
                 "settings": {"engine": chosen.get("engine", "xpu"), "samples": chosen.get("samples", 32),
-                             "denoiser": chosen.get("denoiser", "off")}, **read_log(LOG),
+                             "denoiser": chosen.get("denoiser", "off"),
+                             **{k: chosen[k] for k in ("lighting", "light_angle", "light_elevation", "light_fill") if k in chosen}},
+                **read_log(LOG),
                 "status": status, "progress_percent": progress}
     return worker
 
@@ -196,6 +346,21 @@ class StudioTests(unittest.TestCase):
             karma.render(str(self.hip), preset="mine")
             karma.compare(str(self.hip), {"A": {"preset": "mine"}, "B": {"preset": "scene"}})
         self.assertEqual([r["preset"] for r in requests], ["scene", "scene", "scene"])
+
+    def test_lighting_reaches_the_worker_and_the_summary(self):
+        requests = []
+        with patch("hlab.sop_lab.worker", fake_run(requests)):
+            run, _ = karma.render(str(self.hip), changes={"lighting": "day", "light_angle": 30, "light_elevation": 20,
+                                                          "light_fill": -1})
+            data, _ = karma.compare(str(self.hip), {"阴天": {"lighting": "overcast"}, "原灯": {}})
+        self.assertEqual(requests[0]["settings"]["lighting"], "day")
+        self.assertIn("灯光日景（方向 30°，高 20°，补光 -1 档）", run["summary"])
+        self.assertIn("灯光阴天", data["variants"]["阴天"]["summary"])
+        self.assertNotIn("灯光", data["variants"]["原灯"]["summary"])
+        self.assertIn("阴天", karma.caption("A", data["variants"]["阴天"]))
+        self.assertEqual([l["name"] for l in karma.presets()["lighting"]], ["scene", "day", "overcast", "night", "studio"])
+        saved = karma.save_preset("夜景出图", "standard", {"lighting": "night", "light_exposure": 1})
+        self.assertEqual((saved["settings"]["lighting"], saved["settings"]["samples"]), ("night", 128))
 
     def test_saved_presets_round_trip(self):
         result = karma.save_preset("夜景", "standard", {"samples": 256, "color_limit": 4}, "deep blue")

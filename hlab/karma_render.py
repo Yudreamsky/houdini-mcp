@@ -5,8 +5,9 @@ from contextlib import contextmanager
 
 import hou
 
-from hlab.karma_materials import convert, is_light, objects, plan, used
-from hlab.karma_spec import PARMS, excerpt, read_log, resolution
+from hlab import karma_lighting
+from hlab.karma_materials import convert, is_light, objects, pbr_fix, pbr_report, plan, round_edges, used
+from hlab.karma_spec import PARMS, excerpt, lighting, look_settings, read_log, resolution
 
 TEMPORARY = "HR_KARMA_PREVIEW"
 
@@ -37,7 +38,8 @@ def notes(engine, mats, light_count, report=None, planned=False):
     """report: conversions done (or planned) for this engine; None when conversion is switched off."""
     rows = []
     if not light_count:
-        rows.append("场景里没有开着的灯，Karma 会自动加一盏头灯；亮度和阴影不代表最终效果。")
+        rows.append("场景里没有开着的灯，Karma 会自动加一盏头灯；亮度和阴影不代表最终效果。"
+                    "可用 changes 里的 lighting（day、overcast、night、studio）临时布光。")
     kinds = mats["by_kind"]
     if kinds.get("missing"):
         rows.append(f"有 {len(kinds['missing'])} 个材质路径找不到节点（如 {kinds['missing'][0]}），会按默认材质渲染。")
@@ -82,6 +84,11 @@ def inspect(req):
     mats, lit = materials(), lights()
     conversion = {engine: preview(engine) for engine in ("xpu", "cpu")}
     warnings = notes("xpu", mats, len(lit), conversion["xpu"], planned=True)
+    unreal = pbr_report()
+    if unreal:
+        first = unreal[0]
+        warnings.append(f"有 {len(unreal)} 个材质的数值不符合真实材料（如 {first['material']}：{first['issues'][0]['reason']}）；"
+                        "照片级出图前建议在工程里改，或渲染时加 pbr_fix=true 临时改正。")
     if not cameras():
         warnings.insert(0, "工程里没有 OBJ 相机，Karma 渲染需要一台相机。")
     if stage is not None and stage.children():
@@ -91,7 +98,7 @@ def inspect(req):
             "cameras": [{"path": c.path(), "resolution": [c.evalParm("resx"), c.evalParm("resy")]} for c in cameras()][:20],
             "lights": [{"path": n.path(), "type": n.type().name()} for n in lit][:20],
             "karma_rops": karma[:20], "other_rops": other[:20], "materials": mats,
-            "material_conversion": conversion, "warnings": warnings}
+            "material_conversion": conversion, "pbr": unreal[:20], "warnings": warnings}
 
 
 def karma_rops():
@@ -155,6 +162,34 @@ def pick_camera(path, rop, temporary):
     raise ValueError("Several cameras; choose one with camera=" + ", ".join(c.path() for c in found[:12]))
 
 
+def fix_materials(chosen):
+    """pbr_fix on the loaded copy. It runs before any conversion, so converted materials carry the corrected values."""
+    return pbr_fix() if chosen.get("pbr_fix") else None
+
+
+def round_shading(chosen):
+    """Karma's rounded edges, after conversion: they attach to MaterialX surfaces."""
+    if not chosen.get("round_edges"):
+        return None
+    return {"millimetres": chosen["round_edges"], **round_edges(chosen["round_edges"] / 1000.)}
+
+
+def photoreal_notes(real):
+    rows = []
+    fixes = real.get("pbr_fixes")
+    if fixes:
+        rows.append(f"按真实材料临时改正了 {len(fixes)} 个材质（如 {fixes[0]['material']}：{'、'.join(fixes[0]['changes'])}），工程文件不变。")
+    elif fixes == []:
+        rows.append("材质数值都在真实范围内，pbr_fix 没有改动。")
+    rounded = real.get("round_edges")
+    if rounded:
+        text = f"给 {len(rounded['materials'])} 个材质加了 {rounded['millimetres']:g} 毫米圆角（着色时混合法线，不改模型）"
+        if rounded.get("skipped"):
+            text += f"；{len(rounded['skipped'])} 个材质不是 MaterialX，没有圆角（如 {rounded['skipped'][0]}）"
+        rows.append(text + "。")
+    return rows
+
+
 def render(req, folder):
     chosen = req["settings"]
     if req.get("frame") is not None:
@@ -178,8 +213,13 @@ def render(req, folder):
         values["abortnogpudevice"] = 1
     for name, value in values.items():
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
-    report = convert(engine) if chosen.get("convert_materials", True) else None
-    mats, lit = materials(), lights()
+    fixes = fix_materials(chosen)
+    report = convert(engine, force=bool(chosen.get("round_edges"))) if chosen.get("convert_materials", True) else None
+    real = {"pbr_fixes": fixes, "round_edges": round_shading(chosen)}
+    look = lighting(chosen)
+    lit_by = karma_lighting.apply(look, cam, rop, folder) if look else None
+    mats = materials()
+    lit = [n for n in lights() if not lit_by or n.path() not in lit_by["turned_off"]]
     threads = render_threads()
     started = time.perf_counter()
     failure = None
@@ -202,12 +242,14 @@ def render(req, folder):
     effective = {name: rop.evalParm(parm) for name, parm in PARMS.items()}
     effective.update(motion_blur=bool(effective["motion_blur"]), depth_of_field=bool(effective["depth_of_field"]),
                      time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
-                     convert_materials=report is not None)
+                     convert_materials=report is not None, round_edges=chosen.get("round_edges", 0.),
+                     pbr_fix=bool(chosen.get("pbr_fix")), **look_settings(look))
     return {"file": picture.name, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "status": "time_limit" if info["time_limit_reached"] else "completed", "seconds": round(seconds, 2),
-            "render_threads": threads, "lights": len(lit), "materials": report,
-            "notes": notes(engine, mats, len(lit), report), **info}
+            "render_threads": threads, "lights": len(lit), "materials": report, "lighting": lit_by, "photoreal": real,
+            "notes": (karma_lighting.notes(lit_by) if lit_by else []) + photoreal_notes(real) + notes(engine, mats, len(lit), report),
+            **info}
 
 
 def build_sample(path):
