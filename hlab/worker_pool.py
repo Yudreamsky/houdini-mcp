@@ -5,8 +5,10 @@ import subprocess
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
+from . import cancel
 from .storage import read, write
 
 SCRIPT = Path(__file__).with_name("sop_worker.py")
@@ -30,10 +32,34 @@ def kill_tree(proc):
     proc.wait()
 
 
+def wait_process(proc, timeout):
+    """proc.wait(timeout) that raises Cancelled as soon as the tool call is cancelled; the caller ends the process."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return proc.wait(timeout=min(.1, max(0., deadline - time.monotonic())))
+        except subprocess.TimeoutExpired:
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(proc.args, timeout) from None
+            cancel.check()
+
+
+@contextmanager
+def held(lock):
+    """Hold a lock; a cancelled tool call stops waiting for it."""
+    while not lock.acquire(timeout=.1):
+        cancel.check()
+    try:
+        yield
+    finally:
+        lock.release()
+
+
 class WorkerPool:
     def __init__(self):
         self.lock = threading.Lock()
         self.proc = None
+        self.fresh = None
         self.mail = None
         self.hython = None
         self.last = 0.0
@@ -47,8 +73,16 @@ class WorkerPool:
             self.mail = None
 
     def close(self):
-        with self.lock:
-            self._stop()
+        """At exit. A request that is still rendering holds the lock; its processes end all the same."""
+        if self.lock.acquire(timeout=2):
+            try:
+                self._stop()
+            finally:
+                self.lock.release()
+        else:
+            for proc in (self.fresh, self.proc):
+                if proc is not None:
+                    kill_tree(proc)
 
     def dispatch(self, install, req, job, fresh=False, timeout=None):
         """timeout: seconds this request may take, for one that renders several frames; the configured limit otherwise."""
@@ -60,16 +94,18 @@ class WorkerPool:
         options = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, env=env)
         job = Path(job).resolve()
         write(job / "request.json", req)
-        with self.lock:
+        with held(self.lock):
             if fresh or mode == "spawn" or req["action"] not in WARM_ACTIONS:
                 # Release our interactive exploration licence before taking a fresh one.
                 self._stop()
-                fresh_proc = subprocess.Popen([str(install.hython), str(SCRIPT), str(job)], **options)
+                fresh_proc = self.fresh = subprocess.Popen([str(install.hython), str(SCRIPT), str(job)], **options)
                 try:
-                    fresh_proc.wait(timeout=timeout)
-                except subprocess.TimeoutExpired:
+                    wait_process(fresh_proc, timeout)
+                except (subprocess.TimeoutExpired, cancel.Cancelled):
                     kill_tree(fresh_proc)
                     raise
+                finally:
+                    self.fresh = None
                 if fresh_proc.returncode:
                     raise subprocess.CalledProcessError(fresh_proc.returncode, fresh_proc.args)
             else:
@@ -90,6 +126,7 @@ class WorkerPool:
                             raise RuntimeError("Houdini worker exited before replying; request was not retried")
                         if time.monotonic() >= deadline:
                             raise TimeoutError("Houdini worker deadline exceeded; request was not retried")
+                        cancel.check()  # a cancelled call ends the worker and the renderers it started, below
                         time.sleep(.025)
                 except BaseException:
                     self._stop()

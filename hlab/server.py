@@ -1,10 +1,14 @@
+import functools
 import json
 
 from typing import Literal
 
+import anyio
+
 from mcp.server.fastmcp import Image
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 
+from . import cancel
 from .bridge import call
 from .graph_schema import Edit
 from .catalog import ResearchMCP
@@ -21,6 +25,30 @@ mcp = ResearchMCP("Houdini Research", instructions=(
     "mismatch, inspect the relevant tools and evidence. Report a reproducible limitation using improvement, "
     "reuse any gap ID already returned, and propose the smallest change with a pass/fail retest. "
     "A correctly rejected scene is feedback on the scene. Show proposals to the user."))
+
+
+def tool(*args, **kwargs):
+    """mcp.tool for a blocking body. The body runs in a worker thread, so the server keeps answering other calls
+    while Houdini cooks or renders. Cancelling the call, or closing the connection, raises the flag its waiting loops
+    watch (hlab.cancel), which ends the Houdini worker and the renderers it started. The plain function is returned,
+    so tools can still call each other directly."""
+    register = mcp.tool(*args, **kwargs)
+
+    def decorate(body):
+        @functools.wraps(body)
+        async def threaded(*call_args, **call_kwargs):
+            flag = cancel.new_flag()
+            try:
+                return await anyio.to_thread.run_sync(
+                    functools.partial(cancel.run, flag, body, *call_args, **call_kwargs), abandon_on_cancel=True)
+            except anyio.get_cancelled_exc_class():
+                flag.set()
+                raise
+
+        register(threaded)
+        return body
+
+    return decorate
 
 
 def illustrated(data, im):
@@ -47,20 +75,20 @@ def live_call(operation, session_id, **args):
 READ = ToolAnnotations(readOnlyHint=True, destructiveHint=False)
 
 
-@mcp.tool(annotations=READ)
+@tool(annotations=READ)
 def node_types(category: str = "Sop", query: str = "", offset: int = 0, limit: int = 20, session_id: str = "") -> dict:
     """Discover installed Houdini types by category, query and page before creating nodes."""
     return live_call("graph_types", session_id, category=category, query=query, offset=offset, limit=limit)
 
 
-@mcp.tool(annotations=READ)
+@tool(annotations=READ)
 def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int = 20,
                snapshot: bool = False, session_id: str = "") -> dict:
     """Page a live network's nodes, wires, flags, diagnostics and nondefault parameters. Snapshot optionally records a diff baseline."""
     return live_call("graph_read", session_id, path=path, depth=depth, offset=offset, limit=limit, snapshot=snapshot)
 
 
-@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
+@tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
                require_clean: bool = True, session_id: str = "") -> dict:
     """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
@@ -72,13 +100,13 @@ def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[st
                      label=label, allow_delete=allow_delete or [], require_clean=require_clean)
 
 
-@mcp.tool(annotations=READ)
+@tool(annotations=READ)
 def cook(node: str, frame: int | None = None, session_id: str = "") -> dict:
     """Cook a live SOP and return measured geometry, attributes, bounds, errors and warnings."""
     return live_call("graph_cook", session_id, node=node, frame=frame)
 
 
-@mcp.tool(annotations=READ, structured_output=False)
+@tool(annotations=READ, structured_output=False)
 def capture(frame: int, camera: str = "", session_id: str = ""):
     """Capture a live Scene Viewer PNG, optionally through a camera OBJ. Restore the original time and view."""
     from .bridge import call_in
@@ -88,7 +116,7 @@ def capture(frame: int, camera: str = "", session_id: str = ""):
     return illustrated(sample, viewport_image(sample, directory))
 
 
-@mcp.tool(annotations=READ)
+@tool(annotations=READ)
 def diff(key: str, path: str = "", session_id: str = "") -> dict:
     """Compare the live graph at path to a saved graph snapshot or a trusted recipe ID."""
     return live_call("graph_diff", session_id, key=key, path=path)
@@ -102,7 +130,7 @@ async def domain_recipe(action: Literal["catalog", "run"] = "catalog", domain: s
     return await mcp.domain_recipe(action, domain, name, arguments)
 
 
-@mcp.tool()
+@tool()
 def window_session(action: Literal["list", "state", "open", "save"] = "list", session_id: str = "",
                    hip: str = "") -> dict:
     """List managed Houdini windows; state/open/save target a returned session_id (the window's id).
@@ -113,26 +141,26 @@ def window_session(action: Literal["list", "state", "open", "save"] = "list", se
     return manage(home(), action, session_id, hip)
 
 
-@mcp.tool()
+@tool()
 def session(initialize: bool = False) -> dict:
     """Read live controls, geometry and version; initialize creates a fixture in an empty research window."""
     return call("initialize" if initialize else "state")
 
 
-@mcp.tool()
+@tool()
 def adjust(changes: dict[str, float] | None = None, preset: str = "") -> dict:
     """Apply only named controls to the live fixture; A/B/C optionally loads a fireworks starting point."""
     return call("set_controls", changes=changes or {}, preset=preset)
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def observe(frame: int = 36):
     """Read a real live viewport PNG and its measurements, then restore the previous frame."""
     sample = call("capture",frame=frame)
     return illustrated(sample, viewport_image(sample))
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def experiment(control: str, samples: list[float], frame: int = 36):
     """Sweep one supported control, capture evidence and restore baseline. Returns a small comparison sheet."""
     card = call("sweep",control=control,samples=samples,frame=frame)
@@ -141,7 +169,7 @@ def experiment(control: str, samples: list[float], frame: int = 36):
     return illustrated(card,sheet(rows))
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def compare(frames: list[int] | None = None):
     """Compare A/B/C on identical frames and restore active controls. Returns a contact sheet and a comparison ID."""
     frames = [23,36,47] if frames is None else frames
@@ -154,7 +182,7 @@ def compare(frames: list[int] | None = None):
     return illustrated({**card,"sheet":str(output)},im)
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def motion(start: int = 12, end: int = 53):
     """Capture consecutive real frames for the active look. Returns a local animated GIF and representative frames."""
     info = call("motion",start=start,end=end)
@@ -171,7 +199,7 @@ def motion(start: int = 12, end: int = 53):
     return illustrated({"path":str(path),"sha256":sha(path),"frames":len(frames),"fps":fps,"start":start,"end":end},sheet([row]))
 
 
-@mcp.tool()
+@tool()
 def recipe(action: str, title: str = "", reason: str = "", key: str = "", origin: str = "baseline") -> dict:
     """save live graph, origin baseline/test/user_selected (only on actual human selection); replay verified graph by ID."""
     if action == "save" and title.strip():
@@ -185,7 +213,7 @@ def recipe(action: str, title: str = "", reason: str = "", key: str = "", origin
     raise ValueError("Use save with a title, or replay with a recipe key")
 
 
-@mcp.tool()
+@tool()
 def knowledge(topic: str = "", kind: str = "", key: str = "", limit: int = 6, offset: int = 0,
               status: str = "", query: str = "", session_id: str = "") -> dict:
     """Search short cards by topic/kind, or expand one record by ID. Raw images stay on disk."""
@@ -195,7 +223,7 @@ def knowledge(topic: str = "", kind: str = "", key: str = "", limit: int = 6, of
     return details(key) if key else search(topic,kind,limit,offset,status,query)
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def evidence(key: str, variant: str = "", index: int = 0, session_id: str = ""):
     """Return one checksum-verified image from an experiment, a motion study, or a named comparison variant."""
     row = knowledge(key=key,session_id=session_id)
@@ -215,7 +243,7 @@ def evidence(key: str, variant: str = "", index: int = 0, session_id: str = ""):
     return illustrated({"id": key, "variant": variant, **sample}, viewport_image(sample, directory))
 
 
-@mcp.tool()
+@tool()
 def improvement(request: GapReport | Proposal) -> dict:
     """Report an observed gap or workaround with expected/observed behaviour and reproduction. Reuse a stable
     capability key after searching knowledge. Propose a minimal improvement and pass/fail retest for a gap ID.
@@ -224,7 +252,7 @@ def improvement(request: GapReport | Proposal) -> dict:
     return report(request) if isinstance(request, GapReport) else propose(request)
 
 
-@mcp.tool()
+@tool()
 def learn(kind: str, title: str, summary: str, topics: list[str], sources: list[str],
           status: str = "observed") -> dict:
     """Attach a gap, project preference, node résumé or reuse outcome to existing evidence; preserve earlier records."""
@@ -273,7 +301,7 @@ def main():
     mcp.run()
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def afterglow(action: str = "state", key: str = "", changes: dict[str,float] | None = None,
               smoke_from: str = "", flash_from: str = "", note: str = "", frame: int = 53,
               start: int = 47, end: int = 62):
@@ -291,7 +319,7 @@ def afterglow(action: str = "state", key: str = "", changes: dict[str,float] | N
     return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave_1",
              control: str = "", values: list[float] | None = None, frame: int = 38,
              renderer: str = "", topic: str = "", query: str = "", offset: int = 0,
@@ -325,7 +353,7 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave
     return [TextContent(type="text",text=json.dumps(result,ensure_ascii=False))]
 
 
-@mcp.tool()
+@tool()
 def mechanical_rig(hip: str, joints: list[Joint], frame: int = 1, output: str = "",
                    replace_motion: bool = False) -> dict:
     """Build a parent-first tree of native fixed, hinge and slider OBJ joints on existing unparented geometry OBJs.
@@ -336,7 +364,7 @@ def mechanical_rig(hip: str, joints: list[Joint], frame: int = 1, output: str = 
     return run(hip, joints, frame, output, replace_motion)
 
 
-@mcp.tool(annotations=READ)
+@tool(annotations=READ)
 def wfc_layout(columns: int, rows: int, tiles: list[Tile], seed: int = 0,
                cells: list[Cell] | None = None, edges: Sockets | None = None,
                connected_socket: str | None = None, loop_free: bool = False) -> dict:
@@ -351,7 +379,7 @@ def wfc_layout(columns: int, rows: int, tiles: list[Tile], seed: int = 0,
                  connected_socket, loop_free)
 
 
-@mcp.tool()
+@tool()
 def mechanism(hip: str, spec: FourBar | Reeving | Transfer, output: str = "", topic: str = "") -> dict:
     """Build live constraints in a new sibling HIP. fourbar: planar XY linkage with optional rigid part bindings.
     reeving: constant-radius 2/4-fall rope with a drum drive, optionally linked to model channels.
@@ -361,7 +389,7 @@ def mechanism(hip: str, spec: FourBar | Reeving | Transfer, output: str = "", to
     return run(hip, spec, output, topic)
 
 
-@mcp.tool()
+@tool()
 def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
                   axis: str = "y", minimum: float | None = None, maximum: float | None = None,
                   topic: str = "") -> dict:
@@ -372,7 +400,7 @@ def animation_gap(hip: str, upper: str, lower: str, start: int, end: int,
     return run(hip, upper, lower, start, end, axis, minimum, maximum, topic)
 
 
-@mcp.tool(structured_output=False)
+@tool(structured_output=False)
 def karma(action: Literal["presets", "inspect", "render", "compare", "animate", "save_preset"] = "presets",
           hip: str = "", camera: str = "", frame: int | None = None, frames: list[int] | None = None, fps: int = 24,
           preset: str = "preview", changes: dict[str, bool | int | float | str] | None = None,

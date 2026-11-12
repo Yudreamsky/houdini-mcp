@@ -1,6 +1,6 @@
 import math
 import time
-from . import bridge_queue
+from . import bridge_queue, cancel
 from .storage import home, read, uid, write
 from .window import active
 
@@ -63,6 +63,10 @@ def call_in(directory, op, *, expected_session=None, timeout_seconds=None, **arg
             if ordered:
                 bridge_queue.withdraw(box, name, op)
             raise RuntimeError("Houdini session changed; inspect the live state before retrying")
+        if cancel.requested():
+            # As at a timeout: a request Houdini has not started is withdrawn; one it is running finishes there.
+            outcome = bridge_queue.withdraw(box, name, op)[0] if ordered else "possibly_executed"
+            raise cancel.Cancelled(f"{op} cancelled ({name}, {outcome})")
         time.sleep(min(.08, max(0, end - time.monotonic())))
     outcome, result = bridge_queue.withdraw(box, name, op) if ordered else ("possibly_executed", None)
     if outcome == "reply":

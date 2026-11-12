@@ -31,6 +31,8 @@ Karma 读不了的材质，渲染前会临时转成 MaterialX，只在后台的�
 - XPU 渲染前会看一眼显卡：其他程序（例如本地 AI 模型）把使用率占到 70% 以上，或显存剩不到 4 GB 时，`notes` 会提醒，`gpu_load` 记录当时的读数。这时到时间上限多半是显卡被占，可以稍后再试或改用 `engine="cpu"`。
 - `preset="scene"` 沿用工程 Karma 节点自己的设置。工程里只有一个 Karma 节点时不用传 `rop`；有多个时要指定；一个都没有时会提示改用其他预设。
 - 渲染使用的处理器线程数是本机逻辑核心数减 4，记录在 `render_threads`；可用环境变量 `HOUDINI_RESEARCH_RENDER_THREADS` 指定。后台进程超时时，它启动的渲染进程会一起结束，报错仍然说明是超时。
+- 渲染期间这个 MCP 的其他工具照常可用，例如查经验库、读窗口里的网络、用 `fx_watch` 看进度。同一时间只渲染一个任务，后来的渲染请求排队等前一个结束。
+- 取消这次调用，或者客户端断开连接，后台的 hython 和它启动的 husk（或 Vantage）会在几秒内结束，显卡随即空出来。已经渲完的动画帧留在动画文件夹里。
 - `render` 传 `topic` 时保存为经验卡，`compare` 总会保存对照卡。用 `knowledge(topic="渲染")` 找回，用 `evidence(key)` 或 `evidence(key, variant=方案名)` 取原图。
 - 用户选定一个方案后，用 `save_preset(name=..., preset=底板预设, changes=..., note=选择理由)` 保存，以后传 `preset=该名字` 即可。只在用户明确选择后保存。
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from . import vantage
+from . import cancel, vantage
 from .karma_spec import LIGHTING, PRESETS, checked, controls, lighting, look_settings, settings
 from .storage import created_now, home, read, record, sha, uid, write
 
@@ -401,6 +401,7 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
     total = last - first + 1
     run, limited, resumed, seconds, frame, stalled = None, [], [], 0., first, False
     while frame <= last:
+        cancel.check()
         end = min(last, frame + CHUNK - 1)
         info, rows, stopped = None, [], None
         with job_folder("houdini-karma-") as job:
@@ -430,7 +431,7 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
                                    f"(kept in {pictures}): {stopped}")
             stalled = not rows
             resumed.append(frame + len(rows))
-            time.sleep(RETRY_PAUSE)
+            cancel.wait(RETRY_PAUSE)
         else:
             stalled = False
         frame += len(rows)
