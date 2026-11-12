@@ -106,6 +106,26 @@ def checked(changes):
     return out
 
 
+def checked_scene(overrides=None, hide=None):
+    """Temporary scene edits for one render: {parameter path: value} and object paths to leave out. None when there
+    are none. The paths are checked against the scene where it is loaded."""
+    if not isinstance(overrides or {}, dict) or not isinstance(hide or [], (list, tuple)):
+        raise ValueError("overrides is an object of parameter paths and values; hide is a list of object paths")
+    overrides, hide = dict(overrides or {}), list(dict.fromkeys(hide or []))
+    if len(overrides) > 64 or len(hide) > 64:
+        raise ValueError("Give at most 64 overrides and 64 hidden objects")
+    for path, value in overrides.items():
+        node, _, parm = path.rpartition("/") if isinstance(path, str) else ("", "", "")
+        if not path.startswith("/") or not node.strip("/") or not parm:
+            raise ValueError(f"overrides keys are absolute parameter paths such as /obj/geo1/xform1/ty, not {path!r}")
+        if type(value) not in (bool, int, float, str) or isinstance(value, float) and not math.isfinite(value):
+            raise ValueError(f"overrides values are finite numbers, true or false, or text: {path}")
+    for path in hide:
+        if not isinstance(path, str) or not path.startswith("/") or not path.strip("/"):
+            raise ValueError(f"hide lists absolute object paths such as /obj/BACKDROP, not {path!r}")
+    return {"overrides": overrides, "hide": hide} if overrides or hide else None
+
+
 def root_preset(preset, saved):
     while preset not in PRESETS and preset in saved:
         preset = saved[preset]["base"]

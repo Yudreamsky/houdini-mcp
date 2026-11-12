@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from . import cancel, vantage
-from .karma_spec import LIGHTING, PRESETS, checked, controls, lighting, look_settings, settings
+from .karma_spec import LIGHTING, PRESETS, checked, checked_scene, controls, lighting, look_settings, settings
 from .storage import created_now, home, read, record, sha, uid, write
 
 SAMPLE = "karma-probe"
@@ -137,14 +137,15 @@ def keep(picture, log_file):
     return {"image_id": image_id, "sha256": sha(target), "path": str(target), "log": str(log)}
 
 
-def run_one(path, chosen, camera, frame, rop, base=""):
+def run_one(path, chosen, camera, frame, rop, base="", edits=None):
+    """edits: temporary scene changes for this render (karma_spec.checked_scene)."""
     if chosen.get("engine") == "vantage":
-        return run_vantage(path, chosen, camera, frame)
+        return run_vantage(path, chosen, camera, frame, edits)
     from .sop_lab import worker
     load = gpu_load() if chosen.get("engine", "xpu") == "xpu" else None
     with job_folder("houdini-karma-") as job:
         info = worker({"action": "karma_render", "hip": str(path), "camera": camera, "frame": frame,
-                       "rop": rop, "preset": base, "settings": chosen}, job)
+                       "rop": rop, "preset": base, "settings": chosen, **({"scene": edits} if edits else {})}, job)
         if info["settings"]["engine"] == "xpu":
             info.update(gpu_load=load, notes=load_notes(load) + info["notes"])
         info["notes"] = progress_note(info) + info["notes"]
@@ -170,21 +171,22 @@ def vantage_result(info, chosen, text, tries, seconds, load):
             "vantage_seconds": round(seconds, 2), "vantage_tries": tries, "gpu_verified": "gpu" in found,
             "gpu_load": load, "lights": info["lights"], "materials": info["materials"], "lighting": info["lighting"],
             "photoreal": info["photoreal"], "normals_added": info["normals_added"], "usd_edits": info["usd_edits"],
+            "scene": info.get("scene"),
             "notes": rows}
 
 
-def export_vantage(path, chosen, camera, frames, job):
+def export_vantage(path, chosen, camera, frames, job, edits=None):
     from .sop_lab import worker
     vantage.executable()  # fail before the export when Vantage is not installed
     return worker({"action": "vantage_export", "hip": str(path), "camera": camera, "frames": frames,
-                   "settings": chosen}, job)
+                   "settings": chosen, **({"scene": edits} if edits else {})}, job)
 
 
-def run_vantage(path, chosen, camera, frame):
+def run_vantage(path, chosen, camera, frame, edits=None):
     """Export the HIP to USD in the worker, then render it with Chaos Vantage on this machine."""
     load = gpu_load()
     with job_folder("houdini-vantage-") as job:
-        info = export_vantage(path, chosen, camera, None if frame is None else [frame, frame], job)
+        info = export_vantage(path, chosen, camera, None if frame is None else [frame, frame], job, edits)
         started = time.perf_counter()
         pictures, text, tries = vantage.run(job, info, chosen)
         seconds = time.perf_counter() - started
@@ -213,6 +215,11 @@ def summary(run):
         text += f"，圆角 {s['round_edges']:g} 毫米"
     if (run.get("photoreal") or {}).get("pbr_fixes"):
         text += f"，按真实材料改正 {len(run['photoreal']['pbr_fixes'])} 个材质"
+    changed = run.get("scene") or {}
+    if changed.get("overrides"):
+        text += f"，临时改 {len(changed['overrides'])} 个场景参数"
+    if changed.get("hidden"):
+        text += f"，隐藏 {len(changed['hidden'])} 个物体"
     if s.get("lighting", "scene") != "scene":
         text += f"，灯光{LIGHTING[s['lighting']]['label']}"
         if "light_angle" in s:
@@ -237,17 +244,19 @@ def flatten(path, edge=None, zoom=None):
     return canvas
 
 
-def render(hip, camera="", frame=None, preset="preview", changes=None, rop="", topic="", note=""):
+def render(hip, camera="", frame=None, preset="preview", changes=None, rop="", topic="", note="",
+           overrides=None, hide=None):
     saved = saved_presets()
     chosen = settings(preset, changes, saved)
+    edits = checked_scene(overrides, hide)
     path = scene(hip)
     before = sha(path)
-    run = run_one(path, chosen, camera, frame, rop, base_of(preset, saved))
+    run = run_one(path, chosen, camera, frame, rop, base_of(preset, saved), edits)
     run.update(hip=str(path), hip_unchanged=sha(path) == before, preset=preset, summary=summary(run))
     if topic.strip():
         card = record("render", f"Karma {preset} F{run['frame']}"[:120], list(dict.fromkeys([topic.strip().lower(), "render"])),
                       (run["summary"] + ("。" + note.strip() if note.strip() else ""))[:700],
-                      {"hip": str(path), "hip_sha256": before, "preset": preset, "request": chosen,
+                      {"hip": str(path), "hip_sha256": before, "preset": preset, "request": chosen, "scene": edits,
                        "rop": run["rop"], "temporary_rop": run["temporary_rop"], "samples": [sample(run)]})
         run["record"] = card["id"]
     return run, flatten(run["path"], 1280)
@@ -308,10 +317,12 @@ def board(items, zoom=None, width=640, cols=None):
     return sheet
 
 
-def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, note=""):
+def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, note="", overrides=None, hide=None):
+    """overrides and hide apply to every variant; a variant may add its own under the same two names."""
     if not variants or not 2 <= len(variants) <= 4:
         raise ValueError('Give 2–4 named variants, e.g. {"A": {"samples": 32}, "B": {"preset": "standard"}}')
     saved = saved_presets()
+    shared = checked_scene(overrides, hide) or {"overrides": {}, "hide": []}
     plans = {}
     for name, spec in variants.items():
         label = str(name).strip()
@@ -319,13 +330,15 @@ def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, n
             raise ValueError("Variant names must be 1–24 characters")
         spec = dict(spec or {})
         base = spec.pop("preset", "preview")
-        plans[label] = (base, settings(base, spec, saved))
+        own = checked_scene(spec.pop("overrides", None), spec.pop("hide", None)) or {"overrides": {}, "hide": []}
+        edits = checked_scene({**shared["overrides"], **own["overrides"]}, shared["hide"] + own["hide"])
+        plans[label] = (base, settings(base, spec, saved), edits)
     zoom = checked_zoom(zoom)
     path = scene(hip)
     before = sha(path)
     runs = {}
-    for name, (base, chosen) in plans.items():
-        run = run_one(path, chosen, camera, frame, rop, base_of(base, saved))
+    for name, (base, chosen, edits) in plans.items():
+        run = run_one(path, chosen, camera, frame, rop, base_of(base, saved), edits)
         # Later variants use the camera and frame the first one resolved, so every image shows the same shot.
         camera, frame = run["camera"], run["frame"]
         runs[name] = {**run, "preset": base, "summary": summary(run)}
@@ -335,12 +348,13 @@ def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, n
     card = record("comparison", f"Karma 对照 F{frame}：{' / '.join(runs)}"[:120], topics,
                   ("；".join(f"{n}：{r['summary']}" for n, r in runs.items()) + ("。" + note.strip() if note.strip() else ""))[:700],
                   {"hip": str(path), "hip_sha256": before, "camera": camera, "frame": frame, "zoom": zoom,
-                   "candidates": {n: {"preset": r["preset"], "request": plans[n][1], "samples": [sample(r)]}
+                   "candidates": {n: {"preset": r["preset"], "request": plans[n][1], "scene": plans[n][2],
+                                      "samples": [sample(r)]}
                                   for n, r in runs.items()}})
     output = home() / "records" / card["id"] / "comparison.png"
     sheet.save(output)
     brief = {n: {k: r.get(k) for k in ("preset", "status", "seconds", "resolution", "settings", "gpu_verified",
-                                        "materials", "lighting", "notes", "image_id", "path", "summary")} for n, r in runs.items()}
+                                        "materials", "lighting", "scene", "notes", "image_id", "path", "summary")} for n, r in runs.items()}
     return {**card, "hip": str(path), "hip_unchanged": unchanged, "camera": camera, "frame": frame,
             "sheet": str(output), "variants": brief}, sheet
 
@@ -357,13 +371,13 @@ def frame_range(frames, engine):
     return frames[0], frames[1]
 
 
-def animate_vantage(path, chosen, camera, first, last, pictures):
+def animate_vantage(path, chosen, camera, first, last, pictures, edits=None):
     """The whole range in one Vantage run: one USD export and one start-up."""
     load = gpu_load()
     count = last - first + 1
     log = pictures.parent / "vantage.log"
     with job_folder("houdini-vantage-") as job:
-        info = export_vantage(path, chosen, camera, [first, last], job)
+        info = export_vantage(path, chosen, camera, [first, last], job, edits)
         started = time.perf_counter()
         frames, text, tries = vantage.run(job, info, chosen, frames=count)
         seconds = time.perf_counter() - started
@@ -391,7 +405,7 @@ def intact(picture):
         return False
 
 
-def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
+def animate_karma(path, chosen, camera, first, last, rop, base, pictures, edits=None):
     """Karma renders the range in runs of up to CHUNK frames, each one worker request and one husk process, so the
     HIP loads, the scene is translated and the shaders compile once per run instead of once per frame. Every run
     uses the camera the first one resolved. A run that stops early (a GPU fault, a husk crash) keeps its finished
@@ -407,7 +421,8 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
         with job_folder("houdini-karma-") as job:
             try:
                 info = worker({"action": "karma_render", "hip": str(path), "camera": camera, "frames": [frame, end],
-                               "rop": rop, "preset": base, "settings": chosen}, job,
+                               "rop": rop, "preset": base, "settings": chosen,
+                               **({"scene": edits} if edits else {})}, job,
                               timeout=run_timeout(chosen, end - frame + 1))
             except (ValueError, RuntimeError) as exc:
                 if run is None:
@@ -450,10 +465,12 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
     return run
 
 
-def animate(hip, camera="", frames=None, preset="preview", changes=None, fps=24, rop="", topic="", note=""):
+def animate(hip, camera="", frames=None, preset="preview", changes=None, fps=24, rop="", topic="", note="",
+            overrides=None, hide=None):
     """Render a frame range into numbered PNGs and, when ffmpeg is installed, an MP4."""
     saved = saved_presets()
     chosen = settings(preset, changes, saved)
+    edits = checked_scene(overrides, hide)
     engine = chosen.get("engine", "xpu")
     first, last = frame_range(frames, engine)
     if type(fps) is not int or not 1 <= fps <= 120:
@@ -464,9 +481,9 @@ def animate(hip, camera="", frames=None, preset="preview", changes=None, fps=24,
     pictures = clip / "frames"
     pictures.mkdir(parents=True)
     if engine == "vantage":
-        run = animate_vantage(path, chosen, camera, first, last, pictures)
+        run = animate_vantage(path, chosen, camera, first, last, pictures, edits)
     else:
-        run = animate_karma(path, chosen, camera, first, last, rop, base_of(preset, saved), pictures)
+        run = animate_karma(path, chosen, camera, first, last, rop, base_of(preset, saved), pictures, edits)
     stills = sorted(pictures.glob("f*.png"))
     video = vantage.encode(pictures, "f%04d.png", fps, clip / "clip.mp4")
     if video is None:
@@ -485,7 +502,7 @@ def animate(hip, camera="", frames=None, preset="preview", changes=None, fps=24,
         card = record("animation", f"{ENGINES.get(engine, engine)} 动画 F{first}–F{last}"[:120],
                       list(dict.fromkeys([topic.strip().lower(), "render"])),
                       (text + ("。" + note.strip() if note.strip() else ""))[:700],
-                      {"hip": str(path), "hip_sha256": before, "preset": preset, "request": chosen,
+                      {"hip": str(path), "hip_sha256": before, "preset": preset, "request": chosen, "scene": edits,
                        "camera": run["camera"], "frames": [first, last], "fps": fps, "folder": str(clip),
                        "video": run["video"]})
         run["record"] = card["id"]
