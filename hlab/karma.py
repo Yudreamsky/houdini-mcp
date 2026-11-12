@@ -219,6 +219,8 @@ def summary(run):
         text += f"，圆角 {s['round_edges']:g} 毫米"
     if (run.get("photoreal") or {}).get("pbr_fixes"):
         text += f"，按真实材料改正 {len(run['photoreal']['pbr_fixes'])} 个材质"
+    if s.get("curves") == "ribbons":
+        text += "，曲线按扁带"
     if s.get("tone", "off") != "off":
         text += "，色调 AgX" + ("（加强）" if s["tone"] == "agx_punchy" else "")
     if s.get("exposure"):

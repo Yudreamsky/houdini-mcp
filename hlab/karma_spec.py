@@ -31,7 +31,10 @@ LIGHTING = {
                      "照片里最亮的方向（多半是太阳）转到 light_angle 指定的位置；太阳的高度由照片决定，不能调。"},
 }
 CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING),
-           "tone": ("off", "agx", "agx_punchy")}
+           "tone": ("off", "agx", "agx_punchy"), "curves": ("rounded", "ribbons")}
+# How Karma draws curves, as its ROP's curve_style names them. Only Karma CPU honours it: XPU 20.5 renders the same
+# pixels for every style (measured on thick side-lit curves and on fine backlit fibres).
+CURVE_STYLES = {"rounded": "Rounded Curves", "ribbons": "Flat Ribbons"}
 SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights", "pbr_fix", "exr")
 NUMBERS = {
     "samples": (int, 1, 16384), "time_limit": (int, 1, 540), "max_edge": (int, 64, 8192), "width": (int, 16, 8192),
@@ -47,7 +50,8 @@ TEXTS = ("hdri",)
 HDRI_TYPES = (".exr", ".hdr")
 # Karma settings Chaos Vantage has no counterpart for: it renders every sample, always from MaterialX.
 KARMA_ONLY = ("time_limit", "diffuse_limit", "reflection_limit", "refraction_limit", "volume_limit", "sss_limit",
-              "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials", "tone", "exposure", "exr")
+              "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials", "tone", "exposure", "exr",
+              "curves")
 # Controls that make Karma write a linear EXR, which the worker then develops into the PNG.
 DEVELOPED = ("tone", "exposure", "exr")
 # Plain control name -> Karma ROP parameter. Resolution and the time limit are applied separately.
@@ -79,6 +83,8 @@ MEANING = {
     "light_fill": "补光相对主光加减（档）：日景、夜景是天光，摄影棚是辅光；-1 影子更暗、反差更大，+1 影子更亮、更柔；阴天不用",
     "keep_scene_lights": "保留工程里的点光、聚光、面光等局部灯（夜景默认保留，其余默认关掉）；工程里的天空和太阳类灯总会被替换",
     "round_edges": "圆角半径（毫米），让棱边像真实物体一样有一点圆角、能接住高光；Karma 在着色时混合法线，Vantage 导出时真的倒角；0 不加",
+    "curves": "曲线（毛发、绒毛、草叶的线）怎么渲，只有 engine = cpu 时有效：rounded 当成圆管（Karma 默认）；"
+              "ribbons 当成朝向相机的扁带，受光面更大、更亮。XPU 不管怎么设都按圆管渲，所以 XPU 下会拒绝 ribbons",
     "tone": "色调曲线：off 直接输出，超过 1 的亮部截成白色；agx 让高光像胶片一样平滑过渡到白，亮部保留形状和颜色；"
             "agx_punchy 在 agx 基础上对比和色彩更足",
     "exposure": "成片整体加减曝光（档），在色调曲线之前；+1 亮一倍。和 light_exposure 不同：它不改灯，只改成片",
@@ -178,6 +184,9 @@ def settings(preset, changes=None, saved=None):
                          "turn it with light_angle and brighten it with light_exposure")
     if look == "overcast" and "light_fill" in chosen:
         raise ValueError("overcast light is all sky, with no key light to fill against; drop light_fill")
+    if chosen.get("curves") == "ribbons" and chosen.get("engine") == "xpu":
+        raise ValueError("curves = ribbons only shows with engine = cpu: Karma XPU renders curves as rounded tubes "
+                         "whatever the setting")
     if chosen.get("engine") == "vantage":
         if root_preset(preset, saved) == "scene":
             raise ValueError("preset scene keeps a Karma ROP's own settings; with engine vantage use preview, standard or final")

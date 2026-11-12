@@ -143,6 +143,16 @@ class SettingsTests(unittest.TestCase):
         red = agx(np.array([[8., .2, .2]]))[0]
         self.assertTrue(red[0] > red[1] > .3, red)  # a very bright red heads for white instead of staying pure red
 
+    def test_flat_ribbons_are_for_karma_cpu_only(self):
+        self.assertEqual(settings("preview", {"engine": "cpu", "curves": "ribbons"})["curves"], "ribbons")
+        self.assertEqual(settings("preview", {"curves": "rounded"})["curves"], "rounded")
+        for changes, message in [({"curves": "ribbons"}, "only shows with engine = cpu"),
+                                 ({"engine": "xpu", "curves": "ribbons"}, "only shows with engine = cpu"),
+                                 ({"engine": "vantage", "curves": "ribbons"}, "only apply to Karma"),
+                                 ({"engine": "cpu", "curves": "tubes"}, "rounded, ribbons")]:
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                settings("preview", changes)
+
     def test_resolution_follows_camera_aspect_and_limits(self):
         self.assertEqual(resolution((1280, 720), {"max_edge": 960}), (960, 540))
         self.assertEqual(resolution((720, 1280), {"max_edge": 960}), (540, 960))

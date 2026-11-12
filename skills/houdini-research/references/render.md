@@ -47,6 +47,14 @@ Karma 直接输出的图片没有色调曲线，超过 1 的亮度一律截成�
 - 用了 `agx` 以后画面整体会比原样暗一些、灰一些，这是曲线给高光留了余地；觉得平就用 `agx_punchy`，或者加 `exposure`。
 - Vantage 自己做色调处理，不接受这三项。
 
+## 曲线的渲染方式（只对 Karma CPU）
+
+`changes={"engine": "cpu", "curves": "ribbons"}` 把毛发、绒毛这类曲线当成朝向相机的扁带来渲；`rounded` 是 Karma 默认的圆管。
+
+- 只有 CPU 引擎认这一项。XPU 不管怎么设都渲出同样的像素（实测粗曲线和细绒毛两种情况），所以 XPU 下传 `ribbons` 会被拒绝，不会悄悄不起作用。
+- 实测粗曲线、侧光：CPU 下扁带比圆管多覆盖约 7% 的像素、亮约 17%。
+- 实测一个逆光的绒毛球：CPU 圆管的绒毛区域平均亮度 77.6，CPU 扁带 95.6，XPU 96.3。也就是说 XPU 本来就和 CPU 扁带一样亮；要让 CPU 的预览和 XPU 的成片对得上，CPU 预览加 `curves: ribbons`。
+
 ## 临时改场景（只对这次渲染）
 
 `overrides` 和 `hide` 在后台的副本上改场景，工程文件不变。`render`、`compare`、`animate` 都能用，Karma 和 Vantage 都支持。
