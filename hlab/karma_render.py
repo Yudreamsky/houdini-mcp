@@ -8,7 +8,7 @@ import hou
 
 from hlab import karma_lighting
 from hlab.karma_materials import convert, is_light, objects, pbr_fix, pbr_report, plan, round_edges, used
-from hlab.karma_spec import (PARMS, developed, excerpt, frames_saved, lighting, look_settings, read_log,
+from hlab.karma_spec import (CURVE_STYLES, PARMS, developed, excerpt, frames_saved, lighting, look_settings, read_log,
                              read_sequence_log, resolution)
 
 TEMPORARY = "HR_KARMA_PREVIEW"
@@ -270,11 +270,16 @@ def render(req, folder):
         values["convergence_mode"] = "Path Traced"
     if "time_limit" in chosen:
         values.update(addtimelimit=1, timelimit=chosen["time_limit"], husk_timelimitperimage=1)
+    if "curves" in chosen:
+        values["curve_style"] = CURVE_STYLES[chosen["curves"]]
     engine = chosen.get("engine") or rop.evalParm("engine")
     if engine == "xpu":
         values["abortnogpudevice"] = 1
     for name, value in values.items():
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
+    if chosen.get("curves") == "ribbons" and engine == "xpu":  # the scene preset takes its engine from the ROP
+        raise ValueError("curves = ribbons only shows with engine = cpu: Karma XPU renders curves as rounded tubes "
+                         "whatever the setting")
     if span:
         for parm, value in zip(rop.parmTuple("f"), (frame, last, 1)):
             parm.deleteAllKeyframes()  # a new ROP's range is the expressions $FSTART and $FEND
@@ -337,6 +342,9 @@ def render(req, folder):
                      time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
                      convert_materials=report is not None, round_edges=chosen.get("round_edges", 0.),
                      pbr_fix=bool(chosen.get("pbr_fix")), tone=tone, exposure=stops, exr=bool(chosen.get("exr")),
+                     # a new ROP holds "Rounded curves", its menu says "Rounded Curves"
+                     curves={v.lower(): k for k, v in CURVE_STYLES.items()}.get(rop.evalParm("curve_style").lower(),
+                                                                              rop.evalParm("curve_style")),
                      **look_settings(look))
     return {**outcome, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,

@@ -423,7 +423,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     (lighting = hdri with hdri = its path; light_angle turns its sun). For photoreal results,
     round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.
     changes.tone = agx or agx_punchy develops the picture with a film-like curve instead of clipping highlights,
-    exposure (stops) brightens it, and exr = true also keeps the linear EXR (Karma only).
+    exposure (stops) brightens it, and exr = true also keeps the linear EXR (Karma only). changes.curves = ribbons
+    draws hair-like curves as flat camera-facing ribbons instead of rounded tubes (engine cpu only: XPU ignores it).
     render returns one image limited in size and time, with effective settings, conversions, lighting, seconds and
     GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera
     and frame, optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. animate renders
