@@ -26,6 +26,9 @@ UNMEASURED = 1.2
 # about a fifth brighter.
 KARMA_GREY = .41
 DEFAULT_MATERIAL = "/HR_VANTAGE/default_grey"
+# Columns of the backdrop the host computes per frame for a photographed panorama: it has detail a generated
+# sky lacks, and still comes out soft, like a background out of focus.
+PHOTO_GRID = 240
 
 
 def geometry_objects():
@@ -334,7 +337,7 @@ def export(req, folder):
         rows.append("工程里的环境光贴图在 Vantage 里只照明、不显示为背景，背景会是透明的；用 lighting 预设可以看到天空。")
     return {"usd": usd.name, "camera": cam.path(), "camera_name": cam.name(), "frames": [first, last],
             "resolution": [width, height], "view": view(cam, first, last, width, height),
-            "sky": "sky.hdr" if look else None, "lighting": lit_by, "materials": report, "photoreal": real,
+            "sky": "sky.hdr" if look else None, **({"sky_grid": PHOTO_GRID} if look and look["look"] == "hdri" else {}), "lighting": lit_by, "materials": report, "photoreal": real,
             "lights": len(lit), "normals_added": smoothed, "usd_edits": edits, "scene": scene,
             "export_seconds": round(time.perf_counter() - started, 2), "notes": rows}
 

@@ -413,7 +413,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     material support, the materials each engine converts (legacy /shop shaders, and Principled with bump,
     transparency or cut-out maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
     changes.lighting swaps the scene's lights for a day, overcast, night or product studio look placed relative to
-    the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights). For photoreal results,
+    the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights), or for an HDRI panorama
+    (lighting = hdri with hdri = its path; light_angle turns its sun). For photoreal results,
     round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.
     render returns one image limited in size and time, with effective settings, conversions, lighting, seconds and
     GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera

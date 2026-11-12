@@ -12,7 +12,8 @@ from unittest.mock import patch
 from PIL import Image
 
 from hlab import karma, karma_sky
-from hlab.karma_spec import excerpt, frames_saved, lighting, read_log, read_sequence_log, resolution, settings
+from hlab.karma_spec import (controls, excerpt, frames_saved, lighting, look_settings, read_log, read_sequence_log,
+                             resolution, settings)
 
 LOG = """[08:48:51] >>> Render C:\\job\\render.png (1 of 1) - 640x360 C:/job/usd/__render__.usd frame: 1
 [08:48:52] KarmaXPU: Device 0  Status: active  Info: NVidia GPU CUDA/Optix device
@@ -84,6 +85,31 @@ class SettingsTests(unittest.TestCase):
                                  ({"lighting": "studio", "light_exposure": 7}, "-6..6")]:
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
                 settings("preview", changes)
+
+    def test_an_hdri_look_takes_a_panorama_and_leaves_the_sun_height_to_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            photo = str(Path(tmp) / "sky.exr")
+            Path(photo).write_bytes(b"exr")
+            Path(tmp, "notes.txt").write_text("x")
+            look = lighting(settings("preview", {"lighting": "hdri", "hdri": photo, "light_angle": 150, "light_exposure": 1}))
+            self.assertEqual(look, {"look": "hdri", "label": "HDRI 环境", "exposure": 1., "keep_scene_lights": False,
+                                    "angle": 150., "hdri": photo})
+            self.assertEqual(lighting(settings("preview", {"lighting": "hdri", "hdri": photo}))["angle"], 30.)
+            self.assertEqual(look_settings(look), {"lighting": "hdri", "light_exposure": 1., "keep_scene_lights": False,
+                                                   "light_angle": 150., "hdri": photo})
+            self.assertEqual(settings("preview", {"lighting": "hdri", "hdri": photo, "engine": "vantage"})["hdri"], photo)
+            for changes, message in [({"lighting": "hdri"}, "needs hdri"),
+                                     ({"lighting": "day", "hdri": photo}, "only applies with lighting = hdri"),
+                                     ({"hdri": photo}, "only apply with lighting"),
+                                     ({"lighting": "hdri", "hdri": photo, "light_elevation": 20}, "those of the photograph"),
+                                     ({"lighting": "hdri", "hdri": photo, "light_fill": 1}, "those of the photograph"),
+                                     ({"lighting": "hdri", "hdri": "sky.exr"}, "absolute path"),
+                                     ({"lighting": "hdri", "hdri": str(Path(tmp) / "missing.exr")}, "existing"),
+                                     ({"lighting": "hdri", "hdri": str(Path(tmp) / "notes.txt")}, ".exr or .hdr"),
+                                     ({"lighting": "hdri", "hdri": 5}, "absolute path")]:
+                with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                    settings("preview", changes)
+        self.assertIn("完整路径", controls()["hdri"])
 
     def test_resolution_follows_camera_aspect_and_limits(self):
         self.assertEqual(resolution((1280, 720), {"max_edge": 960}), (960, 540))
@@ -400,7 +426,7 @@ class StudioTests(unittest.TestCase):
         self.assertIn("灯光阴天", data["variants"]["阴天"]["summary"])
         self.assertNotIn("灯光", data["variants"]["原灯"]["summary"])
         self.assertIn("阴天", karma.caption("A", data["variants"]["阴天"]))
-        self.assertEqual([l["name"] for l in karma.presets()["lighting"]], ["scene", "day", "overcast", "night", "studio"])
+        self.assertEqual([l["name"] for l in karma.presets()["lighting"]], ["scene", "day", "overcast", "night", "studio", "hdri"])
         saved = karma.save_preset("夜景出图", "standard", {"lighting": "night", "light_exposure": 1})
         self.assertEqual((saved["settings"]["lighting"], saved["settings"]["samples"]), ("night", 128))
 

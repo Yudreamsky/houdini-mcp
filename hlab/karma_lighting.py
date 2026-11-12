@@ -4,10 +4,50 @@ import math
 import hou
 
 from hlab.karma_materials import is_light, objects
-from hlab.karma_sky import DISC, camera_frame, design, unit, write_hdr
+from hlab.karma_sky import DISC, camera_frame, design, direction, toward, unit, write_hdr
 
 PREFIX = "HR_KARMA_"
 DIRECTIONS = {0: "相机方向", 45: "右前方", 90: "右侧", 135: "右后方", 180: "物体正后方，逆光", -45: "左前方", -90: "左侧", -135: "左后方"}
+
+
+BACKDROP_WIDTH = 1024  # columns of the copy of an HDRI that goes behind a Vantage picture
+
+
+def hdri_pixels(path, width):
+    """A lat-long panorama as a (width / 2, width, 3) array of linear RGB."""
+    import numpy as np
+    import OpenImageIO as oiio
+    source = oiio.ImageBuf(str(path))
+    spec = source.spec()
+    if source.has_error or spec.width < 2 or spec.height < 1:
+        raise ValueError(f"Cannot read the HDRI {path}: {source.geterror() or 'it has no pixels'}")
+    small = oiio.ImageBufAlgo.resize(source, roi=oiio.ROI(0, width, 0, width // 2, 0, 1, 0, spec.nchannels))
+    pixels = np.asarray(small.get_pixels(oiio.FLOAT), dtype=np.float64).reshape(width // 2, width, -1)
+    return np.repeat(pixels[:, :, :1], 3, axis=2) if pixels.shape[2] < 3 else pixels[:, :, :3]
+
+
+def hdri_sun(path):
+    """The brightest direction of a panorama, mostly its sun: elevation and azimuth (atan2(x, z)) in degrees."""
+    import numpy as np
+    pixels = hdri_pixels(path, 256)
+    row, col = np.unravel_index(int(np.argmax(pixels @ np.array([.2126, .7152, .0722]))), pixels.shape[:2])
+    x, y, z = direction((col + .5) / 256, (row + .5) / 128)
+    return {"elevation": math.degrees(math.asin(y)), "azimuth": math.degrees(math.atan2(x, z))}
+
+
+def hdri_turn(found, frame, angle):
+    """Degrees to turn the environment about Y so its sun sits at angle relative to the camera."""
+    x, _, z = toward(frame, angle, found["elevation"])
+    return (math.degrees(math.atan2(x, z)) - found["azimuth"] + 180.) % 360. - 180.
+
+
+def hdri_backdrop(path, turn):
+    """Rows of the panorama, turned like the light, for the host to put behind a Vantage picture: a USD dome
+    lights a Vantage scene but never shows. Turning about Y by +turn moves a feature turn / 360 of the width left."""
+    import numpy as np
+    pixels = hdri_pixels(path, BACKDROP_WIDTH)
+    turned = np.roll(pixels, -round(turn / 360. * BACKDROP_WIDTH), axis=1)
+    return [[tuple(p) for p in row] for row in np.maximum(turned, 0.).tolist()]
 
 
 def outdoor(node):
@@ -77,8 +117,13 @@ def apply(look, cam, rop, folder):
     world = cam.worldTransform()
     forward, up = hou.Vector4(0, 0, -1, 0) * world, hou.Vector4(0, 1, 0, 0) * world
     frame = camera_frame(tuple(forward)[:3], tuple(up)[:3])
-    lights, sky_rows = design(look["look"], frame, look["angle"], look["elevation"], look.get("fill", 0.),
-                              view(cam, tuple(forward)[:3]))
+    found = None
+    if look["look"] == "hdri":
+        found, lights = hdri_sun(look["hdri"]), []
+        turn = hdri_turn(found, frame, look["angle"])
+    else:
+        lights, sky_rows = design(look["look"], frame, look["angle"], look["elevation"], look.get("fill", 0.),
+                                  view(cam, tuple(forward)[:3]))
     turned_off, kept = [], []
     for node in objects():
         if not is_light(node) or not node.isObjectDisplayed():
@@ -114,9 +159,15 @@ def apply(look, cam, rop, folder):
             aim(node, target + hou.Vector3(spec["toward"]) * spec["distance"] * radius, target)
         added.append(node.path())
     sky = folder / "sky.hdr"
-    write_hdr(sky, sky_rows)
     env = obj.createNode("envlight", PREFIX + "SKY")
-    env.parm("env_map").set(str(sky))
+    if found:
+        env.parm("ry").set(turn)
+        if rop is None:  # an export for Vantage: the host draws this copy behind the picture
+            write_hdr(sky, hdri_backdrop(look["hdri"], turn))
+        sky = look["hdri"]
+    else:
+        write_hdr(sky, sky_rows)
+    env.parm("env_map").set(str(sky).replace("\\", "/"))
     env.parm("light_exposure").set(look["exposure"])
     env.parm("light_contribprimary").set(1)  # the sky is also the background
     added.append(env.path())
@@ -126,6 +177,9 @@ def apply(look, cam, rop, folder):
         if rop.evalParm("sololights").strip():
             extend(rop, "sololights", added)
     report = {**look, "added": added, "turned_off": turned_off, "kept": kept}
+    if found:
+        report.update(elevation=round(found["elevation"], 1), turn=round(turn, 2),
+                      sun={k: round(v, 1) for k, v in found.items()})
     if look["look"] == "studio":
         report["subject"] = {"centre": [round(c, 4) for c in centre], "radius": round(radius, 4)}
     return report
@@ -134,11 +188,14 @@ def apply(look, cam, rop, folder):
 def notes(report):
     look, rows = report["look"], []
     text = f"灯光用「{report['label']}」，临时加了 {len(report['added'])} 盏灯，工程文件不变"
-    source = {"day": "太阳", "overcast": "云后的太阳", "night": "月亮", "studio": "主光"}[look]
+    source = {"day": "太阳", "overcast": "云后的太阳", "night": "月亮", "studio": "主光", "hdri": "照片里最亮的方向"}[look]
     text += f"；{source}在{where(report['angle'])}（{report['angle']:g}°），高 {report['elevation']:g}°"
     if report.get("fill"):
         text += f"；{'天光' if look in ('day', 'night') else '辅光'}{report['fill']:+g} 档"
     rows.append(text + "。")
+    if look == "hdri":
+        rows.append(f"环境照片绕竖轴转了 {report['turn']:g}°，把它最亮的方向（多半是太阳）放到这个位置；"
+                    "太阳的高度由照片决定。照片同时是背景。")
     if report["turned_off"]:
         rows.append(f"关掉了工程里的 {len(report['turned_off'])} 盏灯（如 {report['turned_off'][0]}）"
                     + ("；天空和太阳类的灯总会被替换。" if report["keep_scene_lights"] else "；要保留局部灯可传 keep_scene_lights=true。"))
