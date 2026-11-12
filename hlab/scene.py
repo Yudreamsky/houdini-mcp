@@ -230,9 +230,27 @@ def capture(frame):
     return {**_flipbook(frame), "metrics": metrics()}
 
 
-def capture_view(frame, camera="", metrics_fn=None):
+def clay(viewport):
+    """Draw everything matte under the headlight, so shape reads whatever the materials are
+    (a metal has nothing to reflect in the viewport and comes out black). Returns the undo."""
+    settings = viewport.settings()
+    before = settings.showingMaterials(), settings.lighting(), settings.showingSpecular()
+    settings.showMaterials(False)
+    settings.setLighting(hou.viewportLighting.Headlight)
+    settings.showSpecular(False)
+    def restore():
+        settings.showMaterials(before[0])
+        settings.setLighting(before[1])
+        settings.showSpecular(before[2])
+    return restore
+
+
+def capture_view(frame, camera="", metrics_fn=None, look=""):
+    if look not in ("", "clay"):
+        raise ValueError("look is empty for the scene's own materials, or clay")
     previous = hou.frame()
     viewport = viewer().curViewport()
+    restore_look = None
     old_camera = viewport.camera()
     old_view = viewport.defaultCamera().stash() if camera and old_camera is None else None
     locked = viewport.isCameraLockedToView()
@@ -243,12 +261,18 @@ def capture_view(frame, camera="", metrics_fn=None):
                 raise ValueError("Select an existing camera OBJ")
             viewport.lockCameraToView(False)
             viewport.setCamera(target)
+        if look:
+            restore_look = clay(viewport)
         hou.setFrame(frame)
         result = _flipbook(frame)
+        if look:
+            result["look"] = look
         if metrics_fn is not None:
             result["metrics"] = metrics_fn()
         return result
     finally:
+        if restore_look:
+            restore_look()
         if camera:
             if old_camera is None:
                 viewport.useDefaultCamera()

@@ -58,4 +58,13 @@ class Copy(Operation):
         default=None, max_length=32, description="Parameter values to write on the copy, e.g. {\"tx\": 1.3}")
 
 
-Edit = Create | Connect | SetParm | Flags | Rename | Delete | Copy
+class Patch(Operation):
+    op: Literal["patch"]
+    path: str
+    parm: str
+    find: str = Field(min_length=1, description="Exact fragment of the parameter's stored text")
+    replace: str
+    count: int = Field(default=1, ge=1, le=64, description="How many times find must occur; all of them are replaced")
+
+
+Edit = Create | Connect | SetParm | Flags | Rename | Delete | Copy | Patch

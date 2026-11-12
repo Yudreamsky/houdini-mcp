@@ -91,8 +91,9 @@ def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int =
 @tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
                require_clean: bool = True, verbose: bool = False, session_id: str = "") -> dict:
-    """Atomically create, wire, set, flag, rename, copy or delete live OPs. Provide absolute paths and optionally
-    expected old values; failures roll back. One successful batch is one undo. Code-bearing writes require host
+    """Atomically create, wire, set, patch, flag, rename, copy or delete live OPs. Provide absolute paths and
+    optionally expected old values; failures roll back. patch replaces an exact fragment of a text parameter
+    (find must occur exactly count times) so a one-line change to a long snippet does not resend it. One successful batch is one undo. Code-bearing writes require host
     opt-in. Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_
     render parameters. copy duplicates a node with its contents under a new name, unwired, and writes the values in
     its set, so a repeated placement is one step. The result gives the step count per op and lists only the steps
@@ -110,12 +111,15 @@ def cook(node: str, frame: int | None = None, session_id: str = "") -> dict:
 
 
 @tool(annotations=READ, structured_output=False)
-def capture(frame: int, camera: str = "", session_id: str = ""):
-    """Capture a live Scene Viewer PNG, optionally through a camera OBJ. Restore the original time and view."""
+def capture(frame: int, camera: str = "", look: Literal["", "clay"] = "", session_id: str = ""):
+    """Capture a live Scene Viewer PNG, optionally through a camera OBJ. Restore the original time and view.
+    look="clay" draws everything matte under the headlight for this capture only, so shapes read whatever
+    the materials are; metals have nothing to reflect in the viewport and otherwise come out black."""
     from .bridge import call_in
 
     directory = selected_directory(session_id)
-    sample = call_in(directory, "graph_capture", expected_session=session_id or None, frame=frame, camera=camera)
+    extra = {"look": look} if look else {}
+    sample = call_in(directory, "graph_capture", expected_session=session_id or None, frame=frame, camera=camera, **extra)
     return illustrated(sample, viewport_image(sample, directory))
 
 
