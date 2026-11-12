@@ -36,6 +36,17 @@ Karma 读不了的材质，渲染前会临时转成 MaterialX，只在后台的�
 - `render` 传 `topic` 时保存为经验卡，`compare` 总会保存对照卡。用 `knowledge(topic="渲染")` 找回，用 `evidence(key)` 或 `evidence(key, variant=方案名)` 取原图。
 - 用户选定一个方案后，用 `save_preset(name=..., preset=底板预设, changes=..., note=选择理由)` 保存，以后传 `preset=该名字` 即可。只在用户明确选择后保存。
 
+## 成片：色调、曝光和 EXR（只对 Karma）
+
+Karma 直接输出的图片没有色调曲线，超过 1 的亮度一律截成白色，晴天的墙面、天空容易成片发白。下面三项让 Karma 先写线性的 EXR，再由后台转成图片：
+
+- `tone`：`off`（默认）和原来一样；`agx` 让高光像胶片一样平滑过渡到白，亮部保留形状和颜色；`agx_punchy` 在此基础上对比和色彩更足，更接近照片。
+- `exposure`：成片整体加减曝光（档），在色调曲线之前。它不改灯，只改成片；`light_exposure` 改的是灯。
+- `exr=true`：同时保留线性的 EXR 原片，留给后期软件调色。单张的路径在结果的 `exr`，动画的在 `exr_folder`。只传 `exr` 时，图片和原来的一样。
+- 实测一个故意过曝的日景：原样有 49.6% 的像素是纯白，`agx` 是 0%；`exposure=-2` 后平均亮度从 0.58 降到 0.28。
+- 用了 `agx` 以后画面整体会比原样暗一些、灰一些，这是曲线给高光留了余地；觉得平就用 `agx_punchy`，或者加 `exposure`。
+- Vantage 自己做色调处理，不接受这三项。
+
 ## 临时改场景（只对这次渲染）
 
 `overrides` 和 `hide` 在后台的副本上改场景，工程文件不变。`render`、`compare`、`animate` 都能用，Karma 和 Vantage 都支持。
@@ -79,7 +90,7 @@ Karma 读不了的材质，渲染前会临时转成 MaterialX，只在后台的�
   | 夜景 | 朝月亮的面约 0.14，阴影约 0.03 |
   | 摄影棚 | 白盒子顶面约 1.0，正面约 0.67 |
 
-  没有色调映射，超过 1 会截断成白色，画面里的天空也比照片显得灰。
+  默认没有色调曲线，超过 1 会截断成白色，画面里的天空也比照片显得灰；要像照片，用 `tone`（见上文“成片”）。
 - 用户说太平、太暗、看不出形状时，按 [布光经验](lighting.md) 的对照表改。一次只改一个量，用 `compare` 并排看。
 - 选定的灯光可以和画质一起存成预设，例如 `save_preset(name="夜景出图", preset="standard", changes={"lighting": "night", "light_exposure": 1})`。
 

@@ -30,15 +30,16 @@ LIGHTING = {
              "note": "用一张全景 HDRI 照片照明并当背景（hdri 填 .exr 或 .hdr 的完整路径）：光的颜色、天空和远景都来自真实照片。"
                      "照片里最亮的方向（多半是太阳）转到 light_angle 指定的位置；太阳的高度由照片决定，不能调。"},
 }
-CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING)}
-SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights", "pbr_fix")
+CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING),
+           "tone": ("off", "agx", "agx_punchy")}
+SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights", "pbr_fix", "exr")
 NUMBERS = {
     "samples": (int, 1, 16384), "time_limit": (int, 1, 540), "max_edge": (int, 64, 8192), "width": (int, 16, 8192),
     "resolution_scale": (float, .05, 1.), "diffuse_limit": (int, 0, 64), "reflection_limit": (int, 0, 64),
     "refraction_limit": (int, 0, 64), "volume_limit": (int, 0, 64), "sss_limit": (int, 0, 64),
     "color_limit": (float, .1, 1000.), "light_sampling_quality": (float, .01, 10.),
     "light_angle": (float, -180., 180.), "light_elevation": (float, 0., 90.), "light_exposure": (float, -6., 6.),
-    "light_fill": (float, -3., 3.), "round_edges": (float, 0., 100.),
+    "light_fill": (float, -3., 3.), "round_edges": (float, 0., 100.), "exposure": (float, -6., 6.),
 }
 LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights", "hdri")
 # Controls that take text: the meaning says what text.
@@ -46,7 +47,9 @@ TEXTS = ("hdri",)
 HDRI_TYPES = (".exr", ".hdr")
 # Karma settings Chaos Vantage has no counterpart for: it renders every sample, always from MaterialX.
 KARMA_ONLY = ("time_limit", "diffuse_limit", "reflection_limit", "refraction_limit", "volume_limit", "sss_limit",
-              "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials")
+              "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials", "tone", "exposure", "exr")
+# Controls that make Karma write a linear EXR, which the worker then develops into the PNG.
+DEVELOPED = ("tone", "exposure", "exr")
 # Plain control name -> Karma ROP parameter. Resolution and the time limit are applied separately.
 PARMS = {
     "engine": "engine", "samples": "pathtracedsamples", "denoiser": "denoiser", "motion_blur": "enablemblur",
@@ -76,6 +79,10 @@ MEANING = {
     "light_fill": "补光相对主光加减（档）：日景、夜景是天光，摄影棚是辅光；-1 影子更暗、反差更大，+1 影子更亮、更柔；阴天不用",
     "keep_scene_lights": "保留工程里的点光、聚光、面光等局部灯（夜景默认保留，其余默认关掉）；工程里的天空和太阳类灯总会被替换",
     "round_edges": "圆角半径（毫米），让棱边像真实物体一样有一点圆角、能接住高光；Karma 在着色时混合法线，Vantage 导出时真的倒角；0 不加",
+    "tone": "色调曲线：off 直接输出，超过 1 的亮部截成白色；agx 让高光像胶片一样平滑过渡到白，亮部保留形状和颜色；"
+            "agx_punchy 在 agx 基础上对比和色彩更足",
+    "exposure": "成片整体加减曝光（档），在色调曲线之前；+1 亮一倍。和 light_exposure 不同：它不改灯，只改成片",
+    "exr": "同时保留线性的 EXR 原片，留给后期软件调色；结果的 exr 是文件路径",
     "pbr_fix": "把不符合真实材料的数值临时改正：底色太亮或太暗、非金属不反光、粗糙度为 0、金属颜色太暗（只改渲染副本）",
 }
 
@@ -269,13 +276,18 @@ def read_sequence_log(stdout, stderr=""):
     return info
 
 
-def frames_saved(names, first, stderr=""):
-    """The frames of a range that husk saved as render.<frame>.png, in order from the first and stopping at a gap,
-    each with whether the time limit stopped it."""
-    limited = {int(n) for n in re.findall(r"Run time \d+ exceeded file .*?render\.(-?\d+)\.png", stderr)}
+def developed(chosen):
+    """Whether this render goes through a linear EXR."""
+    return chosen.get("tone", "off") != "off" or bool(chosen.get("exposure")) or bool(chosen.get("exr"))
+
+
+def frames_saved(names, first, stderr="", kind="png"):
+    """The frames of a range that husk saved as render.<frame>.<kind>, in order from the first and stopping at a
+    gap, each with whether the time limit stopped it."""
+    limited = {int(n) for n in re.findall(rf"Run time \d+ exceeded file .*?render\.(-?\d+)\.{kind}", stderr)}
     found = {}
     for name in names:
-        match = re.fullmatch(r"render\.(-?\d+)\.png", name)
+        match = re.fullmatch(rf"render\.(-?\d+)\.{kind}", name)
         if match:
             found[int(match.group(1))] = name
     rows = []

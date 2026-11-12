@@ -52,7 +52,7 @@ class SettingsTests(unittest.TestCase):
                                  ({"engine": "gpu"}, "xpu, cpu"), ({"motion_blur": 1}, "true or false"),
                                  ({"convert_materials": "no"}, "true or false"),
                                  ({"denoiser": True}, "off, optix, oidn"), ({"time_limit": 3600}, "1..540"),
-                                 ({"color_limit": float("nan")}, "number"), ({"exposure": 1}, "Supported")]:
+                                 ({"color_limit": float("nan")}, "number"), ({"brightness": 1}, "Supported")]:
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
                 settings("preview", changes)
         with self.assertRaisesRegex(ValueError, "Unknown preset"):
@@ -110,6 +110,36 @@ class SettingsTests(unittest.TestCase):
                 with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
                     settings("preview", changes)
         self.assertIn("完整路径", controls()["hdri"])
+
+    def test_tone_exposure_and_exr_go_through_a_linear_original_on_karma_only(self):
+        from hlab.karma_spec import developed
+        self.assertFalse(developed(settings("preview")))
+        self.assertFalse(developed(settings("preview", {"tone": "off", "exposure": 0, "exr": False})))
+        for changes in ({"tone": "agx"}, {"tone": "agx_punchy"}, {"exposure": -1.5}, {"exr": True}):
+            with self.subTest(changes=changes):
+                self.assertTrue(developed(settings("standard", changes)))
+        for changes, message in [({"tone": "filmic"}, "off, agx, agx_punchy"), ({"exposure": 7}, "-6..6"),
+                                 ({"exr": "yes"}, "true or false"),
+                                 ({"engine": "vantage", "tone": "agx"}, "only apply to Karma"),
+                                 ({"engine": "vantage", "exr": True}, "only apply to Karma")]:
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                settings("preview", changes)
+        self.assertEqual(frames_saved(["render.0002.exr", "render.0001.exr", "render.0001.png"], 1,
+                                      "[1] Run time 2 exceeded file C:/job/render.0002.exr", "exr"),
+                         [{"frame": 1, "file": "render.0001.exr", "status": "completed"},
+                          {"frame": 2, "file": "render.0002.exr", "status": "time_limit"}])
+
+    def test_agx_rolls_highlights_off_where_the_plain_transfer_clips(self):
+        import numpy as np
+        from hlab.karma_grade import agx, srgb
+        steps = np.array([[v, v, v] for v in (0., .01, .18, 1., 4., 16., 64.)])
+        base, punchy, plain = agx(steps)[:, 1], agx(steps, punchy=True)[:, 1], srgb(steps)[:, 1]
+        self.assertTrue(all(b > a for a, b in zip(base, base[1:])))  # still telling 4, 16 and 64 apart
+        self.assertTrue(all(v > .999 for v in plain[3:]))  # the plain transfer has run out at 1
+        self.assertTrue(.3 < base[2] < .55 and base[3] < .9 and base[-1] > .95, base)
+        self.assertLess(punchy[1], base[1])  # more contrast: darker shadows
+        red = agx(np.array([[8., .2, .2]]))[0]
+        self.assertTrue(red[0] > red[1] > .3, red)  # a very bright red heads for white instead of staying pure red
 
     def test_resolution_follows_camera_aspect_and_limits(self):
         self.assertEqual(resolution((1280, 720), {"max_edge": 960}), (960, 540))

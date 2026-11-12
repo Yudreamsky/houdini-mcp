@@ -149,7 +149,11 @@ def run_one(path, chosen, camera, frame, rop, base="", edits=None):
         if info["settings"]["engine"] == "xpu":
             info.update(gpu_load=load, notes=load_notes(load) + info["notes"])
         info["notes"] = progress_note(info) + info["notes"]
+        raw = info.pop("exr", None)
         stored = keep(job / info.pop("file"), job / info.pop("log"))
+        if raw:  # the linear original, beside the developed picture
+            stored["exr"] = str(Path(stored["path"]).with_suffix(".exr"))
+            shutil.copyfile(job / raw, stored["exr"])
     return {**info, **stored}
 
 
@@ -215,6 +219,10 @@ def summary(run):
         text += f"，圆角 {s['round_edges']:g} 毫米"
     if (run.get("photoreal") or {}).get("pbr_fixes"):
         text += f"，按真实材料改正 {len(run['photoreal']['pbr_fixes'])} 个材质"
+    if s.get("tone", "off") != "off":
+        text += "，色调 AgX" + ("（加强）" if s["tone"] == "agx_punchy" else "")
+    if s.get("exposure"):
+        text += f"，成片曝光 {s['exposure']:+g} 档"
     changed = run.get("scene") or {}
     if changed.get("overrides"):
         text += f"，临时改 {len(changed['overrides'])} 个场景参数"
@@ -413,6 +421,7 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures, edits=
     from .sop_lab import worker
     load = gpu_load() if chosen.get("engine", "xpu") == "xpu" else None
     total = last - first + 1
+    originals = pictures.parent / "exr"  # linear frames, kept when the request asks for exr
     run, limited, resumed, seconds, frame, stalled = None, [], [], 0., first, False
     while frame <= last:
         cancel.check()
@@ -434,6 +443,9 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures, edits=
                     rows.pop()  # husk died while writing this frame
                 for row in rows:
                     shutil.copyfile(job / row["file"], pictures / f"f{row['frame'] - first + 1:04d}.png")
+                    if row.get("exr"):
+                        originals.mkdir(exist_ok=True)
+                        shutil.copyfile(job / row["exr"], originals / f"f{row['frame'] - first + 1:04d}.exr")
                 shutil.copyfile(job / info.pop("log"), pictures.parent / f"husk-F{frame}.log")
         if info is not None:
             seconds += info["seconds"]
@@ -461,7 +473,7 @@ def animate_karma(path, chosen, camera, first, last, rop, base, pictures, edits=
         rows.append(f"渲染中途停了 {len(resumed)} 次（如 F{resumed[0]}，多半是显卡或驱动出错），已从缺的那一帧接着渲完。")
     run.update(status="time_limit" if limited else "completed", seconds=round(seconds, 2),
                limited_frames=limited[:50], resumed_at=resumed, log=str(pictures.parent / f"husk-F{first}.log"),
-               notes=rows + run["notes"])
+               notes=rows + run["notes"], **({"exr_folder": str(originals)} if originals.is_dir() else {}))
     return run
 
 
