@@ -8,8 +8,8 @@ import hou
 
 from hlab import karma_lighting
 from hlab.karma_materials import convert, is_light, objects, pbr_fix, pbr_report, plan, round_edges, used
-from hlab.karma_spec import (PARMS, excerpt, frames_saved, lighting, look_settings, read_log, read_sequence_log,
-                             resolution)
+from hlab.karma_spec import (PARMS, developed, excerpt, frames_saved, lighting, look_settings, read_log,
+                             read_sequence_log, resolution)
 
 TEMPORARY = "HR_KARMA_PREVIEW"
 
@@ -254,9 +254,12 @@ def render(req, folder):
     rop, temporary = karma_rop(req.get("rop", ""), req.get("preset", ""))
     cam = pick_camera(req.get("camera", ""), rop, temporary)
     width, height = resolution((cam.evalParm("resx"), cam.evalParm("resy")), chosen)
-    picture, out, err = folder / "render.png", folder / "husk.log", folder / "husk.err"
+    # With a tone curve, an exposure or exr, Karma writes linear EXR and develop() makes the PNG from it.
+    kind = "exr" if developed(chosen) else "png"
+    tone, stops = chosen.get("tone", "off"), chosen.get("exposure", 0.)
+    picture, out, err = folder / f"render.{kind}", folder / "husk.log", folder / "husk.err"
     values = {"camera": cam.path(), "override_camerares": 0, "resolutionx": width, "resolutiony": height,
-              "picture": str(folder / "render.$F4.png") if span else str(picture), "soho_foreground": 1,
+              "picture": str(folder / f"render.$F4.{kind}") if span else str(picture), "soho_foreground": 1,
               "verbosity": 5, "log": 1, "logappend": 0,
               "husk_stdout": str(out), "husk_stderr": str(err), "savetodirectory": str(folder / "usd")}
     if span:
@@ -298,13 +301,21 @@ def render(req, folder):
     stderr = err.read_text(encoding="utf-8", errors="replace") if err.is_file() else ""
     if span:
         info = read_sequence_log(stdout, stderr)
-        saved = frames_saved([p.name for p in folder.glob("render.*.png") if p.stat().st_size], frame, stderr)
+        saved = frames_saved([p.name for p in folder.glob(f"render.*.{kind}") if p.stat().st_size], frame, stderr, kind)
         if not saved:
             raise RuntimeError(f"Karma render failed: {excerpt(stdout, stderr) or failure or 'no image was written'}")
         # husk 20.5 can crash while exiting after time-limited frames, after it has saved them all. Frames missing
         # from the end mean it stopped early: the host keeps what was saved and continues from the first gap.
         stopped = None if len(saved) == last - frame + 1 else (
             excerpt(stdout, stderr) or failure or "husk stopped without an error message")[:600]
+        if kind == "exr":
+            from hlab.karma_grade import develop
+            for row in saved:
+                source = folder / row["file"]
+                row["file"] = source.with_suffix(".png").name
+                develop(source, folder / row["file"], tone, stops)
+                if chosen.get("exr"):
+                    row["exr"] = source.name
         outcome = {"frames": saved, "stopped": stopped,
                    "status": "time_limit" if any(row["status"] == "time_limit" for row in saved) else "completed"}
     else:
@@ -315,11 +326,18 @@ def render(req, folder):
         if not picture.is_file():
             raise RuntimeError("Karma finished without writing an image")
         outcome = {"file": picture.name, "status": "time_limit" if info["time_limit_reached"] else "completed"}
+        if kind == "exr":
+            from hlab.karma_grade import develop
+            develop(picture, folder / "render.png", tone, stops)
+            outcome["file"] = "render.png"
+            if chosen.get("exr"):
+                outcome["exr"] = picture.name
     effective = {name: rop.evalParm(parm) for name, parm in PARMS.items()}
     effective.update(motion_blur=bool(effective["motion_blur"]), depth_of_field=bool(effective["depth_of_field"]),
                      time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
                      convert_materials=report is not None, round_edges=chosen.get("round_edges", 0.),
-                     pbr_fix=bool(chosen.get("pbr_fix")), **look_settings(look))
+                     pbr_fix=bool(chosen.get("pbr_fix")), tone=tone, exposure=stops, exr=bool(chosen.get("exr")),
+                     **look_settings(look))
     return {**outcome, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
             "seconds": round(seconds, 2),
