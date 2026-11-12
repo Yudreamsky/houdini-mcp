@@ -9,6 +9,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from . import cancel
 from .karma_sky import lookup, read_hdr, unit
 
 DEFAULT = Path(r"C:\Program Files\Chaos\Vantage\vantage_console.exe")
@@ -44,11 +45,14 @@ def arguments(scene, output, size, camera, chosen, view, log, frames=0):
 
 def launch(args, timeout):
     """Run vantage_console, starting it again after a start-up crash; returns the number of tries."""
-    from .worker_pool import kill_tree
+    from .worker_pool import kill_tree, wait_process
     for attempt in range(1, TRIES + 1):
         proc = subprocess.Popen([str(executable()), *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            code = proc.wait(timeout=timeout)
+            code = wait_process(proc, timeout)
+        except cancel.Cancelled:
+            kill_tree(proc)
+            raise
         except subprocess.TimeoutExpired:
             kill_tree(proc)
             raise RuntimeError(f"Vantage did not finish within {timeout} s; check that it is licensed and that no "
