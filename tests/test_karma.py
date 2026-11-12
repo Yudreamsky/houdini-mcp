@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import math
 import os
@@ -129,6 +130,7 @@ class SettingsTests(unittest.TestCase):
                          [{"frame": 1, "file": "render.0001.exr", "status": "completed"},
                           {"frame": 2, "file": "render.0002.exr", "status": "time_limit"}])
 
+    @unittest.skipUnless(importlib.util.find_spec("numpy"), "the curve runs in hython; outside it this needs numpy")
     def test_agx_rolls_highlights_off_where_the_plain_transfer_clips(self):
         import numpy as np
         from hlab.karma_grade import agx, srgb
