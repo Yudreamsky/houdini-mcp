@@ -11,6 +11,7 @@ from pathlib import Path
 
 import hou
 
+from .graph_report import summary
 from .storage import home
 
 SESSION = uuid.uuid4().hex
@@ -233,10 +234,51 @@ def create(batch, op, label):
     return path
 
 
+def copy(batch, op, label, allow_delete):
+    """Duplicate a node with its contents under a new name. The copy starts unwired; values in
+    op["set"] are written to it through the ordinary set checks."""
+    path = op["path"]
+    source = node(checked_path(op["source"]))
+    parent, name = parent_name(path)
+    values = op.get("set") or {}
+    if hou.node(path) or parent.childTypeCategory() != source.parent().childTypeCategory():
+        raise ValueError(f"Occupied path, or a parent that holds another kind of node: {path}")
+    if not parent.isEditable() or len(values) > 32:
+        raise ValueError(f"Locked network {parent.path()}, or more than 32 values for one copy")
+    if path.startswith(source.path() + "/"):
+        raise ValueError(f"A node cannot be copied into itself: {path}")
+    # A copy runs whatever the source runs, so code-capable and external types need the same opt-in as create.
+    for item in (source, *source.allSubChildren(recurse_in_locked_nodes=False)):
+        check_type(item.type(), path, None)
+    pp, sp = parent.path(), source.path()
+    flags = flags_of(parent)
+    def forward():
+        n = hou.copyNodesTo([node(sp)], hou.node(pp))[0]
+        for i in reversed(range(len(n.inputConnectors()))):
+            n.setInput(i, None)
+        n.setName(name)
+        n.setColor(hou.Color((.22,.55,.57)))
+        n.setUserData("created_by","mcp")
+        n.setUserData("mcp_session",SESSION)
+        n.setUserData("mcp_label",label)
+        n.moveToGoodPosition(move_inputs=False, move_outputs=False, move_unconnected=False)
+        restore_flags(pp,flags)
+    def inverse():
+        n = hou.node(path)
+        if n: n.destroy()
+        restore_flags(pp,flags)
+    batch.do(forward,inverse)
+    for parm, value in values.items():
+        edit_one(batch,dict(op="set",path=path,parm=parm,value=value),label,allow_delete)
+    return path
+
+
 def edit_one(batch, op, label, allow_delete):
     path = checked_path(op["path"])
     if op["op"] == "create":
         return create(batch,op,label)
+    if op["op"] == "copy":
+        return copy(batch,op,label,allow_delete)
     n = node(path)
     parent = n.parent()
     if not parent.isEditable():
@@ -324,7 +366,7 @@ def edit_one(batch, op, label, allow_delete):
     return path
 
 
-def edit(ops, label="graph_edit", allow_delete=(), require_clean=True):
+def edit(ops, label="graph_edit", allow_delete=(), require_clean=True, verbose=False):
     if not 1<=len(ops)<=128 or not label.strip() or len(label)>100:
         raise ValueError("Supply 1–128 operations and a short label")
     batch=Batch()
@@ -338,6 +380,9 @@ def edit(ops, label="graph_edit", allow_delete=(), require_clean=True):
                 result=dict(step=step,op=op["op"],path=path)
                 if op["op"]=="create":result["init_scripts"]=built_in(n.type())
                 if op["op"]=="set":result["value"]=brief(n.parm(op["parm"]))
+                if op["op"]=="copy":
+                    result["source"]=op["source"]
+                    result["values"]={k:brief(n.parm(k)) for k in op.get("set") or {}}
                 if op["op"]=="flags":
                     result["display"]=n.isDisplayFlagSet() if hasattr(n,"isDisplayFlagSet") else None
                     result["render"]=n.isRenderFlagSet() if hasattr(n,"isRenderFlagSet") else None
@@ -358,4 +403,4 @@ def edit(ops, label="graph_edit", allow_delete=(), require_clean=True):
         raise ValueError(f"Step {step} rolled back: {exc}") from exc
     with hou.undos.group("MCP: "+label):
         hou.undos.add(batch,"MCP: "+label)
-    return {"steps":results, "label":"MCP: "+label}
+    return summary(results, ops, "MCP: "+label, verbose)

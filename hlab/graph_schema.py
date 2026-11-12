@@ -50,4 +50,12 @@ class Delete(Operation):
     path: str
 
 
-Edit = Create | Connect | SetParm | Flags | Rename | Delete
+class Copy(Operation):
+    op: Literal["copy"]
+    source: str = Field(description="Absolute path of the node to duplicate, with its contents")
+    path: str = Field(description="Absolute path of the copy, including its new name, in a network of the same kind")
+    set: dict[str, bool | int | float | str] | None = Field(
+        default=None, max_length=32, description="Parameter values to write on the copy, e.g. {\"tx\": 1.3}")
+
+
+Edit = Create | Connect | SetParm | Flags | Rename | Delete | Copy

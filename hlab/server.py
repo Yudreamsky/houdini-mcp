@@ -90,14 +90,17 @@ def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int =
 
 @tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
 def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
-               require_clean: bool = True, session_id: str = "") -> dict:
-    """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
-    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in.
-    Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_ render
-    parameters; each create step reports init_scripts. A set step returns the value, or for text over 200
-    characters a preview, length and sha256 of the stored text."""
+               require_clean: bool = True, verbose: bool = False, session_id: str = "") -> dict:
+    """Atomically create, wire, set, flag, rename, copy or delete live OPs. Provide absolute paths and optionally
+    expected old values; failures roll back. One successful batch is one undo. Code-bearing writes require host
+    opt-in. Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_
+    render parameters. copy duplicates a node with its contents under a new name, unwired, and writes the values in
+    its set, so a repeated placement is one step. The result gives the step count per op and lists only the steps
+    that have errors or warnings or whose stored value differs from the one sent (an expression's evaluated value,
+    expanded text, a preview, length and sha256 for text over 200 characters, a create without init_scripts);
+    verbose lists every step."""
     return live_call("graph_edit", session_id, ops=[op.model_dump(exclude_unset=True) for op in ops],
-                     label=label, allow_delete=allow_delete or [], require_clean=require_clean)
+                     label=label, allow_delete=allow_delete or [], require_clean=require_clean, verbose=verbose)
 
 
 @tool(annotations=READ)
