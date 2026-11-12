@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 DOMAINS = {
-    "fireworks": ("session", "adjust", "observe", "experiment", "compare", "motion"),
+    "fireworks": ("session", "adjust", "observe", "experiment", "compare", "motion", "recipe"),
     "afterglow": ("afterglow",),
     "mechanics": ("mechanical_rig", "mechanism", "animation_gap"),
     "render": ("karma",),

@@ -201,7 +201,8 @@ def motion(start: int = 12, end: int = 53):
 
 @tool()
 def recipe(action: str, title: str = "", reason: str = "", key: str = "", origin: str = "baseline") -> dict:
-    """save live graph, origin baseline/test/user_selected (only on actual human selection); replay verified graph by ID."""
+    """Fireworks fixture only. save its live graph, origin baseline/test/user_selected (only on actual human
+    selection); replay a verified graph by ID."""
     if action == "save" and title.strip():
         if origin not in {"baseline","test","user_selected"}:
             raise ValueError("Unknown recipe origin")
@@ -320,7 +321,7 @@ def afterglow(action: str = "state", key: str = "", changes: dict[str,float] | N
 
 
 @tool(structured_output=False)
-def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave_1",
+def node_lab(action: str = "inspect", hip: str = "", node: str = "",
              control: str = "", values: list[float] | None = None, frame: int = 38,
              renderer: str = "", topic: str = "", query: str = "", offset: int = 0,
              limit: int = 8, key: str = "", changes: dict[str,float] | None = None,
@@ -329,7 +330,11 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "/obj/RAIN/Wave
              frames: list[int] | None = None, capture: bool = False, camera: str = "", session_id: str = ""):
     """Study saved HIPs or live SOPs. Live sweep, compare (named variants), motion (frames) restore all controls;
     optional witness SOP and capture. Saved compare/motion optionally render with a Mantra ROP. Saved
-    inspect/nodes, sweep/replay, variant/restore and frame remain available."""
+    inspect/nodes, sweep/replay, variant/restore and frame remain available. node is the absolute path of the SOP to
+    study (for nodes, of the network to list); replay, restore and frame take theirs from key or need none."""
+    if not node and (action in ("inspect", "nodes", "sweep", "compare", "motion") or action == "variant" and not key):
+        raise ValueError(f"node_lab {action} needs node: the absolute path of the SOP to study, e.g. /obj/geo1/ripple1"
+                         + (" (for nodes, the network to list, e.g. /obj/geo1)" if action == "nodes" else ""))
     if scope == "live" or action in ("compare","motion"):
         args = dict(action=action,node=node,control=control,values=values,frame=frame,witness=witness,
                     variants=variants,frames=frames,capture=capture,camera=camera,topic=topic,

@@ -9,11 +9,25 @@ from hlab.server import mcp
 
 
 class DomainCatalogTest(unittest.IsolatedAsyncioTestCase):
+    async def test_the_fireworks_recipe_tool_is_a_domain_recipe_and_node_lab_asks_for_its_node(self):
+        from hlab import server
+        visible = {t.name for t in await mcp.list_tools()}
+        self.assertNotIn("recipe", visible)  # it only works on the fireworks fixture
+        group = (await mcp.call_tool("domain_recipe", {"domain": "fireworks"})).structuredContent
+        self.assertIn("recipe", [r["name"] for r in group["recipes"]])
+        with self.assertRaisesRegex(ValueError, "Use save with a title"):  # still reachable by its old name
+            server.recipe(action="list")
+        for action in ("inspect", "nodes", "sweep", "compare", "motion", "variant"):
+            with self.subTest(action=action), self.assertRaisesRegex(ValueError, f"node_lab {action} needs node"):
+                server.node_lab(action=action, hip="scene.hip")
+        with self.assertRaisesRegex(ValueError, "scene_recipe to restore"):  # restore takes its node from the key
+            server.node_lab(action="restore")
+
     async def test_lazy_lists_and_original_schema(self):
         visible = {t.name for t in await mcp.list_tools()}
         self.assertLessEqual(len(visible), 17)
         self.assertTrue(
-            {"domain_recipe", "window_session", "node_lab", "recipe", "knowledge", "fx_watch"} <= visible
+            {"domain_recipe", "window_session", "node_lab", "knowledge", "fx_watch"} <= visible
         )
         self.assertTrue(visible.isdisjoint(DOMAIN_OF))
         raw = {t.name: t for t in await FastMCP.list_tools(mcp)}

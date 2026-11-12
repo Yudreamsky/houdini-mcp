@@ -1,5 +1,7 @@
 # 选版、手调与复现
 
+这里的操作（compare、adjust、motion、session、recipe）都在 `fireworks` 域里，只对烟花实验台有效，用 `domain_recipe(action="run", name=操作名, arguments={...})` 调用。
+
 A 球形、B 下垂、C 延迟分叉是设计起点。compare 用相同时间点并排观察，并恢复原来的画面帧和控制值。展示返回的图后让用户选择；需要判断节奏时，对候选 adjust 后再 motion。当前输出是视口预演。
 
 用户选择后应用选中的 preset。让人手动调时停在可见窗口，等对方说调好了，重新读 session 并与手调前回读比较。直接 recipe(action="save",title=...,reason=...) 捕获当下的节点图；此时重新套 preset 会覆盖人的改动。偏好由对方表达，无明确选择时把示例标成测试基线。

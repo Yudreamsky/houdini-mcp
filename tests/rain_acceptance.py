@@ -28,20 +28,23 @@ async def use(c,tool,**args):
     return json.loads(r.content[0].text),r
 
 
+WAVE="/obj/RAIN/Wave_1"
+
+
 async def main():
     res={}
     async with client() as c:
-        schema,_=await use(c,"node_lab",action="inspect",query="height")
+        schema,_=await use(c,"node_lab",action="inspect",node=WAVE,query="height")
         assert schema["type"]=="Sop/ripple::2.0" and len(schema["items"])==1
         res["schema"]=schema
-        p=dict(action="sweep",control="height",values=[.018,.045,.09],frame=38,topic="water",renderer="/out/RAIN_BEAUTY",
+        p=dict(action="sweep",node=WAVE,control="height",values=[.018,.045,.09],frame=38,topic="water",renderer="/out/RAIN_BEAUTY",
                prediction="复验预期：同一输入和帧，波高增大 2.5 倍再增大 2 倍，各点位移 RMS 应同比放大。")
         trial,_=await use(c,"node_lab",**p)
         res["height"]=trial["id"]
         deltas=[s["metrics"]["rms_point_delta"] for s in trial["samples"]]
         assert abs(deltas[1]/deltas[0]-2.5)<.001 and abs(deltas[2]/deltas[1]-2)<.001
         res["rms_deltas"]=deltas
-        res["wavelength"]=(await use(c,"node_lab",action="sweep",control="wavelength",values=[.34,.54,.76],topic="water"))[0]["id"]
+        res["wavelength"]=(await use(c,"node_lab",action="sweep",node=WAVE,control="wavelength",values=[.34,.54,.76],topic="water"))[0]["id"]
         ev,raw=await use(c,"evidence",key=trial["id"],index=1)
         assert raw.content[1].type=="image" and ev["frame"]==38
         res["recipe"]=(await use(c,"node_lab",action="variant",node="/obj/RAIN/ART_DIRECTION",topic="water",
