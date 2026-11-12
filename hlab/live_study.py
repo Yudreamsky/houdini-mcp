@@ -34,14 +34,92 @@ def _metrics(sop):
     measured = {"points":points, "primitives":prims, "vertices":geo.intrinsicValue("vertexcount"),
                 "positions_sha256":hashlib.sha256(positions).hexdigest(), "output_sha256":digest.hexdigest()}
     # A mesh can change connectivity, another attribute or a packed transform while P and Cd remain identical.
-    # The native geometry stream also carries the time/host of serialisation in its geometry header.
-    payload = hjson.loads(geo.data())
-    _remove_write_info(payload, {})
-    measured["geometry_sha256"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    measured["geometry_sha256"], measured["geometry_scope"] = _fingerprint(geo)
     if points or prims:
         bbox = geo.boundingBox()
         measured.update(bbox_min=list(bbox.minvec()), bbox_max=list(bbox.maxvec()))
     return measured
+
+
+PLAIN = (hou.attribData.Float, hou.attribData.Int, hou.attribData.String)
+POINT_INDEX, PRIM_INDEX = "__hr_point_index", "__hr_prim_index"
+
+
+def _plain(geo):
+    """Whether reading attributes and connectivity directly sees all of the geometry: polygons only (open or
+    closed), no groups, and attributes that are plain numbers or text."""
+    if geo.intrinsicValue("primitivecount") != geo.countPrimType(hou.primType.Polygon):
+        return False
+    if geo.pointGroups() or geo.primGroups() or geo.vertexGroups() or geo.edgeGroups():
+        return False
+    attribs = (*geo.pointAttribs(), *geo.primAttribs(), *geo.vertexAttribs(), *geo.globalAttribs())
+    return all(not a.isArrayType() and a.dataType() in PLAIN and a.name() not in (POINT_INDEX, PRIM_INDEX)
+               for a in attribs)
+
+
+def _verb(name, geo, **parms):
+    verb = hou.sopNodeTypeCategory().nodeVerb(name)
+    verb.setParms(parms)
+    result = hou.Geometry()
+    verb.execute(result, [geo])
+    return result
+
+
+def _direct_fingerprint(geo):
+    """sha256 over every attribute's raw values, each vertex's point and primitive, and which polygons are open.
+    Houdini reads these in bulk, so a mesh of millions of points takes a fraction of a second."""
+    digest = hashlib.sha256()
+    digest.update(repr([geo.intrinsicValue(n) for n in ("pointcount", "primitivecount", "vertexcount")]).encode())
+    for kind, attribs, floats, ints, strings in (
+            ("point", geo.pointAttribs(), geo.pointFloatAttribValuesAsString, geo.pointIntAttribValuesAsString,
+             geo.pointStringAttribValues),
+            ("primitive", geo.primAttribs(), geo.primFloatAttribValuesAsString, geo.primIntAttribValuesAsString,
+             geo.primStringAttribValues),
+            ("vertex", geo.vertexAttribs(), geo.vertexFloatAttribValuesAsString, geo.vertexIntAttribValuesAsString,
+             geo.vertexStringAttribValues)):
+        for attrib in sorted(attribs, key=lambda a: a.name()):
+            name, data = attrib.name(), attrib.dataType()
+            digest.update(repr((kind, name, data.name(), attrib.size())).encode())
+            if data == hou.attribData.Float:
+                digest.update(floats(name))
+            elif data == hou.attribData.Int:
+                digest.update(ints(name))
+            else:
+                digest.update(repr(strings(name)).encode())
+    for attrib in sorted(geo.globalAttribs(), key=lambda a: a.name()):
+        digest.update(repr(("detail", attrib.name(), attrib.dataType().name(), geo.attribValue(attrib))).encode())
+    if geo.intrinsicValue("vertexcount"):
+        # Which point each vertex is, in the order the primitives visit them. Vertex attributes come back in storage
+        # order, which a reversed face keeps; so number the points, give every vertex its own point and sort those
+        # by vertex order. (Verb menus take the item's index: enumerate 1 = points, 0 = primitives; sort 1 = by
+        # vertex order; blast 4 = primitives.)
+        bare = _verb("attribute", geo, ptdel="* ^P", vtxdel="*", primdel="*", dtldel="*")
+        visited = _verb("sort", _verb("splitpoints", _verb("enumerate", bare, attribname=POINT_INDEX, grouptype=1)),
+                        ptsort=1)
+        digest.update(visited.pointIntAttribValuesAsString(POINT_INDEX))
+        # How many vertices each primitive has, and which polygons are open.
+        numbered = _verb("enumerate", geo, attribname=PRIM_INDEX, grouptype=0)
+        digest.update(_verb("attribpromote", numbered, inname=PRIM_INDEX, inclass=1, outclass=3)
+                      .vertexIntAttribValuesAsString(PRIM_INDEX))
+        opened = _verb("blast", numbered, group="@intrinsic:closed==0", grouptype=4, negate=1)
+        digest.update(opened.primIntAttribValuesAsString(PRIM_INDEX))
+    return digest.hexdigest()
+
+
+def _fingerprint(geo):
+    """A hash that changes when anything in the geometry does, and how it was taken. Plain polygon geometry is read
+    directly ("attributes"). Anything else (packed primitives, volumes, curves with a basis, groups, array
+    attributes) is serialised whole ("serialized"), which sees everything but takes seconds per million points;
+    the native stream carries the time and host of serialisation in its header, which is left out."""
+    if _plain(geo):
+        return _direct_fingerprint(geo), "attributes"
+    return _serialized_fingerprint(geo), "serialized"
+
+
+def _serialized_fingerprint(geo):
+    payload = hjson.loads(geo.data())
+    _remove_write_info(payload, {})
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _remove_write_info(value, embedded):
@@ -203,7 +281,9 @@ def _study(action, node, control, values, frame, witness, variants, frames, capt
     changed = geometry_change or bool(pixel_change)
     info = dict(baseline=baseline, baseline_restored=True, observed_change=changed, process=process, **source,
                 observed_geometry_change=geometry_change, observed_pixel_change=pixel_change, process_pid=os.getpid(),
-                metric_scope="serialized SOP geometry (excluding writer info); output_sha256 is P/float Cd; optional RGBA pixels",
+                metric_scope="geometry_sha256 is every attribute and the connectivity of plain polygon geometry, or the serialized "
+                             "SOP geometry (excluding writer info) of anything else: see geometry_scope; "
+                             "output_sha256 is P/float Cd; optional RGBA pixels",
                 prediction=prediction, expect_change=expect_change)
     if action == "compare":
         info["candidates"] = candidates
