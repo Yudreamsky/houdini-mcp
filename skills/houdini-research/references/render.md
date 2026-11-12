@@ -1,6 +1,6 @@
 # Karma 试渲与调参
 
-`domain_recipe(domain="render")` 展开 `karma`，按 `action="run"`、`name="karma"` 调用。它只读已保存的 HIP，在后台 hython 里临时设置 Karma，工程文件不会被保存，返回值里的 `hip_unchanged` 可核对。`render` 和 `compare` 渲单帧，`animate` 渲一段帧（见下文“动画”）；只渲染 /obj 场景，Solaris（/stage）里的渲染设置还不读取。本机装了 Chaos Vantage 时，`changes={"engine": "vantage"}` 改用 Vantage 渲染，见下文“Vantage”。照片级效果（圆角、阴影边、PBR 材质）见 [照片级真实感](photoreal.md)。
+`domain_recipe(domain="render")` 展开 `karma`，按 `action="run"`、`name="karma"` 调用。它只读已保存的 HIP，在后台 hython 里临时设置 Karma，工程文件不会被保存，返回值里的 `hip_unchanged` 可核对。窗口里用 `graph_edit` 搭的场景，先 `window_session(action="save",session_id=id)` 存盘再渲染。`render` 和 `compare` 渲单帧，`animate` 渲一段帧（见下文“动画”）；只渲染 /obj 场景，Solaris（/stage）里的渲染设置还不读取。本机装了 Chaos Vantage 时，`changes={"engine": "vantage"}` 改用 Vantage 渲染，见下文“Vantage”。照片级效果（圆角、阴影边、PBR 材质）见 [照片级真实感](photoreal.md)。
 
 先 `inspect` 看相机、灯、ROP 和材质。多台相机时，之后每次都传 `camera`。没有灯时 Karma 会自动加一盏头灯，先告诉用户这时的亮度和阴影不代表最终效果。
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import hou
 
 from .gap_records import experiment_capability, experiment_gap
-from .storage import details, home, ident, record, sha, stored, uid
+from .storage import details, example, home, ident, record, sha, stored, uid
 
 PRESETS = {
     "A": dict(speed=4.6, drag=1.6, gravity=1.0, trail=.24, second_delay=0., tint=.28),
@@ -438,30 +438,58 @@ def afterglow_live(changes=None, frame=None):
             "hip":hou.hipFile.path(), "pid":os.getpid()}
 
 
+def hip_state(status):
+    return {"status": status, "pid": os.getpid(), "hip": hou.hipFile.path(),
+            "unsaved": hou.hipFile.hasUnsavedChanges()}
+
+
 def window_hip(hip=""):
     """Run the dirty check and load together in Houdini's GUI event loop."""
-    def result(status):
-        return {"status": status, "pid": os.getpid(), "hip": hou.hipFile.path(),
-                "unsaved": hou.hipFile.hasUnsavedChanges()}
-
     if not hip:
-        return result("state")
+        return hip_state("state")
     from .sop_lab import hip_path
     target = hip_path(hip)
     if Path(hou.hipFile.path()).resolve() == target:
-        return result("already_open")
+        return hip_state("already_open")
     if hou.hipFile.hasUnsavedChanges():
-        return result("unsaved_changes")
+        return hip_state("unsaved_changes")
     try:
         hou.hipFile.load(str(target), suppress_save_prompt=True)
     except hou.LoadWarning as exc:
         if Path(hou.hipFile.path()).resolve() != target:
             raise
-        return {**result("opened_with_warnings"), "warning": str(exc)}
+        return {**hip_state("opened_with_warnings"), "warning": str(exc)}
     if Path(hou.hipFile.path()).resolve() != target:
         raise RuntimeError("Houdini did not switch to the requested HIP")
-    return result("opened")
+    return hip_state("opened")
 
 
-ACTIONS = {"window_hip":window_hip, "afterglow_live":afterglow_live, "initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
+# Houdini gives a saved file its licence's suffix, so any other suffix would name a different file.
+HIP_SUFFIX = {"Commercial": ".hip", "Indie": ".hiplc"}
+
+
+def window_save(hip=""):
+    """Save the live scene to its own HIP, or to a new HIP path; never over another file."""
+    current = Path(hou.hipFile.path())
+    target = Path(hip) if hip else current
+    if hip and not (target.is_file() and current.is_file() and target.samefile(current)):
+        suffix = HIP_SUFFIX.get(hou.licenseCategory().name(), ".hipnc")
+        if not target.is_absolute() or target.suffix.lower() != suffix:
+            raise ValueError(f"Pass hip as an absolute path ending in {suffix}")
+        if target.exists():
+            raise ValueError(f"Another file exists at {target}; choose a new path")
+        if not target.parent.is_dir():
+            raise ValueError(f"Missing folder: {target.parent}")
+    elif hou.hipFile.isNewFile():
+        raise ValueError("This scene has never been saved; pass hip, a new absolute path")
+    else:
+        target = current
+    if target.resolve().is_relative_to(example().parents[1]):
+        raise ValueError("Bundled examples stay unchanged; save to a new path outside them")
+    hou.hipFile.save(target.as_posix())
+    saved = Path(hou.hipFile.path())
+    return {**hip_state("saved"), "bytes": saved.stat().st_size, "sha256": sha(saved)}
+
+
+ACTIONS = {"window_hip":window_hip, "window_save":window_save, "afterglow_live":afterglow_live, "initialize":initialize, "state":state, "set_controls":set_controls, "capture":capture,
            "sweep":sweep, "compare":compare, "motion":motion, "checkpoint":checkpoint, "replay":replay}
