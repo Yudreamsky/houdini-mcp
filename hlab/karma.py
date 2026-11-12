@@ -223,7 +223,7 @@ def summary(run):
     if s.get("lighting", "scene") != "scene":
         text += f"，灯光{LIGHTING[s['lighting']]['label']}"
         if "light_angle" in s:
-            text += f"（方向 {s['light_angle']:g}°，高 {s['light_elevation']:g}°"
+            text += f"（方向 {s['light_angle']:g}°" + (f"，高 {s['light_elevation']:g}°" if "light_elevation" in s else "")
             text += f"，补光 {s['light_fill']:+g} 档）" if s.get("light_fill") else "）"
     if run["status"] == "time_limit":
         share = run.get("progress_percent")

@@ -1,5 +1,6 @@
 """Karma presets, bounded controls and husk log reading. Pure Python, shared by hython and the MCP server."""
 import math
+import os
 import re
 
 PRESETS = {
@@ -25,6 +26,9 @@ LIGHTING = {
               "note": "夜晚：淡蓝色月光从左后方勾出轮廓，夜空比建筑亮一点；保留工程里的点光、聚光、面光等局部灯。"},
     "studio": {"label": "摄影棚", "angle": 30., "elevation": 45., "keep_scene_lights": False,
                "note": "产品摄影棚：大柔光箱做主光和辅光，后方灯条勾边，灰色背景在物体后面最亮；灯按画面里几何体的范围摆放。"},
+    "hdri": {"label": "HDRI 环境", "angle": 30., "keep_scene_lights": False,
+             "note": "用一张全景 HDRI 照片照明并当背景（hdri 填 .exr 或 .hdr 的完整路径）：光的颜色、天空和远景都来自真实照片。"
+                     "照片里最亮的方向（多半是太阳）转到 light_angle 指定的位置；太阳的高度由照片决定，不能调。"},
 }
 CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING)}
 SWITCHES = ("motion_blur", "depth_of_field", "convert_materials", "keep_scene_lights", "pbr_fix")
@@ -36,7 +40,10 @@ NUMBERS = {
     "light_angle": (float, -180., 180.), "light_elevation": (float, 0., 90.), "light_exposure": (float, -6., 6.),
     "light_fill": (float, -3., 3.), "round_edges": (float, 0., 100.),
 }
-LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights")
+LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights", "hdri")
+# Controls that take text: the meaning says what text.
+TEXTS = ("hdri",)
+HDRI_TYPES = (".exr", ".hdr")
 # Karma settings Chaos Vantage has no counterpart for: it renders every sample, always from MaterialX.
 KARMA_ONLY = ("time_limit", "diffuse_limit", "reflection_limit", "refraction_limit", "volume_limit", "sss_limit",
               "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials")
@@ -60,7 +67,8 @@ MEANING = {
     "diffuse_limit": "漫反射反弹次数", "reflection_limit": "反射反弹次数", "refraction_limit": "折射反弹次数",
     "volume_limit": "体积反弹次数", "sss_limit": "次表面散射反弹次数",
     "color_limit": "单次采样亮度上限，压低飞白噪点", "light_sampling_quality": "灯光采样质量",
-    "lighting": "灯光预设：scene 用工程自己的灯；day 日景；overcast 阴天；night 夜景；studio 产品摄影棚",
+    "lighting": "灯光预设：scene 用工程自己的灯；day 日景；overcast 阴天；night 夜景；studio 产品摄影棚；hdri 用一张全景照片照明",
+    "hdri": "全景 HDRI 照片的完整路径（.exr 或 .hdr），配合 lighting = hdri 使用",
     "light_angle": "太阳、月亮或主光的水平方向（度），以相机为准：0 从相机背后照向物体，90 从画面右侧，-90 从左侧，180 逆光；"
                    "阴天是云后太阳的方向，那一侧天空略亮",
     "light_elevation": "太阳、月亮或主光的高度角（度）；日景时越低越暖、影子越长",
@@ -80,6 +88,8 @@ def controls():
         elif name in NUMBERS:
             _, low, high = NUMBERS[name]
             rows[name] = f"{meaning}（{low:g}–{high:g}）"
+        elif name in TEXTS:
+            rows[name] = meaning
         else:
             rows[name] = f"{meaning}（true / false）"
     return rows
@@ -100,6 +110,10 @@ def checked(changes):
                     or kind is int and not float(value).is_integer()):
                 raise ValueError(f"{name} must be {'an integer' if kind is int else 'a number'} in {low:g}..{high:g}")
             value = kind(value)
+        elif name == "hdri":
+            if (not isinstance(value, str) or not os.path.isabs(value) or not os.path.isfile(value)
+                    or os.path.splitext(value)[1].lower() not in HDRI_TYPES):
+                raise ValueError(f"hdri must be the absolute path of an existing {' or '.join(HDRI_TYPES)} panorama")
         else:
             raise ValueError(f"Unsupported Karma control {name!r}. Supported: {', '.join(MEANING)}")
         out[name] = value
@@ -148,7 +162,13 @@ def settings(preset, changes=None, saved=None):
     look = chosen.get("lighting", "scene")
     loose = [name for name in LIGHT_CONTROLS if name in chosen]
     if look == "scene" and loose:
-        raise ValueError(f"{', '.join(loose)} only apply with lighting = day, overcast, night or studio")
+        raise ValueError(f"{', '.join(loose)} only apply with lighting = day, overcast, night, studio or hdri")
+    if (look == "hdri") != ("hdri" in chosen):
+        raise ValueError("lighting = hdri needs hdri = the panorama's path, and hdri only applies with lighting = hdri")
+    fixed = [name for name in ("light_elevation", "light_fill") if look == "hdri" and name in chosen]
+    if fixed:
+        raise ValueError(f"{', '.join(fixed)}: an HDRI's sun height and sky are those of the photograph; "
+                         "turn it with light_angle and brighten it with light_exposure")
     if look == "overcast" and "light_fill" in chosen:
         raise ValueError("overcast light is all sky, with no key light to fill against; drop light_fill")
     if chosen.get("engine") == "vantage":
@@ -170,7 +190,11 @@ def lighting(chosen):
     spec = LIGHTING[look]
     out = {"look": look, "label": spec["label"], "exposure": chosen.get("light_exposure", 0.),
            "keep_scene_lights": chosen.get("keep_scene_lights", spec["keep_scene_lights"]),
-           "angle": chosen.get("light_angle", spec["angle"]), "elevation": chosen.get("light_elevation", spec["elevation"])}
+           "angle": chosen.get("light_angle", spec["angle"])}
+    if look == "hdri":
+        out["hdri"] = chosen["hdri"]  # the photograph fixes the sun's height and the sky's fill
+        return out
+    out["elevation"] = chosen.get("light_elevation", spec["elevation"])
     if look != "overcast":
         out["fill"] = chosen.get("light_fill", 0.)
     return out
@@ -181,9 +205,10 @@ def look_settings(look):
     if not look:
         return {"lighting": "scene"}
     out = {"lighting": look["look"], "light_exposure": look["exposure"], "keep_scene_lights": look["keep_scene_lights"],
-           "light_angle": look["angle"], "light_elevation": look["elevation"]}
-    if "fill" in look:
-        out["light_fill"] = look["fill"]
+           "light_angle": look["angle"]}
+    for name, key in (("light_elevation", "elevation"), ("light_fill", "fill"), ("hdri", "hdri")):
+        if key in look:
+            out[name] = look[key]
     return out
 
 

@@ -107,12 +107,11 @@ def ray(matrix, local):
     return unit(tuple(sum(local[i] * matrix[i][j] for i in range(3)) for j in range(3)))
 
 
-def backdrop(rows, view, frame, size):
+def backdrop(rows, view, frame, size, cols=SKY_GRID):
     """The sky the camera sees, as an RGBA image of the picture's size."""
     matrix = view["matrices"][str(frame)]
     if view["projection"] == "orthographic":
         return Image.new("RGBA", size, tuple(srgb(c) for c in lookup(rows, ray(matrix, (0., 0., -1.)))) + (255,))
-    cols = SKY_GRID
     lines = max(2, round(cols * size[1] / size[0]))
     small = Image.new("RGB", (cols, lines))
     half, tall = view["tan_half"], view["tan_half"] * view["aspect"]
@@ -122,12 +121,12 @@ def backdrop(rows, view, frame, size):
     return small.resize(size, Image.Resampling.BICUBIC).convert("RGBA")
 
 
-def with_sky(picture, rows, view, frame):
+def with_sky(picture, rows, view, frame, cols=SKY_GRID):
     """The render over its sky. Vantage stores colours premultiplied by alpha in linear light, so a partly covered
     edge pixel is its own colour plus the sky behind the uncovered part; blending it again would darken every
     silhouette and the horizon."""
     front = Image.open(picture).convert("RGBA")
-    out = backdrop(rows, view, frame, front.size).convert("RGB")
+    out = backdrop(rows, view, frame, front.size, cols).convert("RGB")
     alpha = front.getchannel("A")
     out.paste(front.convert("RGB"), mask=alpha.point(lambda a: 255 if a == 255 else 0))
     width, colours, sky = front.width, front.load(), out.load()
@@ -159,7 +158,7 @@ def run(folder, info, chosen, frames=0):
         rows = read_hdr(folder / info["sky"])
         first = info["frames"][0]
         for index, picture in enumerate(pictures):
-            with_sky(picture, rows, info["view"], first + index).save(picture)
+            with_sky(picture, rows, info["view"], first + index, info.get("sky_grid", SKY_GRID)).save(picture)
     return pictures, text, tries
 
 
