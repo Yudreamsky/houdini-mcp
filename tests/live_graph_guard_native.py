@@ -99,7 +99,7 @@ def check_creation(directory):
     lens=dict(resx=900,resy=2000,focal=110,projection=1,orthowidth=150)
     steps=graph.edit([dict(op="create",path=cam,type="cam"),*[dict(op="set",path=cam,parm=k,value=v) for k,v in lens.items()],
                       dict(op="create",path="/obj/GEOTEST",type="geo"),
-                      dict(op="set",path="/obj/GEOTEST",parm="vm_rendersubd",value=True)])["steps"]
+                      dict(op="set",path="/obj/GEOTEST",parm="vm_rendersubd",value=True)],verbose=True)["steps"]
     assert steps[0]["init_scripts"] and steps[6]["init_scripts"], steps
     assert {k:hou.node(cam).evalParm(k) for k in lens}==lens
     assert all(hou.node(cam).parm(k) for k in ("aperture","near","far"))
@@ -130,9 +130,64 @@ def check_long_text():
     sent=dict(preview=code[:120],length=len(code),sha256=hashlib.sha256(code.encode()).hexdigest())
     assert result["steps"][-1]["value"]==sent, result["steps"][-1]
     assert len(json.dumps(result))<2048 and hou.node(out).geometry().attribValue("total")==sum(range(400))
-    short=graph.edit([dict(op="set",path=out,parm="snippet",value="f@total = 1;")])["steps"][0]
+    short=graph.edit([dict(op="set",path=out,parm="snippet",value="f@total = 1;")],verbose=True)["steps"][0]
     assert short["value"]=="f@total = 1;" and "init_scripts" not in short
     print(f"PASS {len(code)}-character snippet returned as a {len(json.dumps(result))}-byte batch result with its sha256")
+
+
+def check_copy():
+    part="/obj/PART"; first="/obj/ASM/foot_01"
+    built=graph.edit([dict(op="create",path=part,type="geo"),dict(op="create",path=part+"/box",type="box"),
+                      dict(op="create",path=part+"/OUT",type="null"),dict(op="connect",path=part+"/OUT",source=part+"/box"),
+                      dict(op="flags",path=part+"/OUT",display=True,render=True),
+                      dict(op="create",path="/obj/ASM",type="subnet"),dict(op="create",path=first,type="geo"),
+                      dict(op="create",path=first+"/src",type="object_merge"),
+                      dict(op="set",path=first+"/src",parm="objpath1",value=part+"/OUT"),
+                      dict(op="set",path=first,parm="tx",value=0.03)],label="first foot")
+    # A clean batch returns totals only.
+    assert built=={"label":"MCP: first foot","count":10,"ops":{"create":6,"connect":1,"flags":1,"set":2},
+                   "omitted":10,"steps":[]}, built
+    # Eleven more placements, one step each.
+    spots={f"/obj/ASM/foot_{i:02d}":dict(tx=round(0.1*i,3),tz=-0.525) for i in range(2,13)}
+    copies=graph.edit([dict(op="copy",source=first,path=path,set=values) for path,values in spots.items()],label="feet")
+    assert copies=={"label":"MCP: feet","count":11,"ops":{"copy":11},"omitted":11,"steps":[]}, copies
+    for path,values in spots.items():
+        n=hou.node(path); geo=hou.node(path+"/src").geometry()
+        assert {k:n.evalParm(k) for k in values}==values and n.evalParm("ty")==0, path
+        assert (len(geo.points()),len(geo.prims()))==(8,6) and n.userData("created_by")=="mcp", path
+    # A copied SOP arrives unwired and leaves the display flag where it was.
+    graph.edit([dict(op="copy",source=part+"/OUT",path=part+"/OUT2")],label="sop copy")
+    assert not hou.node(part+"/OUT2").inputs() and hou.node(part+"/OUT").isDisplayFlagSet()
+    assert not hou.node(part+"/OUT2").isDisplayFlagSet()
+    # verbose lists the step with its source and stored values.
+    row=graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_13",set=dict(tx=2))],verbose=True)["steps"][0]
+    assert (row["source"],row["values"],row["type"],row["errors"])==(first,{"tx":2.0},"Object/geo",[]), row
+    # One bad step takes the whole batch back, copies included.
+    denied(lambda:graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_14"),
+                              dict(op="copy",source=first,path="/obj/ASM/foot_15",set=dict(nope=1))]),"No local parameter nope")
+    assert hou.node("/obj/ASM/foot_14") is None and hou.node("/obj/ASM/foot_15") is None
+    denied(lambda:graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_02")]),"Occupied path")
+    denied(lambda:graph.edit([dict(op="copy",source=first,path=part+"/foot")]),"another kind of node")
+    denied(lambda:graph.edit([dict(op="copy",source="/obj/ASM",path="/obj/ASM/inner")]),"into itself")
+    denied(lambda:graph.edit([dict(op="copy",source="/obj/ASM/missing",path="/obj/ASM/foot_14")]),"Missing OP")
+    # A copy runs what its source runs: code inside the source needs the same opt-in as creating it.
+    hou.node(first).createNode("python","script")
+    denied(lambda:graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_14")]),"Code-capable")
+    assert hou.node("/obj/ASM/foot_14") is None
+    with patch.dict(os.environ,{"HOUDINI_RESEARCH_ALLOW_CODE":"1"}):
+        graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_14")])
+    assert hou.node("/obj/ASM/foot_14/script") is not None
+    hou.node(first+"/script").destroy()
+    # Undo and redo take the copy and its values together.
+    batch=graph.Batch()
+    graph.edit_one(batch,dict(op="copy",source=first,path="/obj/ASM/foot_15",set=dict(tx=3.5,rz=45)),"undo",set())
+    batch.undo()
+    assert hou.node("/obj/ASM/foot_15") is None
+    batch.redo()
+    assert (hou.node("/obj/ASM/foot_15").evalParm("tx"),hou.node("/obj/ASM/foot_15").evalParm("rz"))==(3.5,45)
+    batch.undo()
+    assert hou.node("/obj/ASM/foot_15") is None
+    print("PASS 11 placements copied in 11 steps with a totals-only result; SOP copy unwired; rollback, guards, code opt-in, undo/redo")
 
 
 if __name__=="__main__":
@@ -141,3 +196,4 @@ if __name__=="__main__":
         check(tmp)
         check_creation(tmp)
         check_long_text()
+        check_copy()

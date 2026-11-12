@@ -138,11 +138,11 @@ async def exercise(client, home, hip, window, houdini, report):
     assert Path(state["hip"]) == hip and not state["unsaved"], state
 
     # The lens batch from the gap report, then a geo object's render properties in their creating batch.
-    lens = await graph("graph_edit", label="lens camera", ops=[
+    lens = await graph("graph_edit", label="lens camera", verbose=True, ops=[
         dict(op="create", path=CAM, type="cam"), *[dict(op="set", path=CAM, parm=k, value=v) for k, v in LENS.items()]])
     assert lens["steps"][0]["init_scripts"] is True, lens["steps"][0]
     assert [s["value"] for s in lens["steps"][1:]] == list(LENS.values()), lens["steps"]
-    props = await graph("graph_edit", label="render properties", ops=[
+    props = await graph("graph_edit", label="render properties", verbose=True, ops=[
         dict(op="create", path=GEO, type="geo"), dict(op="set", path=GEO, parm="vm_rendersubd", value=True)])
     assert props["steps"][0]["init_scripts"] is True and props["steps"][1]["value"] == 1, props["steps"]
     ops = [dict(op="set", path=CAM, parm="tz", value=500), dict(op="create", path=TARGET, type="geo"),
@@ -173,13 +173,26 @@ async def exercise(client, home, hip, window, houdini, report):
         dict(op="set", path=CODE + "/points", parm="class", value=0),
         dict(op="set", path=CODE + "/points", parm="snippet", value=code),
         dict(op="flags", path=CODE + "/points", display=True, render=True)])
-    value = edit["steps"][3]["value"]
+    # Of the five steps only the long text says something the request did not, so it alone is listed.
+    assert (edit["count"], edit["omitted"], [s["step"] for s in edit["steps"]]) == (5, 4, [4]), edit
+    value = edit["steps"][0]["value"]
     assert value == {"preview": code[:120], "length": len(code), "sha256": hashlib.sha256(code.encode()).hexdigest()}, value
     assert chars < 2048, chars
     report["long_snippet"] = {"characters_sent": len(code), "result_characters": chars, "sha256": value["sha256"]}
 
     cooked = {path: (await graph("cook", node=path, frame=1))["points"] for path in (TARGET + "/OUT", CODE + "/points")}
     assert cooked == {TARGET + "/OUT": 16, CODE + "/points": rows + 2}, cooked
+
+    # A second placement is one copy step with its values; a clean batch returns totals only.
+    twin = TARGET + "_TWIN"
+    copied = await graph("graph_edit", label="second placement", ops=[
+        dict(op="copy", source=TARGET, path=twin, set={"tx": 40, "ry": 90})])
+    assert copied == {"label": "MCP: second placement", "count": 1, "ops": {"copy": 1}, "omitted": 1, "steps": []}, copied
+    assert (await graph("cook", node=twin + "/OUT", frame=1))["points"] == 16
+    placed = (await graph("graph_read", path="/obj", depth=1, limit=50))["nodes"]
+    assert next(n for n in placed if n["path"] == twin)["parameters"]["tx"]["value"] == 40, placed
+    await graph("graph_edit", label="remove the twin", ops=[dict(op="delete", path=twin)])
+    report["copy"] = {"steps": copied["count"], "listed": len(copied["steps"])}
 
     # Save in place, render the saved file and read it back in a fresh hython.
     assert (await graph("window_session", action="state"))["unsaved"]
