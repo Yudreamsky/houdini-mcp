@@ -94,7 +94,50 @@ def check(directory):
     print("PASS HScript aliases, callback and Python gating/audit, modeling expressions/VEX, animated extrapolation, multi-input wiring, network box, undo/redo")
 
 
+def check_creation(directory):
+    cam="/obj/CAMTEST"
+    lens=dict(resx=900,resy=2000,focal=110,projection=1,orthowidth=150)
+    steps=graph.edit([dict(op="create",path=cam,type="cam"),*[dict(op="set",path=cam,parm=k,value=v) for k,v in lens.items()],
+                      dict(op="create",path="/obj/GEOTEST",type="geo"),
+                      dict(op="set",path="/obj/GEOTEST",parm="vm_rendersubd",value=True)])["steps"]
+    assert steps[0]["init_scripts"] and steps[6]["init_scripts"], steps
+    assert {k:hou.node(cam).evalParm(k) for k in lens}==lens
+    assert all(hou.node(cam).parm(k) for k in ("aperture","near","far"))
+    bare={p.name() for p in hou.node("/obj").createNode("geo",run_init_scripts=False).parms()}
+    added=sorted(p.name() for p in hou.node("/obj/GEOTEST").parms() if p.name().startswith("vm_") and p.name() not in bare)
+    assert len(added)>=20 and "vm_rendervisibility" in added, added
+    # An asset from outside $HFS stays gated and is created without its own scripts.
+    source=hou.node("/obj").createNode("subnet")
+    asset=source.createDigitalAsset(name="mcp_probe_asset",hda_file_name=str(Path(directory)/"probe.hda"),min_num_inputs=0,max_num_inputs=0)
+    definition=asset.type().definition()
+    definition.addSection("OnCreated",'kwargs["node"].setUserData("created_by_script","1")')
+    definition.setExtraFileOption("OnCreated/IsPython",True)
+    assert hou.node("/obj").createNode("mcp_probe_asset").userData("created_by_script")=="1"
+    denied(lambda:graph.edit([dict(op="create",path="/obj/EXTERNAL",type="mcp_probe_asset")]),"Code-capable")
+    with patch.dict(os.environ,{"HOUDINI_RESEARCH_ALLOW_CODE":"1"}):
+        step=graph.edit([dict(op="create",path="/obj/EXTERNAL",type="mcp_probe_asset")])["steps"][0]
+    assert step["init_scripts"] is False and hou.node("/obj/EXTERNAL").userData("created_by_script") is None
+    print(f"PASS camera lens and {len(added)} vm_ parameters set in their creating batch; external asset scripts stay off")
+
+
+def check_long_text():
+    code="f@total = 0;\n"+"".join(f"f@total += {i}.0;  // padding so the snippet passes 20 KB\n" for i in range(400))
+    code+='s@scene = "$HIP";\n'
+    assert len(code)>20000
+    out="/obj/LONG/code"
+    result=graph.edit([dict(op="create",path="/obj/LONG",type="geo"),dict(op="create",path=out,type="attribwrangle"),
+                       dict(op="set",path=out,parm="class",value=0),dict(op="set",path=out,parm="snippet",value=code)])
+    sent=dict(preview=code[:120],length=len(code),sha256=hashlib.sha256(code.encode()).hexdigest())
+    assert result["steps"][-1]["value"]==sent, result["steps"][-1]
+    assert len(json.dumps(result))<2048 and hou.node(out).geometry().attribValue("total")==sum(range(400))
+    short=graph.edit([dict(op="set",path=out,parm="snippet",value="f@total = 1;")])["steps"][0]
+    assert short["value"]=="f@total = 1;" and "init_scripts" not in short
+    print(f"PASS {len(code)}-character snippet returned as a {len(json.dumps(result))}-byte batch result with its sha256")
+
+
 if __name__=="__main__":
     assert not hou.isUIAvailable()
     with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{"HOUDINI_RESEARCH_ALLOW_CODE":"0","HOUDINI_RESEARCH_HOME":tmp}):
         check(tmp)
+        check_creation(tmp)
+        check_long_text()

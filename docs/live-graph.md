@@ -4,6 +4,8 @@
 
 在 MCP 客户端调用 `window_session(action="list")`，取目标窗口的 `id`，用 `window_session(action="state",session_id=id)` 核对工程。若要打开磁盘上的 HIP，在同一窗口调用 `window_session(action="open",session_id=id,hip=路径)`。收到 `unsaved_changes` 时先处理当前工程的未保存修改。列表为空时，才从仓库执行 `python launch.py` 启动受管窗口。通用图工具和实时 `node_lab` 都接受 `session_id`，省略时使用主研发窗口。旧烟花专用操作和 `recipe` 也使用主研发窗口。在其他窗口做实验时，将 ID 显式传给 `node_lab(scope="live")`。
 
+窗口里搭好的场景要交给 `karma`、`node_lab(scope="saved")` 或用户时，调用 `window_session(action="save",session_id=id)` 存回窗口当前的 HIP。也可传 `hip=新的绝对路径`（商业版后缀 `.hip`）另存，之后窗口改用新文件。其他已有文件不会被覆盖，随附的示例工程也不会被改写。返回文件大小和 `sha256`，之后 `state` 显示 `unsaved:false`。从没保存过的新场景必须传 `hip`。
+
 升级前已经打开的窗口可能仍加载旧桥接。若新原语返回 `Unknown action`，先保存该研发工程，再重新打开这个受管窗口，并用列表取得新的 ID。
 
 启动器优先使用 `--houdini` 或 `HOUDINI_EXE` 指定的程序，其次使用 `HFS`。没有指定时，它查找已登记窗口对应的安装版本，优先匹配主研发窗口。没有窗口时，从 Windows 标准安装目录选取最高的完整版本并返回提示。后台 `hython.exe` 和 `houdini.exe` 取自同一安装。多版本并存且无法确定目标时，可显式设置 `HOUDINI_EXE`。本项目的真实 Houdini 验收版本为 20.5.487。
@@ -35,6 +37,10 @@
 
 一批最多 128 项操作。成功后在 Houdini 的 Undo History 里出现 `MCP:` 加批次名称，按一次 Ctrl+Z 撤销该批次。失败会返回出错步骤并回滚。默认检查结果节点的 cook 错误。多人协作或人机轮流调参时，可在 `set` 中传 `expect`，由 MCP 核对预期旧值。改写有动画或引用的参数须显式传 `replace_expression=true`。删除已有节点时用 `allow_delete` 列出准确路径，本会话新建的节点可直接删除。
 
+Houdini 自带的类型（没有资产定义，或定义库在 `$HFS` 下）建节点时运行它的创建脚本，参数和手动新建的一样：相机有 `resx`、`resy`、`focal`、`aperture`、`projection`、`orthowidth`、`near`、`far`，几何物体有 `vm_` 渲染参数，可以在建它的同一批里直接设置。每个 `create` 步骤的 `init_scripts` 说明是否运行了创建脚本。外部 HDA 仍不运行自己的脚本。
+
+`set` 步骤回传写入后的值。超过 200 个字符的文本只回传前 120 个字符、长度和 `sha256`，按存入的原文计算，与发送文本的 `sha256` 相同即写入无误。出错信息保持完整。
+
 内置 `fireworks.trails` 模板可为 `Sop/python` 创建固定的烟花轨迹节点。自定义 Python、脚本回调和外部 HDA 等代码写入默认关闭。确需启用时，须由操作者在启动**目标 Houdini 进程**时设置 `HOUDINI_RESEARCH_ALLOW_CODE=1`。此类操作将目标路径和内容哈希登记到该窗口数据目录下的 `audit/graph-code.jsonl`。
 
 客户端的等待时间按操作和取样数调整。超时若显示可能已执行，先回读窗口网络、参数或结果再决定是否重试。桥接的 `bridge/orphans.log` 保留迟到请求的处理记录。
@@ -58,6 +64,7 @@ $houdini = & $pythonExe -c "from hlab.runtime import discover; print(discover().
 & $pythonExe -m tests.catalog_acceptance
 & $hython -m tests.graph_query_native
 & $hython -m tests.live_graph_guard_native
+& $hython -m tests.window_save_native
 & $hython -m tests.live_study_native
 & $pythonExe -m tests.saved_study_native
 & $pythonExe -m tests.runtime_native
@@ -68,10 +75,11 @@ $houdini = & $pythonExe -c "from hlab.runtime import discover; print(discover().
 & $pythonExe -m tests.vantage_native
 ```
 
-以下三项各自启动并关闭一个临时 GUI。依次执行可分别核对建网与选版、撤销历史、超时及并发顺序。无需打开个人工程。
+以下四项各自启动并关闭一个临时 GUI。依次执行可分别核对建网与选版、撤销历史、超时及并发顺序，以及建相机、长代码回传、存盘后用 Karma 渲染。无需打开个人工程。
 
 ```powershell
 & $pythonExe -m tests.live_graph_acceptance $houdini
 & $pythonExe -m tests.live_undo_acceptance $houdini
 & $pythonExe -m tests.bridge_protocol_live $houdini
+& $pythonExe -m tests.live_save_acceptance $houdini
 ```

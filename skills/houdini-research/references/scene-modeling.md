@@ -11,3 +11,8 @@
 验收选择能揭示约束是否成立的参数组合。例如宽度改变后，叶片规格保持一致，数量与投影净距满足约束。记录前后值、几何测量、受影响对象与回退来源。相同尺寸下不同角度的检查要注明投影方向。
 
 复用经验时区分生成方法、资产版本和项目偏好，引用相关实验卡。模型达到画面精度与模型满足尺寸约束分别留证据。
+
+用 VEX wrangle 生成几何时，Houdini 20.5 实测有两处容易出错：
+
+- 返回数组的函数要带 `function` 关键字：`function float[] heights() { return array(2.5, 6.4); }`。写成 `float[] heights()` 会报语法错误（unexpected identifier）。
+- `foreach` 里不要直接写 `array(...)`：`foreach (float h; array(2.5, 6.4))` 定不了数组类型，报 `Ambiguous call to function len()`。先存进有类型的变量，例如 `float hs[] = array(2.5, 6.4); foreach (float h; hs)`，或用返回 `float[]` 的函数。

@@ -64,7 +64,10 @@ def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int =
 def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[str] | None = None,
                require_clean: bool = True, session_id: str = "") -> dict:
     """Atomically create, wire, set, flag, rename or delete live OPs. Provide absolute paths and optionally expected
-    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in."""
+    old values; failures roll back. One successful batch is one undo. Code-bearing writes require host opt-in.
+    Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_ render
+    parameters; each create step reports init_scripts. A set step returns the value, or for text over 200
+    characters a preview, length and sha256 of the stored text."""
     return live_call("graph_edit", session_id, ops=[op.model_dump(exclude_unset=True) for op in ops],
                      label=label, allow_delete=allow_delete or [], require_clean=require_clean)
 
@@ -100,9 +103,12 @@ async def domain_recipe(action: Literal["catalog", "run"] = "catalog", domain: s
 
 
 @mcp.tool()
-def window_session(action: str = "list", session_id: str = "", hip: str = "") -> dict:
-    """List managed Houdini windows; state/open target a returned session_id (the window's id).
-    Open a saved HIP in that existing GUI. Unsaved work is retained and reported."""
+def window_session(action: Literal["list", "state", "open", "save"] = "list", session_id: str = "",
+                   hip: str = "") -> dict:
+    """List managed Houdini windows; state/open/save target a returned session_id (the window's id).
+    Open a saved HIP in that existing GUI. Unsaved work is retained and reported. save writes the live
+    scene to its own HIP, or to hip, a new absolute .hip path (never over another file), and returns
+    its bytes and sha256, so karma and saved node_lab studies can read what graph_edit built."""
     from .window import manage
     return manage(home(), action, session_id, hip)
 
