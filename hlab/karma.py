@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .karma_spec import PRESETS, checked, controls, settings
+from .karma_spec import LIGHTING, PRESETS, checked, controls, settings
 from .storage import created_now, home, read, record, sha, uid, write
 
 SAMPLE = "karma-probe"
@@ -29,6 +29,7 @@ def presets():
                         for k, p in PRESETS.items()],
             "saved": [{"name": k, "base": v["base"], "changes": v["changes"], "note": v["note"],
                        "settings": settings(k, None, saved)} for k, v in saved.items()],
+            "lighting": [{"name": k, **v} for k, v in LIGHTING.items()],
             "controls": controls()}
 
 
@@ -147,6 +148,11 @@ def summary(run):
         text += f"，显卡贡献 {share:g}%"
     if run.get("materials") and run["materials"]["converted"]:
         text += f"，临时转换材质 {len(run['materials']['converted'])} 个"
+    if s.get("lighting", "scene") != "scene":
+        text += f"，灯光{LIGHTING[s['lighting']]['label']}"
+        if "light_angle" in s:
+            text += f"（方向 {s['light_angle']:g}°，高 {s['light_elevation']:g}°"
+            text += f"，补光 {s['light_fill']:+g} 档）" if s.get("light_fill") else "）"
     if run["status"] == "time_limit":
         share = run.get("progress_percent")
         text += f"，到时间上限（约完成 {share:g}%）" if share is not None else "，到时间上限"
@@ -203,6 +209,8 @@ def label_font(size=18):
 def caption(name, run):
     s, (w, h) = run["settings"], run["resolution"]
     text = f"{name} · {run['seconds']:g} 秒 · {s['samples']} 采样 · 降噪 {s['denoiser']} · {w}×{h}"
+    if s.get("lighting", "scene") != "scene":
+        text += f" · {LIGHTING[s['lighting']]['label']}"
     return text + (" · 到时限" if run["status"] == "time_limit" else "")
 
 
@@ -258,7 +266,7 @@ def compare(hip, variants, camera="", frame=None, rop="", topic="", zoom=None, n
                                   for n, r in runs.items()}})
     output = home() / "records" / card["id"] / "comparison.png"
     sheet.save(output)
-    brief = {n: {k: r[k] for k in ("preset", "status", "seconds", "resolution", "settings", "gpu_verified",
-                                    "materials", "notes", "image_id", "path", "summary")} for n, r in runs.items()}
+    brief = {n: {k: r.get(k) for k in ("preset", "status", "seconds", "resolution", "settings", "gpu_verified",
+                                        "materials", "lighting", "notes", "image_id", "path", "summary")} for n, r in runs.items()}
     return {**card, "hip": str(path), "hip_unchanged": unchanged, "camera": camera, "frame": frame,
             "sheet": str(output), "variants": brief}, sheet
