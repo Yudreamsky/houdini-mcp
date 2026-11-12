@@ -58,6 +58,37 @@ def compare_arrays(arrays,expected):
     return {"matched":all(c["matched"] for c in checks.values()),"attributes":checks}
 
 
+RENDERERS = {"ifd": "Mantra", "karma": "Karma"}
+PNG = bytes((0x89, 0x50, 0x4e, 0x47))  # the first bytes of every PNG file
+
+
+def evidence_rop(path):
+    """The Mantra or Karma ROP that renders optical evidence."""
+    rop = hou.node(path)
+    if not isinstance(rop, hou.RopNode) or rop.type().name() not in RENDERERS:
+        raise ValueError(f"For optical evidence select a Mantra or Karma ROP, not {path!r}; "
+                         "omit renderer for a geometry-only run")
+    return rop
+
+
+def evidence_frame(rop, frame, path):
+    """Render one frame of the ROP as it is set up to a PNG at path. Repeated Karma renders of an unchanged scene are
+    pixel-identical (measured on XPU and CPU, with and without denoising), like Mantra's, so pictures compare exactly."""
+    rop.parm("soho_foreground").set(1, follow_parm_reference=False)
+    if rop.type().name() == "karma":
+        from hlab.karma_render import environment
+        # A Karma ROP ignores render()'s output_file. Without the Embree switch XPU's CPU device takes small frames.
+        picture = rop.parm("picture")
+        picture.deleteAllKeyframes()
+        picture.set(str(path), follow_parm_reference=False)
+        with environment({"KARMA_XPU_DISABLE_EMBREE_DEVICE": "1" if rop.evalParm("engine") == "xpu" else None}):
+            rop.render(frame_range=(frame, frame))
+    else:
+        rop.render(frame_range=(frame, frame), output_file=str(path))
+    if not path.is_file() or path.read_bytes()[:4] != PNG:
+        raise RuntimeError(f"{RENDERERS[rop.type().name()]} did not write the evidence frame as a PNG")
+
+
 def describe(parm):
     pt=parm.parmTemplate()
     info={"name":parm.name(),"label":pt.label(),"type":pt.type().name(),"disabled":parm.isDisabled(),
@@ -142,12 +173,9 @@ def work_loaded(req, folder, process):
         return export(req, folder)
     hou.setFrame(req["frame"])
     if req["action"]=="frame":
-        rop=hou.node(req["renderer"])
-        if not isinstance(rop,hou.RopNode) or rop.type().name()!="ifd":
-            raise ValueError("Select an actual Mantra ROP")
-        rop.parm("soho_foreground").set(1)
+        rop=evidence_rop(req["renderer"])
         path=folder/"frame.png"
-        rop.render(frame_range=(req["frame"],req["frame"]),output_file=str(path))
+        evidence_frame(rop,req["frame"],path)
         return {"frame":req["frame"],"renderer":rop.path(),"file":path.name}
     node=hou.node(req["node"])
     if not node: raise ValueError(f"Missing node {req['node']}")
@@ -187,9 +215,7 @@ def work_loaded(req, folder, process):
     original=parm.eval()
     baseline={"node_type":node.type().nameWithCategory(),"path":node.path(),"version":hou.applicationVersionString(),
               "value":original,"inputs":inputs,"frame":req["frame"],"metrics":measured(node,upstream)}
-    rop=hou.node(req["renderer"]) if req["renderer"] else None
-    if req["renderer"] and (not isinstance(rop,hou.RopNode) or rop.type().name()!="ifd"):
-        raise ValueError("For optical evidence select a Mantra ROP, or omit renderer for a geometry-only run")
+    rop=evidence_rop(req["renderer"]) if req["renderer"] else None
     results=[]
     for i,v in enumerate(samples):
         parm.set(int(v) if isinstance(pt,hou.IntParmTemplate) else v)
@@ -201,9 +227,7 @@ def work_loaded(req, folder, process):
                 result["difference_from_first"]=compare_arrays(current,folder/"0.npz")
         if rop:
             path=folder/f"{i}.png"
-            rop.parm("soho_foreground").set(1)
-            rop.render(frame_range=(req["frame"],req["frame"]),output_file=str(path))
-            if not path.is_file():raise RuntimeError("Missing Mantra evidence frame")
+            evidence_frame(rop,req["frame"],path)
             result["file"]=path.name
         results.append(result)
     parm.set(original)

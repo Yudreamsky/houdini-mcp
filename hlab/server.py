@@ -329,7 +329,8 @@ def node_lab(action: str = "inspect", hip: str = "", node: str = "",
              scope: Literal["saved","live"] = "saved", variants: dict[str,dict[str,float]] | None = None,
              frames: list[int] | None = None, capture: bool = False, camera: str = "", session_id: str = ""):
     """Study saved HIPs or live SOPs. Live sweep, compare (named variants), motion (frames) restore all controls;
-    optional witness SOP and capture. Saved compare/motion optionally render with a Mantra ROP. Saved
+    optional witness SOP and capture. Saved sweep, compare, motion and frame optionally render with the HIP's own
+    Mantra or Karma ROP (renderer). Saved
     inspect/nodes, sweep/replay, variant/restore and frame remain available. node is the absolute path of the SOP to
     study (for nodes, of the network to list); replay, restore and frame take theirs from key or need none."""
     if not node and (action in ("inspect", "nodes", "sweep", "compare", "motion") or action == "variant" and not key):

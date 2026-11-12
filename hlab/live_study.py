@@ -9,7 +9,7 @@ import hou
 import hjson
 
 from .gap_records import experiment_capability, experiment_gap
-from .sop_worker import numeric
+from .sop_worker import evidence_frame, evidence_rop, numeric
 from .storage import home, record, sha, uid
 
 
@@ -103,30 +103,24 @@ def run(action, node, control="", values=None, frame=1, witness="", variants=Non
 
 
 def study_file(req, process):
-    """Measure an already-loaded HIP. Optical samples use its Mantra ROP, independent of any UI."""
+    """Measure an already-loaded HIP. Optical samples use its Mantra or Karma ROP, independent of any UI."""
     opts = req["study"]
     capture_fn = None
     if opts["renderer"]:
-        rop = hou.node(opts["renderer"])
-        if not isinstance(rop, hou.RopNode) or rop.type().name() != "ifd":
-            raise ValueError("For saved optical evidence choose an existing Mantra ROP")
+        rop = evidence_rop(opts["renderer"])
         camera = opts["camera"]
         if camera:
             cam = hou.node(camera)
             if not isinstance(cam, hou.ObjNode) or cam.type().name() != "cam":
                 raise ValueError("Choose an existing camera OBJ")
             rop.parm("camera").set(cam.path(), follow_parm_reference=False)
-        rop.parm("soho_foreground").set(1, follow_parm_reference=False)
 
         def capture_fn(f, _, metrics_fn):
             key = uid()
             path = home() / "images" / (key+".png")
             path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                rop.render(frame_range=(f, f), output_file=str(path))
-                with path.open("rb") as stream:
-                    if stream.read(8) != b"\x89PNG\r\n\x1a\n":
-                        raise RuntimeError("Mantra did not produce a PNG")
+                evidence_frame(rop, f, path)
                 return dict(image_id=key, sha256=sha(path), frame=f, camera=rop.evalParm("camera"),
                             renderer=rop.path(), metrics=metrics_fn())
             except BaseException:
