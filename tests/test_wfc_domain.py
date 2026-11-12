@@ -9,7 +9,7 @@ from hlab.wfc import solve
 class WfcDomainTest(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_and_routed_execution_coexist_with_render(self):
         visible = {tool.name for tool in await mcp.list_tools()}
-        self.assertEqual(len(visible), 15)
+        self.assertEqual(len(visible), 14)
         self.assertNotIn("wfc_layout", visible)
         self.assertNotIn("karma", visible)
         domains = (await mcp.call_tool("domain_recipe", {})).structuredContent["domains"]
