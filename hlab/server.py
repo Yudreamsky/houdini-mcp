@@ -381,8 +381,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     """Test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe) with Karma XPU/CPU or, where it is
     installed, Chaos Vantage (changes.engine = vantage: exported to USD, about 1 s a frame plus 10-25 s to start); the
     HIP is never saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs,
-    material support, the materials each engine converts (legacy /shop shaders, and Principled with bump or
-    transparency maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
+    material support, the materials each engine converts (legacy /shop shaders, and Principled with bump,
+    transparency or cut-out maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
     changes.lighting swaps the scene's lights for a day, overcast, night or product studio look placed relative to
     the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights). For photoreal results,
     round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.

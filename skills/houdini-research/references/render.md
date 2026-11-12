@@ -7,8 +7,15 @@
 Karma 读不了的材质，渲染前会临时转成 MaterialX，只在后台的内存里改，工程文件不变。`inspect` 的 `material_conversion` 分别列出 XPU 和 CPU 会转换哪些、哪些无法转换；每次 `render` 的 `materials` 记录实际转换了什么，以及哪些地方是近似。
 
 - 旧式 /shop 材质：Karma 的 CPU 和 XPU 都不读。`v_constant` 转成按几何颜色直接发光的无光照材质，雨滴示例因此和 Mantra 原图一致。`v_plastic`、`v_metal`、`v_glass`、`v_decal`、`v_supermat` 和 /shop 里的 Principled 转成 standard_surface。
-- /mat 里的 Principled，CPU 原样读取，不转换。XPU 有自带的近似处理，实测以下效果都正常，所以默认不转：颜色、粗糙度、金属度、法线、发光和不透明度贴图，以及玻璃、清漆、光泽和点颜色。
+- /mat 里的 Principled，CPU 原样读取，不转换。XPU 有自带的近似处理，实测以下效果都正常，所以默认不转：颜色、粗糙度、金属度、法线和发光贴图，以及玻璃、清漆、光泽和点颜色。
 - XPU 的近似会丢掉凹凸贴图和透明度贴图。用到这两种时，整个材质转成 MaterialX：所有贴图通道一起转换，贴图值与参数相乘，和 CPU 渲染一致。
+- 镂空也要转换，树叶、草叶这类卡片最常遇到。XPU 的近似把不透明度贴图挖掉的部分当成一层透明的面，不是洞：
+  - 只有一层、后面有物体时，看不出差别；
+  - 画面的透明通道在洞里仍是不透明，相机本来看不到的天空会从洞里露出来；
+  - 叠在一起的镂空面会整片发黑，实测 12 层叶片卡片后面的墙完全看不到；Alpha Mode 选 blend 或 mask 都一样；
+  - 底色贴图自带的透明通道（Use Texture Alpha）完全不起作用。
+
+  所以用了不透明度贴图或底色贴图透明通道的 Principled，在 XPU 下整个材质转成 MaterialX，镂空结果和 CPU 一致。
 - XPU 的近似还会忽略次表面散射。转换后的效果比原样离 CPU 更远，所以这种情况只提示改用 `engine="cpu"`。
 - 转换结果里会写明哪些没有对应，例如各向异性、色散，或清漆层单独的凹凸。
 - 其他 VEX 材质和 `v_matte` 这类遮罩材质无法转换：XPU 下要用 `engine="cpu"`，或在工程里改成 MaterialX。

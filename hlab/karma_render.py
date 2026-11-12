@@ -59,8 +59,8 @@ def notes(engine, mats, light_count, report=None, planned=False):
         for row in report["unconverted"][:6]:
             rows.append(f"{row['source']}：{row['reason']}。")
     if engine == "xpu" and kinds.get("principled"):
-        rows.append("XPU 以 USD Preview Surface 近似 Principled Shader；实测颜色、粗糙度、金属度、法线、发光和不透明度贴图，"
-                    "以及玻璃和清漆都正常；用到凹凸或透明度贴图的会先转成 MaterialX。")
+        rows.append("XPU 以 USD Preview Surface 近似 Principled Shader；实测颜色、粗糙度、金属度、法线和发光贴图，"
+                    "以及玻璃和清漆都正常；用到凹凸贴图、透明度贴图或镂空（不透明度贴图、底色贴图的透明通道）的会先转成 MaterialX。")
     return rows
 
 
