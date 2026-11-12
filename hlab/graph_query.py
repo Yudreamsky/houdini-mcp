@@ -104,6 +104,8 @@ def parm_value(p, keys):
 
 
 def parameters(node):
+    """Nondefault parameters. An entry always has its value; locked, disabled, animated, expression and reference
+    appear only when set, so a plain entry is {"value": 3} and a page of nodes stays small."""
     values = {}
     # Disable-when conditions are not otherwise guaranteed current in hython.
     node.updateParmStates()
@@ -119,14 +121,13 @@ def parameters(node):
                 continue
             keys = p.keyframes()
             ref = p.getReferencedParm()
-            entry = {
-                "value": parm_value(p, keys),
-                "locked": p.isLocked(),
-                "disabled": p.isDisabled(),
-                "animated": bool(keys),
-                "expression": None,
-                "reference": None,
-            }
+            entry = {"value": parm_value(p, keys)}
+            if p.isLocked():
+                entry["locked"] = True
+            if p.isDisabled():
+                entry["disabled"] = True
+            if keys:
+                entry["animated"] = True
             if keys and len(keys) == 1 and keys[0].isExpressionSet():
                 entry["expression"] = {
                     "language": keys[0].expressionLanguage().name(),
@@ -324,6 +325,12 @@ def recipe_reference(key):
         return result
 
 
+def lean(parms):
+    """Entries as parameters() writes them. Snapshots saved earlier spelled out every false and empty state."""
+    return {name: {k: v for k, v in entry.items() if k == "value" or (v is not False and v is not None)}
+            if "value" in entry else entry for name, entry in parms.items()}
+
+
 def diff(key, path=""):
     row = details(key)
     if row["kind"] == "graph_snapshot":
@@ -334,7 +341,7 @@ def diff(key, path=""):
     else:
         raise ValueError("Choose a graph_snapshot or a recipe")
     root = node_at(path or reference["path"])
-    before = {r["relative"]: r for r in reference["nodes"]}
+    before = {r["relative"]: {**r, "parameters": lean(r["parameters"])} for r in reference["nodes"]}
     after = {root.relativePathTo(n): node_row(root, n) for n in tree(root, reference["depth"])}
     added, removed = sorted(after.keys() - before.keys()), sorted(before.keys() - after.keys())
     changes = []

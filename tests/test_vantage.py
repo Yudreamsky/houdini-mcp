@@ -268,15 +268,49 @@ class StudioTests(unittest.TestCase):
         from tests.test_karma import fake_run
         with patch("hlab.sop_lab.worker", fake_run(requests)), patch("hlab.vantage.encode", return_value=None):
             run, _ = karma.animate(str(self.hip), "", [1, 3])
-        self.assertEqual([r["frame"] for r in requests], [1, 2, 3])
-        self.assertEqual([r["camera"] for r in requests], ["", "/obj/CAM", "/obj/CAM"])
-        self.assertEqual((run["frame_count"], run["seconds"], run["video"]), (3, 10.5, None))
+        self.assertEqual([r["frames"] for r in requests], [[1, 3]])  # one worker request and one husk run
+        self.assertEqual((run["frame_count"], run["seconds"], run["video"]), (3, 3.5, None))
+        self.assertEqual((run["status"], run["limited_frames"], run["resumed_at"]), ("completed", [], []))
+        self.assertTrue(Path(run["log"]).is_file())
         self.assertIn("ffmpeg", run["notes"][-1])
-        for frames, changes, fps, message in [([5, 1], {}, 24, "first, last"), ([1, 60], {}, 24, "48"),
+        for frames, changes, fps, message in [([5, 1], {}, 24, "first, last"), ([1, 300], {}, 24, "240"),
                                               ([1, 600], {"engine": "vantage"}, 24, "480"), ([1.5, 3], {}, 24, "whole"),
                                               ([1, 3], {}, 0, "fps")]:
             with self.subTest(frames=frames, fps=fps), self.assertRaisesRegex(ValueError, message):
                 karma.animate(str(self.hip), "", frames, changes=changes, fps=fps)
+
+    def test_karma_animation_renders_long_ranges_in_runs(self):
+        requests, timeouts = [], []
+        from tests.test_karma import fake_run
+        with patch("hlab.sop_lab.worker", fake_run(requests, status="time_limit", timeouts=timeouts)), \
+                patch("hlab.vantage.encode", return_value=None):
+            run, _ = karma.animate(str(self.hip), "", [1001, 1100])
+        self.assertEqual([r["frames"] for r in requests], [[1001, 1048], [1049, 1096], [1097, 1100]])
+        self.assertEqual([r["camera"] for r in requests], ["", "/obj/CAM", "/obj/CAM"])  # the first run's camera
+        # the usual limit for one frame, plus each further frame's own 30 s limit and export
+        self.assertEqual(timeouts, [600 + 47 * 60, 600 + 47 * 60, 600 + 3 * 60])
+        self.assertEqual(sorted(p.name for p in Path(run["frames_folder"]).iterdir()),
+                         [f"f{i:04d}.png" for i in range(1, 101)])
+        self.assertEqual((run["status"], run["limited_frames"]), ("time_limit", [1001, 1049, 1097]))
+        self.assertIn("3 帧到了时间上限", run["notes"][0])
+
+    def test_karma_animation_continues_after_a_run_stops_early(self):
+        from tests.test_karma import fake_run
+        requests = []
+        with patch("hlab.sop_lab.worker", fake_run(requests, stop_after=[2, 0, 3])), patch("hlab.karma.RETRY_PAUSE", 0), \
+                patch("hlab.vantage.encode", return_value=None):
+            run, _ = karma.animate(str(self.hip), "", [1, 5])
+        # two frames, then a run that cannot start, then the rest from the first missing frame
+        self.assertEqual([r["frames"] for r in requests], [[1, 5], [3, 5], [3, 5]])
+        self.assertEqual((run["frame_count"], run["resumed_at"]), (5, [3, 3]))
+        self.assertIn("接着渲完", run["notes"][0])
+        with patch("hlab.sop_lab.worker", fake_run([], stop_after=[2, 0, 0])), patch("hlab.karma.RETRY_PAUSE", 0), \
+                self.assertRaisesRegex(RuntimeError, "stopped twice at frame 3, after 2 of 5 frames"):
+            karma.animate(str(self.hip), "", [1, 5])
+        # nothing rendered at all: the worker's own error, without waiting
+        with patch("hlab.sop_lab.worker", fake_run([], stop_after=[0])), \
+                self.assertRaisesRegex(ValueError, "cudaErrorLaunchFailure"):
+            karma.animate(str(self.hip), "", [1, 5])
 
 
 if __name__ == "__main__":

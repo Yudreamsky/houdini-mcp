@@ -12,7 +12,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from hlab import karma, karma_sky
-from hlab.karma_spec import excerpt, lighting, read_log, resolution, settings
+from hlab.karma_spec import excerpt, frames_saved, lighting, read_log, read_sequence_log, resolution, settings
 
 LOG = """[08:48:51] >>> Render C:\\job\\render.png (1 of 1) - 640x360 C:/job/usd/__render__.usd frame: 1
 [08:48:52] KarmaXPU: Device 0  Status: active  Info: NVidia GPU CUDA/Optix device
@@ -124,6 +124,28 @@ class LogTests(unittest.TestCase):
 
 
 read_hdr = karma_sky.read_hdr
+
+
+class SequenceLogTests(unittest.TestCase):
+    def test_frames_stop_at_the_first_gap_and_name_the_time_limited(self):
+        names = ["render.0003.png", "render.0001.png", "render.0002.png", "render.0005.png", "husk.log", "render.png"]
+        stderr = ("[08:48:01] Run time 2 exceeded file C:/job/render.0002.png\n"
+                  "155100: Fatal error: Segmentation fault\n")
+        self.assertEqual(frames_saved(names, 1, stderr),
+                         [{"frame": 1, "file": "render.0001.png", "status": "completed"},
+                          {"frame": 2, "file": "render.0002.png", "status": "time_limit"},
+                          {"frame": 3, "file": "render.0003.png", "status": "completed"}])
+        self.assertEqual(frames_saved(names, 4), [])
+        self.assertEqual([r["frame"] for r in frames_saved(["render.10000.png", "render.9999.png"], 9999)], [9999, 10000])
+
+    def test_devices_come_from_the_last_frame_and_warnings_from_all(self):
+        second = LOG.replace("(1 of 1)", "(2 of 2)").replace("brick.rat", "tile.rat").replace("0:01:01.93", "0:01:03.5")
+        info = read_sequence_log(LOG.replace("(1 of 1)", "(1 of 2)") + second)
+        self.assertEqual([d["contribution_percent"] for d in info["devices"]], [64.0, 35.0])
+        self.assertEqual(info["husk_seconds"], 63.5)
+        self.assertEqual(info["log_warnings"], ["Warning: Unable to find texture brick.rat",
+                                                "Warning: Unable to find texture tile.rat"])
+        self.assertEqual(read_sequence_log(LOG)["devices"], read_log(LOG)["devices"])
 
 
 class SkyTests(unittest.TestCase):
@@ -291,15 +313,32 @@ class KillTreeTests(unittest.TestCase):
             self.assertIsNotNone(parent.poll())
 
 
-def fake_run(job_requests, size=(64, 36), status="completed", progress=None):
-    def worker(req, job):
+def fake_run(job_requests, size=(64, 36), status="completed", progress=None, stop_after=None, timeouts=None):
+    """stop_after: how many frames each request of a range saves before husk "stops" (0 raises, as the worker does)."""
+    def worker(req, job, timeout=None):
         job_requests.append(req)
+        if timeouts is not None:
+            timeouts.append(timeout)
         if req["action"] == "karma_inspect":
             return {"cameras": []}
-        Image.new("RGBA", size, (200, 40, 30, 255)).save(job / "render.png")
         (job / "husk.log").write_text(LOG, encoding="utf-8")
         chosen = req["settings"]
-        return {"file": "render.png", "log": "husk.log", "frame": req["frame"] or 12, "camera": req["camera"] or "/obj/CAM",
+        if req.get("frames"):
+            first, last = req["frames"]
+            done = last - first + 1 if not stop_after else stop_after.pop(0)
+            if done == 0:
+                raise ValueError("Karma render failed: cudaErrorLaunchFailure")
+            rows = []
+            for frame in range(first, min(last, first + done - 1) + 1):
+                Image.new("RGBA", size, (200, 40, 30, 255)).save(job / f"render.{frame:04d}.png")
+                rows.append({"frame": frame, "file": f"render.{frame:04d}.png",
+                             "status": "time_limit" if status == "time_limit" and frame == first else "completed"})
+            outcome = {"frames": rows, "stopped": None if len(rows) == last - first + 1 else "cudaErrorLaunchFailure",
+                       "frame": first}
+        else:
+            Image.new("RGBA", size, (200, 40, 30, 255)).save(job / "render.png")
+            outcome = {"file": "render.png", "frame": req["frame"] or 12}
+        return {**outcome, "log": "husk.log", "camera": req["camera"] or "/obj/CAM",
                 "rop": "/out/HR_KARMA_PREVIEW", "temporary_rop": True, "resolution": list(size),
                 "seconds": 3.5, "lights": 1, "notes": [], "materials": {"converted": [], "unconverted": []},
                 "settings": {"engine": chosen.get("engine", "xpu"), "samples": chosen.get("samples", 32),

@@ -90,6 +90,14 @@ def red_runs(path):
     return runs, (w, h)
 
 
+def red_height(path, start, width):
+    """Rows that show red within one column run."""
+    with Image.open(path) as im:
+        rgba = im.convert("RGBA")
+    px = rgba.load()
+    return sum(any(is_red(*px[x, y]) for x in range(start, start + width)) for y in range(rgba.height))
+
+
 def fresh_check(hip, houdini, *paths):
     out = subprocess.run([str(discover(houdini).hython), "-c", FRESH, str(hip), CAM, GEO, *paths],
                          capture_output=True, text=True, timeout=300, check=True)
@@ -113,10 +121,16 @@ async def exercise(client, home, hip, window, houdini, report):
         assert not result.isError, result.content[0]
         info = json.loads(next(s.text for s in result.content if s.type == "text"))
         assert info["camera"] == CAM, info
-        # The capture spans the camera frame across its width.
-        runs, size = red_runs(folder / "images" / (info["image_id"] + ".png"))
+        # The capture spans the camera frame across its width, in the camera's own proportions: 900 x 2000 fits
+        # inside 704 x 396 as 178 x 396, and each 30-unit cube shows a square face.
+        picture = folder / "images" / (info["image_id"] + ".png")
+        runs, size = red_runs(picture)
+        assert list(size) == info["resolution"] == [178, 396], (size, info)
         measured, expected = assert_widths(runs, size[0], projection)
-        return {"image_id": info["image_id"], "size": size, "widths": measured, "expected": expected}
+        heights = [red_height(picture, start, width) for start, width in runs]
+        if projection:  # in perspective a cube off the axis also shows a side face
+            assert all(abs(h - w) <= 2 for h, (_, w) in zip(heights, runs)), (heights, runs)
+        return {"image_id": info["image_id"], "size": size, "widths": measured, "expected": expected, "heights": heights}
 
     windows = (await invoke("window_session"))[0]["windows"]
     assert [w["id"] for w in windows] == [window["id"]], windows

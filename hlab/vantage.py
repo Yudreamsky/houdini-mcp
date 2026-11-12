@@ -95,6 +95,7 @@ def srgb(value):
 
 
 LINEAR = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in (i / 255. for i in range(256))]
+PARTLY = bytes(1 if 0 < a < 255 else 0 for a in range(256))  # alpha values of partly covered pixels
 
 
 def ray(matrix, local):
@@ -126,11 +127,14 @@ def with_sky(picture, rows, view, frame):
     alpha = front.getchannel("A")
     out.paste(front.convert("RGB"), mask=alpha.point(lambda a: 255 if a == 255 else 0))
     width, colours, sky = front.width, front.load(), out.load()
-    for index, a in enumerate(alpha.tobytes()):
-        if 0 < a < 255:
-            x, y = index % width, index // width
-            behind = 1. - a / 255.
-            sky[x, y] = tuple(srgb(LINEAR[c] + LINEAR[s] * behind) for c, s in zip(colours[x, y][:3], sky[x, y]))
+    cover = alpha.tobytes()
+    partly = cover.translate(PARTLY)  # only edge pixels need the blend: find them without a Python loop over all
+    index = partly.find(1)
+    while index >= 0:
+        x, y = index % width, index // width
+        behind = 1. - cover[index] / 255.
+        sky[x, y] = tuple(srgb(LINEAR[c] + LINEAR[s] * behind) for c, s in zip(colours[x, y][:3], sky[x, y]))
+        index = partly.find(1, index + 1)
     return out
 
 

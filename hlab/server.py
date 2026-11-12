@@ -381,16 +381,16 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     """Test renders of a saved HIP (path, sample:..., rain, afterglow or karma-probe) with Karma XPU/CPU or, where it is
     installed, Chaos Vantage (changes.engine = vantage: exported to USD, about 1 s a frame plus 10-25 s to start); the
     HIP is never saved. presets lists named settings and adjustable controls. inspect lists cameras, lights, ROPs,
-    material support, the materials each engine converts (legacy /shop shaders, and Principled with bump or
-    transparency maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
+    material support, the materials each engine converts (legacy /shop shaders, and Principled with bump,
+    transparency or cut-out maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
     changes.lighting swaps the scene's lights for a day, overcast, night or product studio look placed relative to
     the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights). For photoreal results,
     round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.
     render returns one image limited in size and time, with effective settings, conversions, lighting, seconds and
     GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera
     and frame, optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. animate renders
-    frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run, Karma up to 48 frame
-    by frame). save_preset names a base preset plus changes for later use."""
+    frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run; Karma up to 240, in
+    husk runs of 48 frames that each load the scene once). save_preset names a base preset plus changes for later use."""
     from . import karma as studio
     if action == "presets":
         result = studio.presets()

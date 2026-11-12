@@ -74,15 +74,30 @@ def base_name(node):
     return node.type().name().split("::")[0]
 
 
+def texture_alpha(node):
+    """Whether the base colour texture's alpha channel cuts the surface out (Use Texture Alpha)."""
+    return bool(value(node, "basecolor_useTexture", 0) and value(node, "basecolor_texture", "")
+                and value(node, "basecolor_useTextureAlpha", 0))
+
+
 def xpu_gaps(node):
-    """Principled features XPU's own fallback drops and a MaterialX conversion restores, found by rendering against
-    Karma CPU. Its colour, roughness, metal, normal, emission and opacity textures, glass, coat, sheen and point
-    colour render correctly. Subsurface is also dropped, but the converted look was further from CPU."""
+    """Principled features XPU's own fallback loses and a MaterialX conversion restores, found by rendering against
+    Karma CPU. Its colour, roughness, metal, normal and emission textures, glass, coat, sheen and point colour render
+    correctly. Subsurface is also dropped, but the converted look was further from CPU.
+
+    Cut-outs: XPU renders the cut-away part of an opacity texture as a clear surface, not as a hole. One layer in
+    front of other geometry looks right, but the picture's alpha stays 1, a sky the camera should not see shows
+    through, and stacked cut-outs (twelve leaf cards) turn black where CPU shows what is behind them, in alpha
+    mode blend and mask alike. The base colour texture's alpha (Use Texture Alpha) is ignored altogether."""
     gaps = []
     if value(node, "baseBumpAndNormal_enable", 0) and value(node, "baseBumpAndNormal_type", "") == "bump":
         gaps.append("凹凸贴图")
     if value(node, "transparency_useTexture", 0) and value(node, "transparency_texture", ""):
         gaps.append("透明度贴图")
+    if value(node, "opaccolor_useTexture", 0) and value(node, "opaccolor_texture", ""):
+        gaps.append("镂空（不透明度贴图）")
+    if texture_alpha(node):
+        gaps.append("镂空（底色贴图的透明通道）")
     return gaps
 
 
@@ -145,6 +160,19 @@ def channel(net, src, prefix, signature="color3"):
         return None
     return texture(net, value(src, prefix + "_texture", ""), "_" + prefix, value(src, prefix + "_textureWrap", "repeat"),
                    signature, value(src, prefix + "_textureColorSpace", "auto"))
+
+
+def alpha_of(net, src, prefix):
+    """The alpha channel of <prefix>_texture as a grey color3, for standard_surface's opacity."""
+    image = texture(net, value(src, prefix + "_texture", ""), f"_{prefix}_rgba", value(src, prefix + "_textureWrap", "repeat"),
+                    "color4", value(src, prefix + "_textureColorSpace", "auto"))
+    parts = net.node("mtlxseparate4c", f"_{prefix}_alpha")  # mtlxextract's index stops at 2, the blue channel
+    parts.setNamedInput("in", image, 0)
+    grey = net.node("mtlxcombine3", f"_{prefix}_alpha3")
+    grey.parm("signature").set("color3")
+    for name in ("in1", "in2", "in3"):
+        grey.setNamedInput(name, parts, "outa")
+    return grey
 
 
 def mono(net, image, pick, suffix):
@@ -288,6 +316,8 @@ def principled(src, net):
         if image is not None:
             sources.append(image)
             tint = tuple(c * value(src, prefix + "_textureIntensity", 1.) for c in tint)
+        if prefix == "opaccolor" and texture_alpha(src):
+            sources.append(alpha_of(net, src, "basecolor"))
         feed(net, surface, name, tint, sources)
     for prefix, name, default, factor in SCALARS:
         amount = value(src, prefix, default) * factor

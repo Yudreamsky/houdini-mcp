@@ -31,8 +31,8 @@ def hip_path(value):
     return path.resolve()
 
 
-def worker(req,job):
-    reply = pool.dispatch(discover(), req, job, fresh=req.get("fresh",False))
+def worker(req,job,timeout=None):
+    reply = pool.dispatch(discover(), req, job, fresh=req.get("fresh",False), timeout=timeout)
     if "gap_hint" in reply:
         from .improvements import native_gap
         receipt = native_gap(reply["gap_hint"], req, reply["error"])

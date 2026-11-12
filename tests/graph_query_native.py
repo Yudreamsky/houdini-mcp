@@ -10,7 +10,7 @@ import hou
 
 from hlab.graph_query import cook, diff, graph_read, node_types
 from hlab.scene import load_checkpoint
-from hlab.storage import details, stored
+from hlab.storage import details, read, stored, write
 
 
 class NativeGraphTests(unittest.TestCase):
@@ -54,12 +54,26 @@ class NativeGraphTests(unittest.TestCase):
         by_name = {row["relative"]: row for row in rows}
         self.assertEqual(by_name["SHIFT"]["inputs"], [{"input": 0, "source": "SOURCE", "output": 0}])
         self.assertTrue(by_name["SHIFT"]["flags"]["display"])
-        self.assertTrue(by_name["SOURCE"]["parameters"]["sizex"]["locked"])
+        # An entry lists only the states that are set, so pages of ordinary nodes stay small.
+        self.assertEqual(by_name["SOURCE"]["parameters"]["sizex"], {"value": 3.0, "locked": True})
+        self.assertEqual(set(by_name["SHIFT"]["parameters"]["ty"]), {"value", "animated"})
         self.assertNotIn("sizez", by_name["SOURCE"]["parameters"])
         self.assertEqual(by_name["SHIFT"]["parameters"]["tx"]["reference"], "../SOURCE/sizex")
         self.assertEqual(len(by_name["SHIFT"]["parameters"]["ty"]["value"]), 2)
         self.assertTrue(by_name["SHIFT"]["parameters"]["ty"]["animated"])
         self.assertEqual(by_name["SOURCE"]["parameters"]["sizey"]["expression"]["text"], "$F")
+        self.assertEqual(diff(snap["snapshot"])["total_changed"], 0)
+        # A snapshot saved before entries became lean, with every state spelled out, still compares equal.
+        card = stored("records", snap["snapshot"], "details.json")
+        old = read(card)
+        for row in old["nodes"]:
+            for entry in row["parameters"].values():
+                for state, empty in (("locked", False), ("disabled", False), ("animated", False),
+                                     ("expression", None), ("reference", None)):
+                    entry.setdefault(state, empty)
+        write(card, old)
+        source_row = next(row for row in read(card)["nodes"] if row["relative"] == "SOURCE")
+        self.assertIsNone(source_row["parameters"]["sizex"]["reference"])
         self.assertEqual(diff(snap["snapshot"])["total_changed"], 0)
         report = cook(out.path(), 3)
         self.assertEqual((report["points"], report["primitives"], report["errors"]), (8, 6, []))
