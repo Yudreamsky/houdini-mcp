@@ -236,7 +236,8 @@ def create(batch, op, label):
 
 def copy(batch, op, label, allow_delete):
     """Duplicate a node with its contents under a new name. The copy starts unwired; values in
-    op["set"] are written to it through the ordinary set checks."""
+    op["set"] are written to it through the ordinary set checks, as plain values or as
+    {"value": text, "expression": language}."""
     path = op["path"]
     source = node(checked_path(op["source"]))
     parent, name = parent_name(path)
@@ -268,8 +269,15 @@ def copy(batch, op, label, allow_delete):
         if n: n.destroy()
         restore_flags(pp,flags)
     batch.do(forward,inverse)
+    # The copy is new, so a value here may replace whatever expression came over from the source.
     for parm, value in values.items():
-        edit_one(batch,dict(op="set",path=path,parm=parm,value=value),label,allow_delete)
+        if isinstance(value, dict):
+            if set(value) != {"value", "expression"}:
+                raise ValueError(f"Write an expression on a copy as {{value, expression}}: {parm}")
+            step = dict(value=value["value"],expression=value["expression"])
+        else:
+            step = dict(value=value)
+        edit_one(batch,dict(op="set",path=path,parm=parm,replace_expression=True,**step),label,allow_delete)
     return path
 
 

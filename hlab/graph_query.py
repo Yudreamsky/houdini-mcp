@@ -184,7 +184,45 @@ def tree(root, depth):
             queue.extend((n, level + 1) for n in sorted(node.children(), key=lambda n: n.name()))
 
 
-def graph_read(path="/obj", depth=1, offset=0, limit=20, snapshot=False):
+TEXT_PAGE = 20000
+
+
+def parm_text(path, name, offset=0):
+    """One parameter's stored text in full, where a page of nodes shows only a preview of long text.
+    The sha256 is of the whole text, so it matches the preview's; offset continues a text over TEXT_PAGE."""
+    if type(offset) is not int or offset < 0:
+        raise ValueError("Use a nonnegative character offset")
+    node = node_at(path)
+    p = node.parm(name) if isinstance(name, str) else None
+    if p is None:
+        raise ValueError(f"No parameter {name} on {path}")
+    answer = {"path": node.path(), "parm": p.name()}
+    keys = p.keyframes()
+    if keys:
+        if len(keys) != 1 or not keys[0].isExpressionSet():
+            raise ValueError(f"{p.path()} is animated; its keyframes are in a page of nodes (leave parm out)")
+        text = keys[0].expression()
+        answer["expression"] = keys[0].expressionLanguage().name()
+    elif isinstance(p.parmTemplate(), hou.StringParmTemplate):
+        text = p.unexpandedString()
+    else:
+        raise ValueError(f"{p.path()} holds no text; its value is in a page of nodes (leave parm out)")
+    end = offset + TEXT_PAGE
+    answer.update(
+        length=len(text),
+        sha256=hashlib.sha256(text.encode()).hexdigest(),
+        offset=offset,
+        next_offset=end if end < len(text) else None,
+        text=text[offset:end],
+    )
+    return answer
+
+
+def graph_read(path="/obj", depth=1, offset=0, limit=20, snapshot=False, parm=""):
+    if parm:
+        if snapshot:
+            raise ValueError("A snapshot records nodes; leave parm out")
+        return parm_text(path, parm, offset)
     page_bounds(offset, limit)
     if type(depth) is not int or not 0 <= depth <= 12:
         raise ValueError("Use depth between 0 and 12")

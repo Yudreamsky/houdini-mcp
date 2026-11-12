@@ -50,12 +50,19 @@ class Delete(Operation):
     path: str
 
 
+class Expression(Operation):
+    value: str = Field(description="Expression text")
+    expression: Literal["hscript", "python"]
+
+
 class Copy(Operation):
     op: Literal["copy"]
     source: str = Field(description="Absolute path of the node to duplicate, with its contents")
     path: str = Field(description="Absolute path of the copy, including its new name, in a network of the same kind")
-    set: dict[str, bool | int | float | str] | None = Field(
-        default=None, max_length=32, description="Parameter values to write on the copy, e.g. {\"tx\": 1.3}")
+    set: dict[str, bool | int | float | str | Expression] | None = Field(
+        default=None, max_length=32,
+        description="Parameter values to write on the copy, e.g. {\"tx\": 1.3}. A value replaces an expression copied "
+                    "from the source; {\"value\": \"ch(\\\"../a/tx\\\") + 1\", \"expression\": \"hscript\"} writes one")
 
 
 class Patch(Operation):

@@ -83,9 +83,14 @@ def node_types(category: str = "Sop", query: str = "", offset: int = 0, limit: i
 
 @tool(annotations=READ)
 def graph_read(path: str = "/obj", depth: int = 1, offset: int = 0, limit: int = 20,
-               snapshot: bool = False, session_id: str = "") -> dict:
-    """Page a live network's nodes, wires, flags, diagnostics and nondefault parameters. Snapshot optionally records a diff baseline."""
-    return live_call("graph_read", session_id, path=path, depth=depth, offset=offset, limit=limit, snapshot=snapshot)
+               snapshot: bool = False, parm: str = "", session_id: str = "") -> dict:
+    """Page a live network's nodes, wires, flags, diagnostics and nondefault parameters. Snapshot optionally records a
+    diff baseline. A page shows text over 2048 characters as a preview with its length and sha256; pass parm to read
+    that one parameter of the node at path in full (its stored text, or its expression), which is what a graph_edit
+    patch needs. Text comes 20000 characters at a time; offset continues from next_offset."""
+    extra = {"parm": parm} if parm else {}
+    return live_call("graph_read", session_id, path=path, depth=depth, offset=offset, limit=limit, snapshot=snapshot,
+                     **extra)
 
 
 @tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True))
@@ -96,7 +101,8 @@ def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[st
     (find must occur exactly count times) so a one-line change to a long snippet does not resend it. One successful batch is one undo. Code-bearing writes require host
     opt-in. Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_
     render parameters. copy duplicates a node with its contents under a new name, unwired, and writes the values in
-    its set, so a repeated placement is one step. The result gives the step count per op and lists only the steps
+    its set, so a repeated placement is one step; a value there replaces an expression copied from the source, and
+    {"value": text, "expression": "hscript"} writes a new one. The result gives the step count per op and lists only the steps
     that have errors or warnings or whose stored value differs from the one sent (an expression's evaluated value,
     expanded text, a preview, length and sha256 for text over 200 characters, a create without init_scripts);
     verbose lists every step."""

@@ -192,6 +192,36 @@ async def exercise(client, directory, session, report):
     report["matching_motion_hashes"] = signatures(motion["samples"])
     report["native_hotkeys"] = qa("hotkeys")
 
+    # A long text is read in full through the tool and patched from what was read.
+    code = ROOT+"/LONG_TEXT"
+    text = "".join(f"f@v{i} = {i}; // line {i}\n" for i in range(160))
+    await graph("graph_edit", ops=[dict(op="create", type="attribwrangle", path=code),
+                                   dict(op="set", path=code, parm="snippet", value=text)], label="long text")
+    shown = (await graph("graph_read", path=code, depth=0))["root"]["parameters"]["snippet"]["value"]
+    full = await graph("graph_read", path=code, parm="snippet")
+    assert len(text) > 2048 and shown["length"] == len(text) and shown["preview"] == text[:240], shown
+    assert (full["text"], full["sha256"], full["next_offset"]) == (text, shown["sha256"], None), full
+    await graph("graph_edit", ops=[dict(op="patch", path=code, parm="snippet",
+                                        find=full["text"].splitlines()[7], replace="f@v7 = 70;")])
+    assert "\nf@v7 = 70;\n" in (await graph("graph_read", path=code, parm="snippet"))["text"]
+
+    # A copy's set replaces an expression that came over from the source, or writes a new one.
+    first = "/obj/DRIVEN"
+    copies = await graph("graph_edit", label="copies over an expression", ops=[
+        dict(op="create", type="geo", path=first),
+        dict(op="set", path=first, parm="tx", value='ch("ty") + 2', expression="hscript"),
+        dict(op="copy", source=first, path=first+"_VALUE", set={"tx": 2.83}),
+        dict(op="copy", source=first, path=first+"_MOVED",
+             set={"ty": 1.5, "tx": {"value": 'ch("ty") - 0.17', "expression": "hscript"}})])
+    assert [row["step"] for row in copies["steps"]] == [2, 4], copies
+    placed = {row["path"]: row["parameters"] for row in (await graph("graph_read", path="/obj", limit=100))["nodes"]}
+    assert set(placed[first+"_VALUE"]["tx"]) == {"value"} and abs(placed[first+"_VALUE"]["tx"]["value"]-2.83) < 1e-6
+    assert placed[first]["tx"]["expression"]["text"] == 'ch("ty") + 2'
+    moved = await graph("graph_read", path=first+"_MOVED", parm="tx")
+    assert (moved["text"], moved["expression"]) == ('ch("ty") - 0.17', "Hscript"), moved
+    report["read_and_copy"] = {"text_length": full["length"], "text_sha256": full["sha256"],
+                               "copy_steps_listed": [row["step"] for row in copies["steps"]]}
+
 
 async def check(executable):
     repo = Path(__file__).resolve().parents[1]

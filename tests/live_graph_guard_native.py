@@ -162,6 +162,25 @@ def check_copy():
     # verbose lists the step with its source and stored values.
     row=graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_13",set=dict(tx=2))],verbose=True)["steps"][0]
     assert (row["source"],row["values"],row["type"],row["errors"])==(first,{"tx":2.0},"Object/geo",[]), row
+    # A value in set replaces an expression copied from the source; {value, expression} writes a new one.
+    driven="/obj/ASM/driven"
+    graph.edit([dict(op="copy",source=first,path=driven),
+                dict(op="set",path=driven,parm="tx",value='ch("ty") + 2',expression="hscript")],label="driven")
+    plain=graph.edit([dict(op="copy",source=driven,path=driven+"_2",set=dict(tx=2.83))],label="value over expression")
+    assert plain=={"label":"MCP: value over expression","count":1,"ops":{"copy":1},"omitted":1,"steps":[]}, plain
+    assert not hou.parm(driven+"_2/tx").keyframes() and abs(hou.node(driven+"_2").evalParm("tx")-2.83)<1e-6
+    assert hou.parm(driven+"/tx").expression()=='ch("ty") + 2'
+    moved=graph.edit([dict(op="copy",source=driven,path=driven+"_3",
+                           set=dict(ty=1.5,tx=dict(value='ch("ty") - 0.17',expression="hscript")))],label="new expression")
+    assert hou.parm(driven+"_3/tx").expression()=='ch("ty") - 0.17'
+    # Like a set step with an expression, the copy is listed with the value the expression gives.
+    row=moved["steps"][0]
+    assert (row["step"],row["source"],row["values"]["ty"])==(1,driven,1.5) and abs(row["values"]["tx"]-1.33)<1e-6, moved
+    denied(lambda:graph.edit([dict(op="copy",source=driven,path=driven+"_4",
+                                   set=dict(tx=dict(value="1 + 1",expression="python")))]),"Code-capable")
+    denied(lambda:graph.edit([dict(op="copy",source=driven,path=driven+"_4",set=dict(tx=dict(value="1")))]),
+           "as {value, expression}")
+    assert hou.node(driven+"_4") is None
     # One bad step takes the whole batch back, copies included.
     denied(lambda:graph.edit([dict(op="copy",source=first,path="/obj/ASM/foot_14"),
                               dict(op="copy",source=first,path="/obj/ASM/foot_15",set=dict(nope=1))]),"No local parameter nope")
@@ -187,7 +206,8 @@ def check_copy():
     assert (hou.node("/obj/ASM/foot_15").evalParm("tx"),hou.node("/obj/ASM/foot_15").evalParm("rz"))==(3.5,45)
     batch.undo()
     assert hou.node("/obj/ASM/foot_15") is None
-    print("PASS 11 placements copied in 11 steps with a totals-only result; SOP copy unwired; rollback, guards, code opt-in, undo/redo")
+    print("PASS 11 placements copied in 11 steps with a totals-only result; SOP copy unwired; a value or a new "
+          "expression over a copied expression; rollback, guards, code opt-in, undo/redo")
 
 
 def check_patch():
