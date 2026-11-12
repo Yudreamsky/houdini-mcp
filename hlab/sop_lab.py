@@ -106,7 +106,7 @@ def study_saved(hip, action, node, control="", values=None, frame=1, witness="",
     if action not in ("compare", "motion"):
         raise ValueError("Choose compare or motion")
     if (capture or camera) and not renderer:
-        raise ValueError("Saved optical evidence requires a Mantra ROP in renderer; omit capture and camera for geometry")
+        raise ValueError("Saved optical evidence requires a Mantra or Karma ROP in renderer; omit capture and camera for geometry")
     study = dict(action=action, node=node, control=control, values=values, frame=frame, witness=witness,
                  variants=variants, frames=frames, camera=camera, topic=topic, prediction=prediction,
                  expect_change=expect_change, changes=changes, renderer=renderer)

@@ -69,10 +69,10 @@ claude mcp get houdini-research
 
 运行 `python launch.py --shot rain` 可打开随附的水面工程。[前后对照](examples/rain/before-after.mp4)、[四次画面](examples/rain/iterations.jpg)、[定稿候选](examples/rain/rain.mp4) 与 [可编辑 HIP](examples/rain/Rain.hip) 使用同一机位。工作单位为厘米，24 fps，以 0.055 倍物理时间作慢动作观察。水面使用 Ripple SOP 叠加有限波包，亮带为根据表面法线构造的天空倒影，水滴使用折射材质。没有运行 FLIP。
 
-在新对话查 `knowledge(topic="水",kind="node")`，只有需要验证结论时才展开来源。通用工具 `node_lab` 默认在后台读取可信的已保存 HIP，支持别名 rain、afterglow 或绝对路径。`scope="live"` 在选定窗口做 `sweep`、`compare` 或 `motion`，结束后恢复参数和时间。实时实验可指定下游 `witness`。已保存 HIP 的 `compare` 和 `motion` 也可指定下游输出，并可选择 Mantra ROP 获取实际渲染。[窗口与实验参数](docs/live-graph.md)
+在新对话查 `knowledge(topic="水",kind="node")`，只有需要验证结论时才展开来源。通用工具 `node_lab` 默认在后台读取可信的已保存 HIP，支持别名 rain、afterglow 或绝对路径。`scope="live"` 在选定窗口做 `sweep`、`compare` 或 `motion`，结束后恢复参数和时间。实时实验可指定下游 `witness`。已保存 HIP 的 `compare` 和 `motion` 也可指定下游输出，并可选择工程里的 Mantra 或 Karma 渲染节点获取实际渲染。[窗口与实验参数](docs/live-graph.md)
 
 - `nodes` 列直接子节点，`inspect` 按 query、limit、offset 筛选真实 SOP 参数。
-- `sweep` 可先写 prediction，再指定节点、一个未绑定的数值参数、2–5 个值、固定帧和领域 topic。可选 renderer 指向 Mantra ROP。读取 experiment 卡看测量，用 evidence 按序号取单张真实帧。
+- `sweep` 可先写 prediction，再指定节点、一个未绑定的数值参数、2–5 个值、固定帧和领域 topic。可选 renderer 指向工程里的 Mantra 或 Karma 渲染节点，按节点自己的设置出图。读取 experiment 卡看测量，用 evidence 按序号取单张真实帧。
 - `replay` 重开相同 HIP 重跑实验。按点序比较 P 和存在的三分量浮点 Cd；拓扑统计检查点数及图元数。保留原始哈希，差异按每个坐标的最大绝对误差判定，几何容差为最大轴跨度的千万分之一、下限为 1e-7 场景单位，颜色为 1e-6。这个结果不证明全部属性或拓扑连接完全一致。
 - `variant` 指定控制节点、changes、用途 note、topic 和输出 witness SOP，写成独立的 HIP 并登记 scene_recipe。只改变传入的数值，保留当前版本。用 `restore` 查验证读数及输出，再用 `frame` 查看该版本的实际渲染。用 `python launch.py --hip 完整路径` 在已有工程窗口打开候选。需要另开窗口时加 `--new-window`。
 

@@ -65,7 +65,7 @@ def accept(directory):
     try:
         study_saved(str(file), "motion", node, frames=[2,4], capture=True)
     except ValueError as exc:
-        assert "Mantra ROP" in str(exc)
+        assert "Mantra or Karma ROP" in str(exc)
     else:
         raise AssertionError("An unspecified saved renderer was accepted")
     with patch.dict(os.environ, {"HOUDINI_RESEARCH_WORKER":"spawn"}):

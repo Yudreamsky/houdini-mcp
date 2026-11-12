@@ -50,7 +50,7 @@ Houdini 自带的类型（没有资产定义，或定义库在 `$HFS` 下）建�
 - 查操作时，`domain_recipe()` 查看已注册领域和操作名，`domain_recipe(domain="mechanics")` 查看该域摘要，`domain_recipe(name="animation_gap")` 展开一个原始参数表。`domain_recipe(action="run",name="animation_gap",arguments={...})` 按该参数表执行。旧名可继续供已有客户端调用。
 - 查经验时，先用 `knowledge(topic="水",kind="node",limit=3)` 取摘要。需要判断视觉差异时才按记录和序号取 `evidence`。查询指定窗口写下的记录和画面时，将相同的 `session_id` 传给 `knowledge` 和 `evidence`。[检索、索引和测速](knowledge-ci.md)
 - 在当前箱体上做单参实验，可传 `node_lab(scope="live",action="sweep",node="/obj/BoxStudy/Panel",control="sizex",values=[1,2,3],witness="/obj/BoxStudy/OUT",frame=1,topic="modeling",session_id=id)`。对照命名变体用 `compare` 和 `variants`，测运动用 `motion` 和 `frames`。`capture=true` 才取视口帧，`camera` 可选。实验结束后恢复控制参数和原帧。
-- 研究磁盘上的 HIP 时使用默认 `scope="saved"`，传可信 `hip`。`compare`、`motion` 可以选择下游 `witness` 和 Mantra `renderer`。常用探索操作复用后台进程，重放验证使用全新进程。`HOUDINI_RESEARCH_WORKER=spawn` 可恢复逐次启动，`HOUDINI_RESEARCH_WORKER_IDLE` 和 `HOUDINI_RESEARCH_WORKER_TIMEOUT` 均以秒计。跨 Houdini 版本复测会保存 `conditions_changed`、两端版本及参数和几何的实际比对结果。
+- 研究磁盘上的 HIP 时使用默认 `scope="saved"`，传可信 `hip`。`compare`、`motion` 可以选择下游 `witness` 和 `renderer`（工程里的 Mantra 或 Karma 渲染节点，按节点自己的采样和分辨率出图；Karma 同一画面重复渲染逐像素一致，所以画面有没有变化照样按像素判断）。常用探索操作复用后台进程，重放验证使用全新进程。`HOUDINI_RESEARCH_WORKER=spawn` 可恢复逐次启动，`HOUDINI_RESEARCH_WORKER_IDLE` 和 `HOUDINI_RESEARCH_WORKER_TIMEOUT` 均以秒计。跨 Houdini 版本复测会保存 `conditions_changed`、两端版本及参数和几何的实际比对结果。
 
 ## 本机验收
 
