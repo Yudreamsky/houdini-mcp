@@ -92,6 +92,8 @@ class ReportTests(unittest.TestCase):
             (dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": 1.3}), dict(op="copy", values={"tx": 1.3}), False),
             (dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": 1.3}), dict(op="copy", values={"tx": 0.0}), True),
             (dict(op="copy", source="/obj/A", path="/obj/B"), dict(op="copy", values={}), False),
+            (dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": {"value": "ch('ty')", "expression": "hscript"}}),
+             dict(op="copy", values={"tx": 1.5}), True),
             (dict(op="patch", path="/obj/A/w", parm="snippet", find="0.18", replace="0.10"),
              dict(op="patch", value=long_text), False),
         ]
@@ -109,8 +111,18 @@ class CopySchemaTests(unittest.TestCase):
         bare = dict(op="copy", source="/obj/A", path="/obj/B")
         self.assertEqual(TypeAdapter(Edit).validate_python(bare).model_dump(exclude_unset=True), bare)
 
+    def test_copy_can_carry_an_expression(self):
+        sent = dict(op="copy", source="/obj/ASM/a", path="/obj/ASM/b",
+                    set={"ty": 1.5, "tx": {"value": 'detail("/obj/DIMS/OUT", "C3", 0) - 0.17', "expression": "hscript"}})
+        self.assertEqual(TypeAdapter(Edit).validate_python(sent).model_dump(exclude_unset=True), sent)
+
     def test_copy_refuses_what_it_cannot_write(self):
         for bad in (dict(op="copy", path="/obj/B"),
+                    dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": {"value": "1"}}),
+                    dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": {"value": 1, "expression": "hscript"}}),
+                    dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": {"value": "1", "expression": "vex"}}),
+                    dict(op="copy", source="/obj/A", path="/obj/B",
+                         set={"tx": {"value": "1", "expression": "hscript", "expect": 2}}),
                     dict(op="copy", source="/obj/A", path="/obj/B", set={"tx": [1, 2]}),
                     dict(op="copy", source="/obj/A", path="/obj/B", set={f"p{i}": i for i in range(33)}),
                     dict(op="copy", source="/obj/A", path="/obj/B", expression="python")):

@@ -7,7 +7,7 @@ description: 使用 Houdini Research MCP 搭建和检查节点网络，按层级
 
 建立可复用资产、查找复杂场景中的部件或判断修改影响时，先读 [场景组织总则](references/scene-organization.md)，再按任务选建模、机械、特效或镜头分支。采用“项目摘要 → 资产索引 → 部件接口 → 局部几何”的读取顺序，核对摘要适用的工程版本与帧。已有工程先建旁车索引，结构迁移另行确认。
 
-- 要在可见窗口施工，先从 `window_session(action="list")` 选已有窗口，把 `id` 作为 `session_id` 传给通用工具。用 `node_types` 查实际类型，`graph_read` 小页读当前网络，需要对照时取 `snapshot`。改动放进有名称的一批 `graph_edit`（返回值只列有错误、警告或与发送值不同的步骤，`verbose=true` 才逐步列出；长代码只改一处用 `patch`，重复摆放用 `copy`），用 `cook`、`capture` 或 `diff` 核对交付。金属材质在视口里是黑的，检查形状用 `capture(look="clay")`。要渲染或交给 `scope="saved"` 时，先用 `window_session(action="save")` 存盘。
+- 要在可见窗口施工，先从 `window_session(action="list")` 选已有窗口，把 `id` 作为 `session_id` 传给通用工具。用 `node_types` 查实际类型，`graph_read` 小页读当前网络，需要对照时取 `snapshot`。改动放进有名称的一批 `graph_edit`（返回值只列有错误、警告或与发送值不同的步骤，`verbose=true` 才逐步列出；长代码只改一处用 `patch`，改之前用 `graph_read(path=节点, parm=参数名)` 读出原文；重复摆放用 `copy`，`set` 里的值会取代复制来的表达式），用 `cook`、`capture` 或 `diff` 核对交付。金属材质在视口里是黑的，检查形状用 `capture(look="clay")`。要渲染或交给 `scope="saved"` 时，先用 `window_session(action="save")` 存盘。
 - 要探测任意 SOP，在所选窗口用 `node_lab(scope="live", action="sweep")`，也可按命名变体 `compare` 或指定帧 `motion`。只研究磁盘上的 HIP 时用 `scope="saved"`。需要判断下游画面再选见证节点、相机或渲染器。
 - 要找专用操作，`domain_recipe(domain="mechanics")` 只列该域摘要，`domain_recipe(name="animation_gap")` 展开这一项的参数。按 `action="run"` 传名称和参数。旧版参考内的操作名可以这样调用。
 

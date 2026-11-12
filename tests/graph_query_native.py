@@ -95,6 +95,42 @@ class NativeGraphTests(unittest.TestCase):
         broken.parm("file").set(str(Path(self.library) / "missing.bgeo.sc"))
         self.assertTrue(cook(broken.path())["errors"])
 
+    def test_one_parameter_is_read_in_full(self):
+        geo = self.obj.createNode("geo", run_init_scripts=False)
+        self.addCleanup(geo.destroy)
+        code = geo.createNode("attribwrangle", "build")
+        text = "".join(f"f@v{i} = {i}; // line {i}\n" for i in range(1200))
+        self.assertTrue(20000 < len(text) < 40000)
+        code.parm("snippet").set(text)
+        # A page of nodes shows the start of a long text; parm returns all of it, with the same sha256.
+        shown = graph_read(code.path(), depth=0)["root"]["parameters"]["snippet"]["value"]
+        self.assertEqual((shown["preview"], shown["length"]), (text[:240], len(text)))
+        first = graph_read(code.path(), parm="snippet")
+        self.assertEqual((first["path"], first["parm"], first["length"], first["sha256"], first["offset"],
+                          first["next_offset"]), (code.path(), "snippet", len(text), shown["sha256"], 0, 20000))
+        rest = graph_read(code.path(), parm="snippet", offset=first["next_offset"])
+        self.assertEqual((first["text"] + rest["text"], rest["next_offset"], rest["sha256"]),
+                         (text, None, shown["sha256"]))
+        # The stored text comes back, not an expanded one.
+        code.parm("snippet").set('s@file = "$HIP/a.bgeo";')
+        short = graph_read(code.path(), parm="snippet")
+        self.assertEqual((short["text"], short["next_offset"]), ('s@file = "$HIP/a.bgeo";', None))
+        self.assertNotIn("expression", short)
+        # A parameter driven by an expression returns the expression and its language.
+        geo.parm("tx").setExpression('ch("ty") + 1')
+        driven = graph_read(geo.path(), parm="tx")
+        self.assertEqual((driven["text"], driven["expression"]), ('ch("ty") + 1', "Hscript"))
+        for frame, value in [(1, 0.0), (5, 8.0)]:
+            k = hou.Keyframe()
+            k.setFrame(frame)
+            k.setValue(value)
+            geo.parm("tz").setKeyframe(k)
+        for request, message in ((dict(parm="ty"), "holds no text"), (dict(parm="tz"), "is animated"),
+                                 (dict(parm="nope"), "No parameter nope"), (dict(parm="tx", offset=-1), "offset"),
+                                 (dict(parm="tx", snapshot=True), "leave parm out")):
+            with self.subTest(request=request), self.assertRaisesRegex(ValueError, message):
+                graph_read(geo.path(), **request)
+
     def test_nested_subnet_preserves_input_socket_even_for_the_same_source(self):
         geo = self.obj.createNode("geo", run_init_scripts=False)
         self.addCleanup(geo.destroy)
