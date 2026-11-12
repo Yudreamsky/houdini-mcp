@@ -50,11 +50,12 @@ class WorkerPool:
         with self.lock:
             self._stop()
 
-    def dispatch(self, install, req, job, fresh=False):
+    def dispatch(self, install, req, job, fresh=False, timeout=None):
+        """timeout: seconds this request may take, for one that renders several frames; the configured limit otherwise."""
         mode = os.environ.get("HOUDINI_RESEARCH_WORKER", "warm").lower()
         if mode not in {"warm","spawn"}:
             raise ValueError("HOUDINI_RESEARCH_WORKER must be warm or spawn")
-        timeout = seconds("HOUDINI_RESEARCH_WORKER_TIMEOUT", 600)
+        timeout = seconds("HOUDINI_RESEARCH_WORKER_TIMEOUT", 600) if timeout is None else timeout
         env = dict(os.environ, HOUDINI_MAXTHREADS=os.environ.get("HOUDINI_MAXTHREADS", "8"))
         options = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, env=env)
         job = Path(job).resolve()

@@ -1,4 +1,5 @@
-"""Render one Karma frame from a loaded HIP without saving it. Imported inside hython only."""
+"""Render a Karma frame, or a range of frames in one husk run, from a loaded HIP without saving it. Imported
+inside hython only."""
 import os
 import time
 from contextlib import contextmanager
@@ -7,7 +8,8 @@ import hou
 
 from hlab import karma_lighting
 from hlab.karma_materials import convert, is_light, objects, pbr_fix, pbr_report, plan, round_edges, used
-from hlab.karma_spec import PARMS, excerpt, lighting, look_settings, read_log, resolution
+from hlab.karma_spec import (PARMS, excerpt, frames_saved, lighting, look_settings, read_log, read_sequence_log,
+                             resolution)
 
 TEMPORARY = "HR_KARMA_PREVIEW"
 
@@ -191,17 +193,26 @@ def photoreal_notes(real):
 
 
 def render(req, folder):
+    """One frame (req frame, or the HIP's own) as render.png, or with req frames = [first, last] the whole range as
+    render.<frame>.png from a single husk run, so the scene is translated and the shaders compile once."""
     chosen = req["settings"]
-    if req.get("frame") is not None:
+    span = req.get("frames")
+    if span:
+        hou.setFrame(span[0])
+    elif req.get("frame") is not None:
         hou.setFrame(req["frame"])
     frame = whole(hou.frame())
+    last = whole(span[1]) if span else frame
     rop, temporary = karma_rop(req.get("rop", ""), req.get("preset", ""))
     cam = pick_camera(req.get("camera", ""), rop, temporary)
     width, height = resolution((cam.evalParm("resx"), cam.evalParm("resy")), chosen)
     picture, out, err = folder / "render.png", folder / "husk.log", folder / "husk.err"
     values = {"camera": cam.path(), "override_camerares": 0, "resolutionx": width, "resolutiony": height,
-              "picture": str(picture), "soho_foreground": 1, "verbosity": 5, "log": 1, "logappend": 0,
+              "picture": str(folder / "render.$F4.png") if span else str(picture), "soho_foreground": 1,
+              "verbosity": 5, "log": 1, "logappend": 0,
               "husk_stdout": str(out), "husk_stderr": str(err), "savetodirectory": str(folder / "usd")}
+    if span:
+        values.update(trange=1, allframesatonce=1)
     values.update({parm: chosen[name] for name, parm in PARMS.items() if name in chosen})
     if "samples" in chosen:
         # CPU Karma honours the path-traced sample count only in this mode; XPU always path traces.
@@ -213,6 +224,10 @@ def render(req, folder):
         values["abortnogpudevice"] = 1
     for name, value in values.items():
         rop.parm(name).set(int(value) if isinstance(value, bool) else value)
+    if span:
+        for parm, value in zip(rop.parmTuple("f"), (frame, last, 1)):
+            parm.deleteAllKeyframes()  # a new ROP's range is the expressions $FSTART and $FEND
+            parm.set(value)
     fixes = fix_materials(chosen)
     report = convert(engine, force=bool(chosen.get("round_edges"))) if chosen.get("convert_materials", True) else None
     real = {"pbr_fixes": fixes, "round_edges": round_shading(chosen)}
@@ -227,26 +242,39 @@ def render(req, folder):
     with environment({"HOUDINI_MAXTHREADS": str(threads),
                       "KARMA_XPU_DISABLE_EMBREE_DEVICE": "1" if engine == "xpu" else None}):
         try:
-            rop.render(frame_range=(frame, frame))
+            rop.render(frame_range=(frame, last))
         except hou.OperationFailed as exc:
             failure = str(exc)
     seconds = time.perf_counter() - started
     stdout = out.read_text(encoding="utf-8", errors="replace") if out.is_file() else ""
     stderr = err.read_text(encoding="utf-8", errors="replace") if err.is_file() else ""
-    info = read_log(stdout, stderr)
-    # husk 20.5 can crash while exiting after a time-limited frame, after it has saved the image.
-    if failure and not (info["time_limit_reached"] and picture.is_file()):
-        raise RuntimeError(f"Karma render failed: {excerpt(stdout, stderr) or failure}")
-    if not picture.is_file():
-        raise RuntimeError("Karma finished without writing an image")
+    if span:
+        info = read_sequence_log(stdout, stderr)
+        saved = frames_saved([p.name for p in folder.glob("render.*.png") if p.stat().st_size], frame, stderr)
+        if not saved:
+            raise RuntimeError(f"Karma render failed: {excerpt(stdout, stderr) or failure or 'no image was written'}")
+        # husk 20.5 can crash while exiting after time-limited frames, after it has saved them all. Frames missing
+        # from the end mean it stopped early: the host keeps what was saved and continues from the first gap.
+        stopped = None if len(saved) == last - frame + 1 else (
+            excerpt(stdout, stderr) or failure or "husk stopped without an error message")[:600]
+        outcome = {"frames": saved, "stopped": stopped,
+                   "status": "time_limit" if any(row["status"] == "time_limit" for row in saved) else "completed"}
+    else:
+        info = read_log(stdout, stderr)
+        # husk 20.5 can crash while exiting after a time-limited frame, after it has saved the image.
+        if failure and not (info["time_limit_reached"] and picture.is_file()):
+            raise RuntimeError(f"Karma render failed: {excerpt(stdout, stderr) or failure}")
+        if not picture.is_file():
+            raise RuntimeError("Karma finished without writing an image")
+        outcome = {"file": picture.name, "status": "time_limit" if info["time_limit_reached"] else "completed"}
     effective = {name: rop.evalParm(parm) for name, parm in PARMS.items()}
     effective.update(motion_blur=bool(effective["motion_blur"]), depth_of_field=bool(effective["depth_of_field"]),
                      time_limit=rop.evalParm("timelimit") if rop.evalParm("addtimelimit") else None,
                      convert_materials=report is not None, round_edges=chosen.get("round_edges", 0.),
                      pbr_fix=bool(chosen.get("pbr_fix")), **look_settings(look))
-    return {"file": picture.name, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
+    return {**outcome, "log": out.name, "frame": frame, "camera": cam.path(), "rop": rop.path(),
             "temporary_rop": temporary, "resolution": [width, height], "settings": effective,
-            "status": "time_limit" if info["time_limit_reached"] else "completed", "seconds": round(seconds, 2),
+            "seconds": round(seconds, 2),
             "render_threads": threads, "lights": len(lit), "materials": report, "lighting": lit_by, "photoreal": real,
             "notes": (karma_lighting.notes(lit_by) if lit_by else []) + photoreal_notes(real) + notes(engine, mats, len(lit), report),
             **info}

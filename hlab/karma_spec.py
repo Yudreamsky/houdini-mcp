@@ -215,6 +215,31 @@ def read_log(stdout, stderr=""):
     return info
 
 
+def read_sequence_log(stdout, stderr=""):
+    """read_log for a husk run of several frames: husk prints the devices and progress once per frame, so those come
+    from the last frame; the warnings come from all of them, and the wall clock is the whole run's."""
+    start = stdout.rfind(">>> Render ")
+    info = read_log(stdout[start:] if start > 0 else stdout, stderr)
+    info["log_warnings"] = read_log(stdout, stderr)["log_warnings"]
+    return info
+
+
+def frames_saved(names, first, stderr=""):
+    """The frames of a range that husk saved as render.<frame>.png, in order from the first and stopping at a gap,
+    each with whether the time limit stopped it."""
+    limited = {int(n) for n in re.findall(r"Run time \d+ exceeded file .*?render\.(-?\d+)\.png", stderr)}
+    found = {}
+    for name in names:
+        match = re.fullmatch(r"render\.(-?\d+)\.png", name)
+        if match:
+            found[int(match.group(1))] = name
+    rows = []
+    while first + len(rows) in found:
+        frame = first + len(rows)
+        rows.append({"frame": frame, "file": found[frame], "status": "time_limit" if frame in limited else "completed"})
+    return rows
+
+
 def excerpt(stdout, stderr, limit=12):
     lines = [re.sub(r"^\[[\d:]+\]\s*", "", l).strip() for l in (stderr + "\n" + stdout).splitlines()]
     lines = [l for l in lines if l and not l.startswith(("+0x", "OTHER THREAD", "CURRENT THREAD", '"'))]

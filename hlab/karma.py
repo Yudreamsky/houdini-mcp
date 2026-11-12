@@ -15,8 +15,11 @@ from .storage import created_now, home, read, record, sha, uid, write
 
 SAMPLE = "karma-probe"
 ENGINES = {"xpu": "XPU", "cpu": "CPU", "vantage": "Vantage"}
-# Frames one animate call renders: Vantage renders the range in one run; Karma starts a render per frame.
-MAX_FRAMES = {"vantage": 480, "karma": 48}
+# Frames one animate call renders. Vantage renders the range in one run. Karma renders it in runs of up to CHUNK
+# frames: each run loads the HIP and starts husk once, and a run that fails costs at most that many frames.
+MAX_FRAMES = {"vantage": 480, "karma": 240}
+CHUNK = 48
+RETRY_PAUSE = 30.  # seconds before continuing after a run stopped early; a display driver that reset needs a moment
 
 
 def preset_file():
@@ -373,20 +376,76 @@ def animate_vantage(path, chosen, camera, first, last, pictures):
     return {**run, "log": str(log)}
 
 
+def run_timeout(chosen, frames):
+    """The worker's usual limit for the first frame, plus each further frame's own time limit and export."""
+    from .worker_pool import seconds
+    return seconds("HOUDINI_RESEARCH_WORKER_TIMEOUT", 600) + (frames - 1) * (chosen.get("time_limit", 540) + 30)
+
+
+def intact(picture):
+    try:
+        with Image.open(picture) as im:
+            im.load()
+        return True
+    except (OSError, SyntaxError):
+        return False
+
+
 def animate_karma(path, chosen, camera, first, last, rop, base, pictures):
-    """Karma renders frame by frame; every frame uses the camera the first one resolved."""
-    runs = []
-    for frame in range(first, last + 1):
-        run = run_one(path, chosen, camera, frame, rop, base)
-        camera = run["camera"]
-        shutil.copyfile(run["path"], pictures / f"f{frame - first + 1:04d}.png")
-        runs.append(run)
-    limited = [r["frame"] for r in runs if r["status"] == "time_limit"]
-    run = {k: v for k, v in runs[0].items() if k not in ("image_id", "sha256", "path", "progress_percent")}
-    run.update(status="time_limit" if limited else "completed", seconds=round(sum(r["seconds"] for r in runs), 2),
-               frame_images=[r["image_id"] for r in runs])
+    """Karma renders the range in runs of up to CHUNK frames, each one worker request and one husk process, so the
+    HIP loads, the scene is translated and the shaders compile once per run instead of once per frame. Every run
+    uses the camera the first one resolved. A run that stops early (a GPU fault, a husk crash) keeps its finished
+    frames and the range continues from the first missing one; two stops in a row without a new frame give up."""
+    from .sop_lab import worker
+    load = gpu_load() if chosen.get("engine", "xpu") == "xpu" else None
+    total = last - first + 1
+    run, limited, resumed, seconds, frame, stalled = None, [], [], 0., first, False
+    while frame <= last:
+        end = min(last, frame + CHUNK - 1)
+        info, rows, stopped = None, [], None
+        with job_folder("houdini-karma-") as job:
+            try:
+                info = worker({"action": "karma_render", "hip": str(path), "camera": camera, "frames": [frame, end],
+                               "rop": rop, "preset": base, "settings": chosen}, job,
+                              timeout=run_timeout(chosen, end - frame + 1))
+            except (ValueError, RuntimeError) as exc:
+                if run is None:
+                    raise  # nothing has rendered: the request itself cannot work (camera, ROP, no GPU)
+                stopped = str(exc)
+            else:
+                rows, stopped = info.pop("frames"), info.pop("stopped", None)
+                if stopped and rows and not intact(job / rows[-1]["file"]):
+                    rows.pop()  # husk died while writing this frame
+                for row in rows:
+                    shutil.copyfile(job / row["file"], pictures / f"f{row['frame'] - first + 1:04d}.png")
+                shutil.copyfile(job / info.pop("log"), pictures.parent / f"husk-F{frame}.log")
+        if info is not None:
+            seconds += info["seconds"]
+            limited += [row["frame"] for row in rows if row["status"] == "time_limit"]
+            camera = info["camera"]
+            run = run or info
+        if stopped:
+            if not rows and stalled:
+                raise RuntimeError(f"Karma stopped twice at frame {frame}, after {frame - first} of {total} frames "
+                                   f"(kept in {pictures}): {stopped}")
+            stalled = not rows
+            resumed.append(frame + len(rows))
+            time.sleep(RETRY_PAUSE)
+        else:
+            stalled = False
+        frame += len(rows)
+    run = {k: v for k, v in run.items() if k != "progress_percent"}
+    rows = []
+    if run["settings"]["engine"] == "xpu":
+        run["gpu_load"] = load
+        rows += load_notes(load)
     if limited:
-        run["notes"] = [f"{len(limited)} 帧到了时间上限（如 F{limited[0]}），这些帧更噪。"] + run["notes"]
+        rows.append(f"{len(limited)} 帧到了时间上限（如 F{limited[0]}），这些帧更噪。")
+    if resumed:
+        rows.append(f"渲染中途停了 {len(resumed)} 次（如 F{resumed[0]}，多半是显卡或驱动出错），已从缺的那一帧接着渲完。")
+    run.update(status="time_limit" if limited else "completed", seconds=round(seconds, 2),
+               limited_frames=limited[:50], resumed_at=resumed, log=str(pictures.parent / f"husk-F{first}.log"),
+               notes=rows + run["notes"])
     return run
 
 

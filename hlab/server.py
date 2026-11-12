@@ -389,8 +389,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     render returns one image limited in size and time, with effective settings, conversions, lighting, seconds and
     GPU evidence; topic saves it as evidence. compare renders 2-4 variants ({name: {preset?, controls}}) on one camera
     and frame, optionally zoomed to [left, top, right, bottom] fractions, and saves a comparison. animate renders
-    frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run, Karma up to 48 frame
-    by frame). save_preset names a base preset plus changes for later use."""
+    frames=[first, last] to numbered PNGs and an MP4 at fps (Vantage up to 480 frames in one run; Karma up to 240, in
+    husk runs of 48 frames that each load the scene once). save_preset names a base preset plus changes for later use."""
     from . import karma as studio
     if action == "presets":
         result = studio.presets()
