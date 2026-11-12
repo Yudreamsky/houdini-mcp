@@ -259,9 +259,32 @@ def capture_view(frame, camera="", metrics_fn=None):
         hou.setFrame(previous)
 
 
+VIEW_SIZE = (704, 396)
+
+
+def fit(aspect, bounds=VIEW_SIZE):
+    """The largest picture of this width / height inside bounds."""
+    width, height = bounds
+    if aspect >= width / height:
+        return width, max(2, round(width / aspect))
+    return max(2, round(height * aspect)), height
+
+
+def view_size(camera):
+    """A camera's frame in its own proportions; a free viewport and a 16:9 camera fill the whole picture."""
+    if camera is None:
+        return VIEW_SIZE
+    try:
+        return fit(camera.evalParm("resx") * camera.evalParm("aspect") / camera.evalParm("resy"))
+    except (hou.Error, TypeError, ZeroDivisionError):
+        return VIEW_SIZE  # a camera made without its lens parameters
+
+
 def _flipbook(frame):
     v = viewer()
     view = v.curViewport()
+    camera = view.camera()
+    size = view_size(camera)
     settings = v.flipbookSettings().stash()
     folder = home() / "images"
     folder.mkdir(parents=True, exist_ok=True)
@@ -272,7 +295,8 @@ def _flipbook(frame):
     settings.beautyPassOnly(True)
     settings.frameRange((frame, frame))
     settings.useResolution(True)
-    settings.resolution((704, 396))
+    # Other proportions than the camera's would stretch its frame to fill the picture.
+    settings.resolution(size)
     settings.cropOutMaskOverlay(True)
     v.flipbook(view, settings)
     for _ in range(40):
@@ -281,9 +305,8 @@ def _flipbook(frame):
         time.sleep(.05)
     if not path.is_file() or not path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
         raise RuntimeError("Viewport did not produce a PNG")
-    camera = view.camera()
     return {"image_id": key, "sha256": sha(path), "frame": frame, "camera": camera.path() if camera else "free viewport",
-            "view_transform": list(view.viewTransform().asTuple())}
+            "resolution": list(size), "view_transform": list(view.viewTransform().asTuple())}
 
 
 def sweep(control, samples, frame=36):

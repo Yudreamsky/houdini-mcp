@@ -29,7 +29,7 @@
 }
 ```
 
-`cook(node="/obj/BoxStudy/OUT",frame=1,session_id=id)` 应返回 8 个点、6 个面，局部 X 向包围盒从 −1 到 1，单位为场景单位。`graph_read(path="/obj/BoxStudy",depth=1,session_id=id)` 可核对节点、连线、非默认参数、锁定或引用状态及最近 cook 错误。每个参数只写数值和确实存在的状态（`locked`、`disabled`、`animated`、`expression`、`reference`），没有的状态不写。要看画面再用 `capture(frame=1,session_id=id)`，可另传镜头 OBJ 的 `camera` 路径。
+`cook(node="/obj/BoxStudy/OUT",frame=1,session_id=id)` 应返回 8 个点、6 个面，局部 X 向包围盒从 −1 到 1，单位为场景单位。`graph_read(path="/obj/BoxStudy",depth=1,session_id=id)` 可核对节点、连线、非默认参数、锁定或引用状态及最近 cook 错误。每个参数只写数值和确实存在的状态（`locked`、`disabled`、`animated`、`expression`、`reference`），没有的状态不写。要看画面再用 `capture(frame=1,session_id=id)`，可另传镜头 OBJ 的 `camera` 路径。截图最大 704×396；通过相机看时按相机自己的宽高比缩放（900×2000 的相机得到 178×396），画面不会被拉伸，返回的 `resolution` 是图片尺寸。
 
 `diff(key=快照ID,path="/obj",session_id=id)` 将本次添加的 `BoxStudy` 与起点比较。快照覆盖所选深度内的节点，分页只限制当次读回的行数。要比较内部连线，以 `/obj/BoxStudy` 为起点再取深度 1 快照。可信的烟花 `recipe` 记录也可作为对照，MCP 在独立 Houdini 进程校验并读取其节点包。
 
