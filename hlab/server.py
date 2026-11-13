@@ -98,7 +98,8 @@ def graph_edit(ops: list[Edit], label: str = "graph_edit", allow_delete: list[st
                require_clean: bool = True, verbose: bool = False, session_id: str = "") -> dict:
     """Atomically create, wire, set, patch, flag, rename, copy or delete live OPs. Provide absolute paths and
     optionally expected old values; failures roll back. patch replaces an exact fragment of a text parameter
-    (find must occur exactly count times) so a one-line change to a long snippet does not resend it. One successful batch is one undo. Code-bearing writes require host
+    (find must occur exactly count times) so a one-line change to a long snippet does not resend it. One successful batch is one undo, named by label:
+    a batch is 1 to 128 operations and its label up to 100 characters. Code-bearing writes require host
     opt-in. Built-in types run Houdini's creation scripts, so a cam has resx, focal and projection and a geo its vm_
     render parameters. copy duplicates a node with its contents under a new name, unwired, and writes the values in
     its set, so a repeated placement is one step; a value there replaces an expression copied from the source, and
@@ -433,7 +434,8 @@ def karma(action: Literal["presets", "inspect", "render", "compare", "animate", 
     transparency or cut-out maps on XPU, become MaterialX in memory: convert_materials) and materials with unreal PBR values.
     changes.lighting swaps the scene's lights for a day, overcast, night or product studio look placed relative to
     the camera (light_angle, light_elevation, light_exposure, light_fill, keep_scene_lights), or for an HDRI panorama
-    (lighting = hdri with hdri = its path; light_angle turns its sun). For photoreal results,
+    (lighting = hdri with hdri = its path; light_angle turns its sun). With lighting = studio, backdrop = white lays a
+    pure white background behind the subject without changing its light (hide a ground object that would cover it). For photoreal results,
     round_edges (millimetres) rounds hard edges and pbr_fix corrects unreal material values, on the render copy only.
     changes.tone = agx or agx_punchy develops the picture with a film-like curve instead of clipping highlights,
     exposure (stops) brightens it, and exr = true also keeps the linear EXR (Karma only). changes.curves = ribbons

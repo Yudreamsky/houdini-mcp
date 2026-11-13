@@ -13,8 +13,8 @@ from unittest.mock import patch
 from PIL import Image
 
 from hlab import karma, karma_sky
-from hlab.karma_spec import (controls, excerpt, frames_saved, lighting, look_settings, read_log, read_sequence_log,
-                             resolution, settings)
+from hlab.karma_spec import (controls, developed, excerpt, frames_saved, lighting, look_settings, read_log,
+                             read_sequence_log, resolution, settings)
 
 LOG = """[08:48:51] >>> Render C:\\job\\render.png (1 of 1) - 640x360 C:/job/usd/__render__.usd frame: 1
 [08:48:52] KarmaXPU: Device 0  Status: active  Info: NVidia GPU CUDA/Optix device
@@ -84,6 +84,22 @@ class SettingsTests(unittest.TestCase):
                                  ({"lighting": "day", "light_elevation": 95}, "0..90"),
                                  ({"lighting": "studio", "light_fill": 4}, "-3..3"),
                                  ({"lighting": "studio", "light_exposure": 7}, "-6..6")]:
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
+                settings("preview", changes)
+
+    def test_a_studio_backdrop_is_grey_or_white_and_white_is_laid_in_when_developing(self):
+        grey = settings("preview", {"lighting": "studio"})
+        white = settings("preview", {"lighting": "studio", "backdrop": "white"})
+        self.assertEqual((lighting(grey)["backdrop"], lighting(white)["backdrop"]), ("grey", "white"))
+        self.assertEqual(look_settings(lighting(white))["backdrop"], "white")
+        self.assertNotIn("backdrop", look_settings(lighting(settings("preview", {"lighting": "day"}))))
+        # Only a white backdrop sends the render through the linear EXR.
+        self.assertEqual((developed(grey), developed(white), developed({**grey, "backdrop": "grey"})), (False, True, False))
+        self.assertIn("backdrop", controls())
+        for changes, message in [({"lighting": "studio", "backdrop": "black"}, "grey, white"),
+                                 ({"lighting": "day", "backdrop": "white"}, "only applies with lighting = studio"),
+                                 ({"backdrop": "white"}, "only apply with lighting"),
+                                 ({"lighting": "studio", "backdrop": "white", "engine": "vantage"}, "only apply to Karma")]:
             with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, message):
                 settings("preview", changes)
 

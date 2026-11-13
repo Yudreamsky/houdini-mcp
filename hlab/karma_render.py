@@ -254,9 +254,10 @@ def render(req, folder):
     rop, temporary = karma_rop(req.get("rop", ""), req.get("preset", ""))
     cam = pick_camera(req.get("camera", ""), rop, temporary)
     width, height = resolution((cam.evalParm("resx"), cam.evalParm("resy")), chosen)
-    # With a tone curve, an exposure or exr, Karma writes linear EXR and develop() makes the PNG from it.
+    # With a tone curve, an exposure, exr or a white backdrop, Karma writes linear EXR and develop() makes the PNG.
     kind = "exr" if developed(chosen) else "png"
     tone, stops = chosen.get("tone", "off"), chosen.get("exposure", 0.)
+    backdrop = (1., 1., 1.) if chosen.get("backdrop") == "white" else None
     picture, out, err = folder / f"render.{kind}", folder / "husk.log", folder / "husk.err"
     values = {"camera": cam.path(), "override_camerares": 0, "resolutionx": width, "resolutiony": height,
               "picture": str(folder / f"render.$F4.{kind}") if span else str(picture), "soho_foreground": 1,
@@ -318,7 +319,7 @@ def render(req, folder):
             for row in saved:
                 source = folder / row["file"]
                 row["file"] = source.with_suffix(".png").name
-                develop(source, folder / row["file"], tone, stops)
+                develop(source, folder / row["file"], tone, stops, backdrop)
                 if chosen.get("exr"):
                     row["exr"] = source.name
         outcome = {"frames": saved, "stopped": stopped,
@@ -333,7 +334,7 @@ def render(req, folder):
         outcome = {"file": picture.name, "status": "time_limit" if info["time_limit_reached"] else "completed"}
         if kind == "exr":
             from hlab.karma_grade import develop
-            develop(picture, folder / "render.png", tone, stops)
+            develop(picture, folder / "render.png", tone, stops, backdrop)
             outcome["file"] = "render.png"
             if chosen.get("exr"):
                 outcome["exr"] = picture.name

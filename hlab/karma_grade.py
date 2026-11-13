@@ -38,8 +38,9 @@ def srgb(rgb):
     return np.where(v <= .0031308, v * 12.92, 1.055 * v ** (1 / 2.4) - .055)
 
 
-def develop(source, target, tone="off", exposure=0.):
-    """Write the EXR at source as an 8-bit PNG at target."""
+def develop(source, target, tone="off", exposure=0., backdrop=None):
+    """Write the EXR at source as an 8-bit PNG at target. backdrop, a display colour in 0..1, is laid behind the
+    picture after the tone curve, so it shows exactly as given and the PNG is opaque."""
     import OpenImageIO as oiio
     picture = oiio.ImageBuf(str(source))
     spec = picture.spec()
@@ -52,6 +53,9 @@ def develop(source, target, tone="off", exposure=0.):
     # Karma stores colour multiplied by coverage; a PNG stores it straight.
     straight = np.where(alpha[..., None] > 1e-6, rgb / np.maximum(alpha[..., None], 1e-6), 0.) * 2. ** exposure
     shown = srgb(straight) if tone == "off" else agx(straight, tone == "agx_punchy")
+    if backdrop is not None:
+        shown = shown * alpha[..., None] + np.asarray(backdrop, dtype=np.float64) * (1. - alpha[..., None])
+        alpha = np.ones_like(alpha)
     out = np.concatenate([shown, alpha[..., None]], axis=2)
     result = oiio.ImageBuf(oiio.ImageSpec(spec.width, spec.height, 4, oiio.UINT8))
     result.set_pixels(oiio.ROI(0, spec.width, 0, spec.height), np.ascontiguousarray(out, dtype=np.float32))

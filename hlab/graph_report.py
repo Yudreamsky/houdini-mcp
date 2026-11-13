@@ -1,6 +1,18 @@
 """What a graph_edit batch returns. Pure Python, so it is tested without Houdini."""
 import math
 
+MAX_OPS, MAX_LABEL = 128, 100
+
+
+def bounds(count, label):
+    """Refuse a batch that is too large or badly labelled, saying which of the two it is and what the limit is."""
+    if not 1 <= count <= MAX_OPS:
+        raise ValueError(f"A batch takes 1 to {MAX_OPS} operations; this one has {count}")
+    if not label.strip():
+        raise ValueError("Give the batch a label: it names the undo step")
+    if len(label) > MAX_LABEL:
+        raise ValueError(f"The label is {len(label)} characters; the limit is {MAX_LABEL}")
+
 
 def same(stored, sent):
     if isinstance(stored, (int, float)) and isinstance(sent, (int, float)):

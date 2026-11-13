@@ -4,7 +4,7 @@ import unittest
 
 from pydantic import TypeAdapter, ValidationError
 
-from hlab.graph_report import notable, same, summary
+from hlab.graph_report import MAX_LABEL, MAX_OPS, bounds, notable, same, summary
 from hlab.graph_schema import Copy, Edit, Patch
 
 CLEAN = {"errors": [], "warnings": []}
@@ -100,6 +100,18 @@ class ReportTests(unittest.TestCase):
         for op, row, expected in cases:
             with self.subTest(op=op):
                 self.assertIs(notable({**CLEAN, **row}, op), expected)
+
+
+class BoundsTests(unittest.TestCase):
+    def test_a_refused_batch_says_which_limit_and_by_how_much(self):
+        bounds(1, "x")
+        bounds(MAX_OPS, "x" * MAX_LABEL)
+        for count, label, message in [(0, "walls", "1 to 128 operations; this one has 0"),
+                                      (129, "walls", "1 to 128 operations; this one has 129"),
+                                      (24, "x" * 101, "label is 101 characters; the limit is 100"),
+                                      (24, "   ", "Give the batch a label")]:
+            with self.subTest(count=count, label=label[:8]), self.assertRaisesRegex(ValueError, message):
+                bounds(count, label)
 
 
 class CopySchemaTests(unittest.TestCase):

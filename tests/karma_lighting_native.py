@@ -86,10 +86,23 @@ def accept():
     rgb = product.convert("RGB")
     corner, middle = rgb.getpixel((3, 3)), rgb.getpixel((rgb.width // 2, 3))
     assert max(corner) - min(corner) <= 3 and linear(middle[0]) > 1.5 * linear(corner[0]) > .02, (corner, middle)
+    # A white backdrop is laid in when the picture is developed: pure white where the grey one showed, with or
+    # without a tone curve, and the subject lit as before.
+    subject_box = (.3, .58, .7, .85)  # ground and the two shapes, clear of the ground's far edge
+    for tone in ("off", "agx"):
+        plain, _ = shot(f"studio, grey, tone {tone}", lighting="studio", tone=tone)
+        white, on_white = shot(f"studio, white, tone {tone}", lighting="studio", backdrop="white", tone=tone)
+        assert white["settings"]["backdrop"] == "white" and plain["settings"]["backdrop"] == "grey"
+        assert any("纯白底" in row for row in white["notes"]) and not any("纯白底" in row for row in plain["notes"])
+        for spot in ((3, 3), (on_white.width - 4, 3), (on_white.width // 2, 3)):
+            assert on_white.getpixel(spot) == (255, 255, 255, 255), (tone, spot, on_white.getpixel(spot))
+        with Image.open(plain["path"]) as grey:
+            before_white, after_white = patch_mean(grey, subject_box), patch_mean(on_white, subject_box)
+        assert abs(after_white - before_white) < .03 * before_white, (tone, before_white, after_white)
     assert sha(sample) == before
     pool.close()
     print("PASS lighting looks: lights added and turned off, camera-relative direction, exposure, fill, overcast "
-          "softness, night levels and kept lights, studio rig and backdrop:", seconds)
+          "softness, night levels and kept lights, studio rig, grey and white backdrop:", seconds)
 
 
 if __name__ == "__main__":
