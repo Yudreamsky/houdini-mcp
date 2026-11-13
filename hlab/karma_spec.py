@@ -31,7 +31,7 @@ LIGHTING = {
                      "照片里最亮的方向（多半是太阳）转到 light_angle 指定的位置；太阳的高度由照片决定，不能调。"},
 }
 CHOICES = {"engine": ("xpu", "cpu", "vantage"), "denoiser": ("off", "optix", "oidn"), "lighting": tuple(LIGHTING),
-           "tone": ("off", "agx", "agx_punchy"), "curves": ("rounded", "ribbons")}
+           "tone": ("off", "agx", "agx_punchy"), "curves": ("rounded", "ribbons"), "backdrop": ("grey", "white")}
 # How Karma draws curves, as its ROP's curve_style names them. Only Karma CPU honours it: XPU 20.5 renders the same
 # pixels for every style (measured on thick side-lit curves and on fine backlit fibres).
 CURVE_STYLES = {"rounded": "Rounded Curves", "ribbons": "Flat Ribbons"}
@@ -44,15 +44,17 @@ NUMBERS = {
     "light_angle": (float, -180., 180.), "light_elevation": (float, 0., 90.), "light_exposure": (float, -6., 6.),
     "light_fill": (float, -3., 3.), "round_edges": (float, 0., 100.), "exposure": (float, -6., 6.),
 }
-LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights", "hdri")
+LIGHT_CONTROLS = ("light_angle", "light_elevation", "light_exposure", "light_fill", "keep_scene_lights", "hdri",
+                  "backdrop")
 # Controls that take text: the meaning says what text.
 TEXTS = ("hdri",)
 HDRI_TYPES = (".exr", ".hdr")
 # Karma settings Chaos Vantage has no counterpart for: it renders every sample, always from MaterialX.
 KARMA_ONLY = ("time_limit", "diffuse_limit", "reflection_limit", "refraction_limit", "volume_limit", "sss_limit",
               "color_limit", "light_sampling_quality", "depth_of_field", "convert_materials", "tone", "exposure", "exr",
-              "curves")
-# Controls that make Karma write a linear EXR, which the worker then develops into the PNG.
+              "curves", "backdrop")
+# Controls that make Karma write a linear EXR, which the worker then develops into the PNG. A white backdrop does
+# too: it is laid behind the subject when the picture is developed.
 DEVELOPED = ("tone", "exposure", "exr")
 # Plain control name -> Karma ROP parameter. Resolution and the time limit are applied separately.
 PARMS = {
@@ -81,6 +83,8 @@ MEANING = {
     "light_elevation": "太阳、月亮或主光的高度角（度）；日景时越低越暖、影子越长",
     "light_exposure": "灯光预设整体加减曝光（档），+1 亮一倍，-1 暗一半",
     "light_fill": "补光相对主光加减（档）：日景、夜景是天光，摄影棚是辅光；-1 影子更暗、反差更大，+1 影子更亮、更柔；阴天不用",
+    "backdrop": "摄影棚的背景：grey 灰色背景，物体后面最亮（默认）；white 纯白底，像产品目录照片。白底在出图时垫到物体后面，"
+                "物体的受光和反射不变，色调曲线也只作用于物体；工程里的地面等物体仍会显示，要纯白请用 hide 隐藏，画面里没有落地阴影",
     "keep_scene_lights": "保留工程里的点光、聚光、面光等局部灯（夜景默认保留，其余默认关掉）；工程里的天空和太阳类灯总会被替换",
     "round_edges": "圆角半径（毫米），让棱边像真实物体一样有一点圆角、能接住高光；Karma 在着色时混合法线，Vantage 导出时真的倒角；0 不加",
     "curves": "曲线（毛发、绒毛、草叶的线）怎么渲，只有 engine = cpu 时有效：rounded 当成圆管（Karma 默认）；"
@@ -182,6 +186,8 @@ def settings(preset, changes=None, saved=None):
     if fixed:
         raise ValueError(f"{', '.join(fixed)}: an HDRI's sun height and sky are those of the photograph; "
                          "turn it with light_angle and brighten it with light_exposure")
+    if "backdrop" in chosen and look != "studio":
+        raise ValueError("backdrop only applies with lighting = studio; other looks show their own sky or photograph")
     if look == "overcast" and "light_fill" in chosen:
         raise ValueError("overcast light is all sky, with no key light to fill against; drop light_fill")
     if chosen.get("curves") == "ribbons" and chosen.get("engine") == "xpu":
@@ -213,6 +219,8 @@ def lighting(chosen):
     out["elevation"] = chosen.get("light_elevation", spec["elevation"])
     if look != "overcast":
         out["fill"] = chosen.get("light_fill", 0.)
+    if look == "studio":
+        out["backdrop"] = chosen.get("backdrop", "grey")
     return out
 
 
@@ -222,7 +230,8 @@ def look_settings(look):
         return {"lighting": "scene"}
     out = {"lighting": look["look"], "light_exposure": look["exposure"], "keep_scene_lights": look["keep_scene_lights"],
            "light_angle": look["angle"]}
-    for name, key in (("light_elevation", "elevation"), ("light_fill", "fill"), ("hdri", "hdri")):
+    for name, key in (("light_elevation", "elevation"), ("light_fill", "fill"), ("hdri", "hdri"),
+                      ("backdrop", "backdrop")):
         if key in look:
             out[name] = look[key]
     return out
@@ -287,7 +296,8 @@ def read_sequence_log(stdout, stderr=""):
 
 def developed(chosen):
     """Whether this render goes through a linear EXR."""
-    return chosen.get("tone", "off") != "off" or bool(chosen.get("exposure")) or bool(chosen.get("exr"))
+    return (chosen.get("tone", "off") != "off" or bool(chosen.get("exposure")) or bool(chosen.get("exr"))
+            or chosen.get("backdrop") == "white")
 
 
 def frames_saved(names, first, stderr="", kind="png"):

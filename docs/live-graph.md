@@ -37,7 +37,7 @@
 
 ## 编辑准入与撤销
 
-一批最多 128 项操作。成功后在 Houdini 的 Undo History 里出现 `MCP:` 加批次名称，按一次 Ctrl+Z 撤销该批次。失败会返回出错步骤并回滚。默认检查结果节点的 cook 错误。多人协作或人机轮流调参时，可在 `set` 中传 `expect`，由 MCP 核对预期旧值。改写有动画或引用的参数须显式传 `replace_expression=true`。删除已有节点时用 `allow_delete` 列出准确路径，本会话新建的节点可直接删除。
+一批 1 到 128 项操作，批次名称最多 100 个字符；超出时报错会说明是哪一项、实际多少、上限多少。成功后在 Houdini 的 Undo History 里出现 `MCP:` 加批次名称，按一次 Ctrl+Z 撤销该批次。失败会返回出错步骤并回滚。默认检查结果节点的 cook 错误。多人协作或人机轮流调参时，可在 `set` 中传 `expect`，由 MCP 核对预期旧值。改写有动画或引用的参数须显式传 `replace_expression=true`。删除已有节点时用 `allow_delete` 列出准确路径，本会话新建的节点可直接删除。
 
 Houdini 自带的类型（没有资产定义，或定义库在 `$HFS` 下）建节点时运行它的创建脚本，参数和手动新建的一样：相机有 `resx`、`resy`、`focal`、`aperture`、`projection`、`orthowidth`、`near`、`far`，几何物体有 `vm_` 渲染参数，可以在建它的同一批里直接设置。`create` 步骤的 `init_scripts` 说明是否运行了创建脚本（没有运行的才会列在默认返回里）。外部 HDA 仍不运行自己的脚本。
 

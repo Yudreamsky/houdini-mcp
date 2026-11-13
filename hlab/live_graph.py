@@ -11,7 +11,7 @@ from pathlib import Path
 
 import hou
 
-from .graph_report import summary
+from .graph_report import bounds, summary
 from .storage import home
 
 SESSION = uuid.uuid4().hex
@@ -394,8 +394,7 @@ def edit_one(batch, op, label, allow_delete):
 
 
 def edit(ops, label="graph_edit", allow_delete=(), require_clean=True, verbose=False):
-    if not 1<=len(ops)<=128 or not label.strip() or len(label)>100:
-        raise ValueError("Supply 1–128 operations and a short label")
+    bounds(len(ops), label)
     batch=Batch()
     results=[]
     step=0

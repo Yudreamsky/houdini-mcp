@@ -169,7 +169,9 @@ def apply(look, cam, rop, folder):
         write_hdr(sky, sky_rows)
     env.parm("env_map").set(str(sky).replace("\\", "/"))
     env.parm("light_exposure").set(look["exposure"])
-    env.parm("light_contribprimary").set(1)  # the sky is also the background
+    # The sky is also the background. A white backdrop is laid in when the picture is developed instead, so the
+    # camera must not see the grey one: it still lights the subject and shows in reflections.
+    env.parm("light_contribprimary").set(0 if look.get("backdrop") == "white" else 1)
     added.append(env.path())
     if rop is not None:  # an export for another renderer has no Karma ROP to update
         extend(rop, "excludelights", turned_off)
@@ -208,4 +210,7 @@ def notes(report):
     if look == "studio":
         rows.append(f"摄影棚的灯按全部几何体的范围摆放（半径约 {report['subject']['radius']:g}）；"
                     "有很大的地面时灯会离得远，但亮度不变。")
+        if report.get("backdrop") == "white":
+            rows.append("背景是出图时垫上的纯白底：物体的受光和反射不变，色调曲线只作用于物体。"
+                        "工程里的地面等物体仍会显示，要纯白请用 hide 隐藏；画面里没有落地阴影。")
     return rows
